@@ -1,0 +1,5 @@
+export(contLik)
+export(genDataset)
+export(getContrCombs)
+useDynLib(bayesdnamix)
+exportPattern("^[[:alpha:]]+")
