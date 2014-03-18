@@ -12,7 +12,7 @@ Description: bayesdnamix contains a procedure for evaluating marginal
     drop-out/drop-in probabilities.
 License: GPL(>=2)
 Depends:
-    R (>= 3.0.2),
+    R (>= 3.0.1),
     Rcpp (>= 0.10.6.1),
     RcppArmadillo (>= 0.3.920.3)
 LinkingTo: Rcpp, RcppArmadillo
