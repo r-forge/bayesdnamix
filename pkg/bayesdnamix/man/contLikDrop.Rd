@@ -1,11 +1,11 @@
-\name{contLik}
-\alias{contLik}
-\title{contLik}
+\name{contLikDrop}
+\alias{contLikDrop}
+\title{contLikDrop}
 \usage{
-  contLik(nC, mixData, popFreq, refData = NULL,
-    condOrder = NULL, model = 1, pTau = function(x) {
-        return(1) }, taumax = 100, maxeval = 10000,
-    threshT = 50, relaxq = 0.2)
+  contLikDrop(nC, mixData, popFreq, refData = NULL,
+    condOrder = NULL, prD = NULL, prC = NULL, model = 1,
+    pTau = function(x) {     return(1) }, taumax = 100,
+    maxeval = 10000, threshT = 50, relaxq = 0.2)
 }
 \arguments{
   \item{nC}{Number of contributors in model.}
@@ -28,6 +28,11 @@
   condOrder=(0,2,1,0) means that we restrict the model such
   that Ref2 and Ref3 are respectively conditioned as 2.
   contributor and 1. contributor in the model.}
+
+  \item{prD}{A vector of allele drop-out probabilities
+  (p_hom=p_het^2) for each contributors.}
+
+  \item{prC}{A numeric for allele drop-in probability.}
 
   \item{model}{A integer for specification of model. See
   details for more information.}
@@ -52,25 +57,26 @@
   given observed evidence.
 }
 \description{
-  contLik evaluates the marginal likelihood of the STR DNA
-  mixture given some assumed model by integrate out
-  parameters.
+  contLikDrop evaluates the marginal likelihood of the STR
+  DNA mixture given some assumed model by integrate out
+  parameters for given allele drop-out probability for each
+  contributors.
 }
 \details{
   The procedure are doing numerical integration to
   approximate the marginal probability by integrate over
   noisance parameters. Mixture proportions have flat prior.
 
+  The user may specify probability of drop-out for each
+  contributors.
+
   The peak heights are scaled between [0,1] such that the
   peak heights are not accounted for in the models.
 
-  6 Models implemented: Model 1: r ~ Normal(muij,tau) Model
-  2: log(r) ~ Normal(log(muij),tau) Model 3: r ~
-  Normal(muij,tau/muij) Model 4: r ~ Dirichlet(tau*mui)
-  Model 5: r ~ Normal+(muij,tau) Model 6: r ~
-  Normal(muij,eta/(muij^q)), q is relaxion parameter Model
-  7: r ~ Normal(muij,eta*muij + tau) Function calls
-  procedure in c++ by using the package Armadillo
+  Function calls procedure in c++ by using the package
+  Armadillo
+
+  Models: model={'0'-unit weights,'1'-mixsep}
 }
 \author{
   Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

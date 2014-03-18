@@ -2,7 +2,8 @@
 \alias{genDataset}
 \title{genDataset}
 \usage{
-  genDataset(nC, popFreq, mu = 10000, sd = 1000)
+  genDataset(nC, popFreq, mu = 10000, sd = 1000, PrD = 0,
+    sorted = FALSE)
 }
 \arguments{
   \item{nC}{Number of contributors in model.}
@@ -15,9 +16,15 @@
 
   \item{sd}{Standard deviation of peak heights for an
   allele of a contributor.}
+
+  \item{PrD}{Fixed Allele drop-out probability for each
+  contributors.}
+
+  \item{sorted}{Boolean for wheter sorting the contributors
+  with respect to decreasingly mixture proportions.}
 }
 \value{
-  List with elements trueMx,mixData,refData
+  List with elements Mx,mixData,refData
 }
 \description{
   genDataset samples a random mixture with Normal[+] peak

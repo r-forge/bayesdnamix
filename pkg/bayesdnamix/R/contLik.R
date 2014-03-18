@@ -6,6 +6,14 @@
 #' 
 #' The peak heights are scaled between [0,1] such that the peak heights are not accounted for in the models.
 #' 
+#' 6 Models implemented:
+#' Model 1: r ~ Normal(muij,tau)
+#' Model 2: log(r) ~ Normal(log(muij),tau)
+#' Model 3: r ~ Normal(muij,tau/muij)
+#' Model 4: r ~ Dirichlet(tau*mui)
+#' Model 5: r ~ Normal+(muij,tau)
+#' Model 6: r ~ Normal(muij,eta/(muij^q)), q is relaxion parameter
+#' Model 7: r ~ Normal(muij,eta*muij + tau)
 #' Function calls procedure in c++ by using the package Armadillo
 #'
 #' @param nC Number of contributors in model.
@@ -126,7 +134,7 @@ contLik = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,model=1,pTau=f
           if (length(anew) > 0) {
            mixData$adata[[i]] = c(mixData$adata[[i]],anew)
            mixData$hdata[[i]] = c(mixData$hdata[[i]],rep(threshT, length(anew)))
-           print(paste("WARNING: At locus ",locinames[i],", the allele(s) ", paste(anew, collapse = "/", sep = ""), " was added  with threshold height ", threshT, sep = ""))
+           #print(paste("WARNING: At locus ",locinames[i],", the allele(s) ", paste(anew, collapse = "/", sep = ""), " was added  with threshold height ", threshT, sep = ""))
           }
         }
      }

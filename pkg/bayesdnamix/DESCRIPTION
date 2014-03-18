@@ -1,11 +1,15 @@
 Package: bayesdnamix
 Type: Package
-Title: Procedure for evaluate marginal likelihood for quantitative STR DNA mixture models
-Version: 1.0
+Title: Procedure for evaluate marginal likelihood for quantitative STR DNA
+    mixture models
+Version: 0.2
 Date: 2014-03-10
 Author: Oyvind Bleka <Oyvind.bleka@fhi.no>
 Maintainer: Oyvind Bleka <Oyvind.bleka@fhi.no>
-Description: bayesdnamix contains a procedure for evaluating marginal likelihoods for quantitative bayesian models for STR DNA mixtures for general specifiactions of hypothesis.
+Description: bayesdnamix contains a procedure for evaluating marginal
+    likelihoods for quantitative bayesian models for STR DNA mixtures for
+    general specifiactions of hypothesis. It also allow for specification of
+    drop-out/drop-in probabilities.
 License: GPL(>=2)
 Depends:
     R (>= 3.0.2),
@@ -18,6 +22,6 @@ Suggests:
     cubature,gtools
 Collate:
     'contLik.R'
+    'contLikDrop.R'
     'genDataset.R'
     'getContrCombs.R'
-
