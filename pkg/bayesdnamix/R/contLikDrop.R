@@ -34,16 +34,20 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
 
  nA = unlist(lapply(mixData$adata,length)) #number of alleles of selected loci
  if(max(nA)>(2*nC)) {
-    msg <- paste('Max alleles in a locus is ',max(nA),'. You must specify a greater number of contributors',sep='')
-    stop(msg)
+  stop(paste('Max alleles in a locus is ',max(nA),'. You must specify a greater number of contributors',sep=''))
  }
-  
+ nL <- length(nA) #number of loci in data
+ locnames <- toupper(names(mixData$adata))
+ missind <- !locnames%in%toupper(names(popFreq))  #indice of missing loci
+ if(any(missind)) {
+  stop(paste('Missing locus (',locnames[missind],') in popFreq.',sep=''))
+ }
+
  #get population genotypes:
  getGlist <- function(popFreq) {
   locs <- names(popFreq)
-  nL <- length(locs)
   Glist <- list()
-  for(i in 1:nL) {
+  for(i in 1:length(locs)) {
    G = t(as.matrix(expand.grid(rep(list(as.numeric(names(popFreq[[i]])),as.numeric(names(popFreq[[i]])) ))))) #one genotype per column
    keep = G[2,]>=G[1,] #unique genotypes 
    G <- G[,keep]  #store genotypes
@@ -57,39 +61,54 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
   return(Glist)
  }
 
- #fix genotypes:
- Glist <- getGlist(popFreq) #get population genotype information
- Gprob <- lapply(Glist,function(x) return(x$Gprob))
- Gset <- lapply(Glist,function(x) return(x$G))
-
  #Fix references:
+ Glist <- getGlist(popFreq) #get population genotype information
  condM <- matrix(-1,nrow=nL,ncol=nC) #default is no references (=-1)
  #assign references to condM-matrix by values of Glist
  if(!is.null(refData) && !is.null(condOrder) && any(condOrder>0)) {
   for(i in 1:nL) {
-   for(k in 1:length(refData[[i]])) {
+   subRef <- refData[[locnames[i]]]
+   Gset <- Glist[[locnames[i]]]$G #genotype combinations
+   if(length(subRef)==0)  stop(paste('Missing locus (',locnames[i],') in refData.',sep=''))
+   for(k in 1:length(subRef)) { #for each reference
     if(condOrder[k]>0) {
-     Gind1 <- refData[[i]][[k]][1]==Gset[[i]][,1] & refData[[i]][[k]][2]==Gset[[i]][,2]
-     Gind2 <- refData[[i]][[k]][2]==Gset[[i]][,1] & refData[[i]][[k]][1]==Gset[[i]][,2]
+     Gind1 <- subRef[[k]][1]==Gset[,1] & subRef[[k]][2]==Gset[,2]
+     Gind2 <- subRef[[k]][2]==Gset[,1] & subRef[[k]][1]==Gset[,2]
      condM[i,condOrder[k]] = which(Gind1 | Gind2) - 1 #subtract with one since we work from 0-indice
     }
    }
   }
  }
 
+ #convertion of values in popFreq, mixData and Glist$G:
+ #loci-order follows as in mixData: "locnames". Rearrange names:
+ popFreq <- popFreq[locnames] #update order
+ for(i in 1:nL) {
+   anames <- names(popFreq[[i]]) #old names
+   anames2 <- 0:(length(popFreq[[i]])-1) #new names
+   names(popFreq[[i]]) <- anames2
+   for(j in 1:nA[i]) { #for each allele
+    mixData$adata[[i]][j] <- anames2[anames==mixData$adata[[i]][j]] #update name
+   }
+  }
+
+ #fix genotypes:
+ Glist <- getGlist(popFreq) #get population genotype information
+ Gprob <- lapply(Glist,function(x) return(x$Gprob))
+ Gset <- lapply(Glist,function(x) return(x$G))
+
+
  #Fix input-variables for C-function
  PE <- 1
- nA <- sapply(mixData$adata,length)
- nL <- length(nA)
  CnA <- c(0,cumsum(nA))
- allA <- unlist(mixData$adata)
- allY <- unlist(mixData$hdata)
+ allA <- as.integer(unlist(mixData$adata))
+ allY <- as.numeric(unlist(mixData$hdata))
  sY <- rep(1,nL) #we use scaled models
  nG <- sapply(Gprob,length) #number of genotype combinations
  CnG <- c(0,cumsum(nG))
  CnG2 <- c(0,cumsum(nG*2)) #note: 2 columns for each genotype!!
  pG <- unlist(Gprob) #vectorize over all loci
- Gvec <- rbind(unlist(Gset)) #vectorize a big matrix (loci are put chronologic)
+ Gvec <- as.integer(rbind(unlist(Gset))) #vectorize a big matrix (loci are put chronologic)
  condRef <- c(condM) #vectorized over all loci
  nAall <- sapply(popFreq,length) #Number of population-alleles on each loci
  CnAall <- c(0,cumsum(nAall)) #cumulative number of alleles
