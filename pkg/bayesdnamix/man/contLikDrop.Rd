@@ -3,7 +3,7 @@
 \title{contLikDrop}
 \usage{
   contLikDrop(nC, mixData, popFreq, refData = NULL,
-    condOrder = NULL, prD = NULL, prC = NULL, model = 1,
+    condOrder = NULL, prD = NULL, prC = 0, model = 1,
     pTau = function(x) {     return(1) }, taumax = 100,
     maxeval = 10000, threshT = 50, relaxq = 0.2)
 }

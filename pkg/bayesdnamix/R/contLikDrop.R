@@ -28,9 +28,9 @@
 #' @return lik Marginalized likelihood of the hypothesis (model) given observed evidence.
 #' @keywords continuous, Bayesian models
 
-contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,prC=NULL,model=1,pTau=function(x) { return(1)},taumax=100, maxeval=10000,threshT=50,relaxq=0.2){
+contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,prC=0,model=1,pTau=function(x) { return(1)},taumax=100, maxeval=10000,threshT=50,relaxq=0.2){
  require(cubature)
-
+ if(is.null(prD)) prD <- rep(0,nC) #no dropout are default
 
  nA = unlist(lapply(mixData$adata,length)) #number of alleles of selected loci
  if(max(nA)>(2*nC)) {
@@ -92,10 +92,13 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
  Gvec <- rbind(unlist(Gset)) #vectorize a big matrix (loci are put chronologic)
  condRef <- c(condM) #vectorized over all loci
  nAall <- sapply(popFreq,length) #Number of population-alleles on each loci
+ CnAall <- c(0,cumsum(nAall)) #cumulative number of alleles
+ pA <- unlist(popFreq) #need each allele probability for drop-in probabilities
  t0 <- threshT #peak height imputed threshold
 
+
  likYtheta <- function(theta) {   #call c++- function: length(theta)=nC
-  val <- .C("contlikdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(nAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(prD), as.integer(condRef),as.numeric(t0),PACKAGE="bayesdnamix")[[1]] #
+  val <- .C("contlikdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA),as.numeric(prD), as.numeric(prC), as.integer(condRef),as.numeric(t0),PACKAGE="bayesdnamix")[[1]]
   return(val*pTau(theta[nC]))
  }
 
