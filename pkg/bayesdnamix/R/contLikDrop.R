@@ -17,20 +17,22 @@
 #' @param popFreq A list of allele frequencies for a given population.
 #' @param refData Reference objects with list element [[s]]$adata[[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.
 #' @param condOrder Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model.
-#' @param prD A vector of allele drop-out probabilities (p_hom=p_het^2) for each contributors.
-#' @param prC A numeric for allele drop-in probability.
+#' @param prD A vector of allele drop-out probabilities (p_hom=p_het^2) for each contributors. Default is 0.
+#' @param prC A numeric for allele drop-in probability. Default is 0.
 #' @param model A integer for specification of model. See details for more information.
 #' @param pTau Prior function for tau-parameter. Flat prior is default.
 #' @param taumax Maximum range of tau-parameter. Default is 100.
 #' @param maxeval Maxumum number of evaluations in the interale function.
 #' @param threshT The analytical threshold given. Used when considering allele drop-outs.
-#' @param relaxq A parameter for model 6 which allows for relaxation of variance.
+#' @param fst is the coancestry coeffecient. Default is 0.
 #' @return lik Marginalized likelihood of the hypothesis (model) given observed evidence.
 #' @keywords continuous, Bayesian models
 
-contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,prC=0,model=1,pTau=function(x) { return(1)},taumax=100, maxeval=10000,threshT=50,relaxq=0.2){
+contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,prC=0,model=1,pTau=function(x) { return(1)},taumax=100, maxeval=10000,threshT=50,fst=0){
  require(cubature)
  if(is.null(prD)) prD <- rep(0,nC) #no dropout are default
+ #call on the simpler function if all 
+ if(all(c(prD,prC,fst)==0)) contLik(nC,mixData,popFreq,refData,condOrder,model,pTau,taumax, maxeval,threshT)
 
  nA = unlist(lapply(mixData$adata,length)) #number of alleles of selected loci
  if(max(nA)>(2*nC)) {
@@ -80,6 +82,22 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
   }
  }
 
+ #fix known sample-information:
+ mkvec <- numeric()
+ nkval <- rep(0,nL)
+ for(i in 1:nL) {
+  tmp <- rep(0, length(popFreq[[i]]))
+# for(k in 1:length(condOrder)) {
+#  if(condOrder[k]>0) {
+#   ind <- as.integer(Ref[[i]][[k]])+1
+#   tmp[ind] = (ind[1]==ind[2]) + 1
+#  }
+# }
+  nkval[i] <- sum(tmp>0) #number of sampled (for each loci)
+  mkvec <- c(mkvec,tmp) 
+ }
+
+
  #convertion of values in popFreq, mixData and Glist$G:
  #loci-order follows as in mixData: "locnames". Rearrange names:
  popFreq <- popFreq[locnames] #update order
@@ -117,7 +135,7 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
 
 
  likYtheta <- function(theta) {   #call c++- function: length(theta)=nC
-  val <- .C("contlikdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA),as.numeric(prD), as.numeric(prC), as.integer(condRef),as.numeric(t0),PACKAGE="bayesdnamix")[[1]]
+  val <- .C("contlikdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA),as.numeric(prD), as.numeric(prC), as.integer(condRef),as.numeric(t0), as.numeric(fst),as.integer(mkvec),as.integer(nkval),PACKAGE="bayesdnamix")[[1]]
   return(val*pTau(theta[nC]))
  }
 
@@ -125,7 +143,7 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
  if(model==0) { #binary model contains 0 paramaters.
   pTau=function(x) { return(1)} #be sure of no scaling
   lik <- likYtheta(c(rep(1,nC))) #just send a default value ones
- } else if(model<=5) { #C param
+ } else { #C param
   lik <- adaptIntegrate(likYtheta, lowerLimit = rep(0,nC), upperLimit = c(rep(1,nC-1),taumax),maxEval = maxeval )[[1]]
  }
  return(lik)

@@ -64,13 +64,8 @@
   The peak heights are scaled between [0,1] such that the
   peak heights are not accounted for in the models.
 
-  6 Models implemented: Model 1: r ~ Normal(muij,tau) Model
-  2: log(r) ~ Normal(log(muij),tau) Model 3: r ~
-  Normal(muij,tau/muij) Model 4: r ~ Dirichlet(tau*mui)
-  Model 5: r ~ Normal+(muij,tau) Model 6: r ~
-  Normal(muij,eta/(muij^q)), q is relaxion parameter Model
-  7: r ~ Normal(muij,eta*muij + tau) Function calls
-  procedure in c++ by using the package Armadillo
+  Function calls procedure in c++ by using the package
+  Armadillo
 }
 \author{
   Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

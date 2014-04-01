@@ -5,7 +5,7 @@
   contLikDrop(nC, mixData, popFreq, refData = NULL,
     condOrder = NULL, prD = NULL, prC = 0, model = 1,
     pTau = function(x) {     return(1) }, taumax = 100,
-    maxeval = 10000, threshT = 50, relaxq = 0.2)
+    maxeval = 10000, threshT = 50, fst = 0)
 }
 \arguments{
   \item{nC}{Number of contributors in model.}
@@ -30,9 +30,10 @@
   contributor and 1. contributor in the model.}
 
   \item{prD}{A vector of allele drop-out probabilities
-  (p_hom=p_het^2) for each contributors.}
+  (p_hom=p_het^2) for each contributors. Default is 0.}
 
-  \item{prC}{A numeric for allele drop-in probability.}
+  \item{prC}{A numeric for allele drop-in probability.
+  Default is 0.}
 
   \item{model}{A integer for specification of model. See
   details for more information.}
@@ -49,8 +50,7 @@
   \item{threshT}{The analytical threshold given. Used when
   considering allele drop-outs.}
 
-  \item{relaxq}{A parameter for model 6 which allows for
-  relaxation of variance.}
+  \item{fst}{is the coancestry coeffecient. Default is 0.}
 }
 \value{
   lik Marginalized likelihood of the hypothesis (model)

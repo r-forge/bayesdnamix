@@ -6,14 +6,6 @@
 #' 
 #' The peak heights are scaled between [0,1] such that the peak heights are not accounted for in the models.
 #' 
-#' 6 Models implemented:
-#' Model 1: r ~ Normal(muij,tau)
-#' Model 2: log(r) ~ Normal(log(muij),tau)
-#' Model 3: r ~ Normal(muij,tau/muij)
-#' Model 4: r ~ Dirichlet(tau*mui)
-#' Model 5: r ~ Normal+(muij,tau)
-#' Model 6: r ~ Normal(muij,eta/(muij^q)), q is relaxion parameter
-#' Model 7: r ~ Normal(muij,eta*muij + tau)
 #' Function calls procedure in c++ by using the package Armadillo
 #'
 #' @param nC Number of contributors in model.
@@ -186,13 +178,21 @@ contLik = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,model=1,pTau=f
   val <- .C("contlikC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.integer(nQi),as.numeric(pG),as.integer(CnQ),as.numeric(allY), as.integer(CnA),as.numeric(allX),as.integer(cdfX), as.numeric(sY),PACKAGE="bayesdnamix")[[1]]
   return(val*pTau(theta[nC]))
  }
- if(model<=5) { #C param
-  lik <- adaptIntegrate(likYtheta, lowerLimit = rep(0,nC), upperLimit = c(rep(1,nC-1),taumax),maxEval = maxeval )[[1]]
- }
+
 # if(model==6) { #q=0.2 used as default
 #  wrapperM6 <- function(th) likYtheta(c(th[1:nC-1],relaxq,th[nC]))
 #  lik<- adaptIntegrate(wrapperM6, lowerLimit = rep(0,nC), upperLimit = c(rep(1,nC-1),taumax),maxEval = maxeval )[[1]]
 # }
+
+ #END taken from deconvolve()
+ if(model==0) { #binary model contains 0 paramaters.
+  pTau=function(x) { return(1)} #be sure of no scaling
+  lik <- likYtheta(c(rep(1,nC))) #just send a default value ones
+ } else { #C param
+  lik <- adaptIntegrate(likYtheta, lowerLimit = rep(0,nC), upperLimit = c(rep(1,nC-1),taumax),maxEval = maxeval )[[1]]
+ }
+
+
  return(lik)
 }
 
