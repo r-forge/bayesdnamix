@@ -16,7 +16,7 @@
 #' @param mixData Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.
 #' @param popFreq A list of allele frequencies for a given population.
 #' @param refData Reference objects with list element [[s]]$adata[[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.
-#' @param condOrder Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model.
+#' @param condOrder Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!
 #' @param prD A vector of allele drop-out probabilities (p_hom=p_het^2) for each contributors. Default is 0.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
 #' @param model A integer for specification of model. See details for more information.
@@ -45,6 +45,11 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
   stop(paste('Missing locus (',locnames[missind],') in popFreq.',sep=''))
  }
 
+ #convertion of values in popFreq, mixData and Glist$G:
+ #loci-order follows as in mixData: "locnames". Rearrange names:
+ names(popFreq) <- toupper(names((popFreq))) #make invariant to capital
+ popFreq <- popFreq[locnames] #order popFreq to mixData-order
+
  #get population genotypes:
  getGlist <- function(popFreq) {
   locs <- names(popFreq)
@@ -63,7 +68,7 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
   return(Glist)
  }
 
- #Fix references:
+ #Fix references: Assign condition to condM-matrix
  Glist <- getGlist(popFreq) #get population genotype information
  condM <- matrix(-1,nrow=nL,ncol=nC) #default is no references (=-1)
  #assign references to condM-matrix by values of Glist
@@ -87,20 +92,18 @@ contLikDrop = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,prD=NULL,p
  nkval <- rep(0,nL)
  for(i in 1:nL) {
   tmp <- rep(0, length(popFreq[[i]]))
-# for(k in 1:length(condOrder)) {
-#  if(condOrder[k]>0) {
-#   ind <- as.integer(Ref[[i]][[k]])+1
-#   tmp[ind] = (ind[1]==ind[2]) + 1
-#  }
-# }
-  nkval[i] <- sum(tmp>0) #number of sampled (for each loci)
+  if(!is.null(condOrder) & !is.null(refData)) {
+   for(k in 1:length(condOrder)) {
+    if(condOrder[k]!=0) { 
+     ind <- which( names(popFreq[[i]])%in%refData[[locnames[i]]][[k]] )
+     tmp[ind] = (length(ind)==1) + 1
+    }
+   }
+  }
+  nkval[i] <- sum(tmp) #number of sampled (for each loci)
   mkvec <- c(mkvec,tmp) 
  }
 
-
- #convertion of values in popFreq, mixData and Glist$G:
- #loci-order follows as in mixData: "locnames". Rearrange names:
- popFreq <- popFreq[locnames] #update order
  for(i in 1:nL) {
    anames <- names(popFreq[[i]]) #old names
    anames2 <- 0:(length(popFreq[[i]])-1) #new names
