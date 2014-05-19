@@ -1,9 +1,9 @@
 Package: bayesdnamix
 Type: Package
 Title: Procedure for evaluate marginal likelihood for quantitative STR DNA
-    mixture models
-Version: 0.3.1
-Date: 2014-18-05
+    mixture bayesian models
+Version: 0.3.2
+Date: 2014-19-05
 Author: Oyvind Bleka <Oyvind.bleka@fhi.no>
 Maintainer: Oyvind Bleka <Oyvind.bleka@fhi.no>
 Description: bayesdnamix contains a procedure for evaluating marginal
@@ -13,7 +13,7 @@ Description: bayesdnamix contains a procedure for evaluating marginal
 License: GPL(>=2)
 Depends:
     R (>= 3.0.1),
-LinkingTo: Rcpp, RcppArmadillo
+LinkingTo: Rcpp, RcppArmadillo, RcppGSL
 Imports:
     cubature,gtools
 Suggests:

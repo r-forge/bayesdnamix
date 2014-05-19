@@ -6,6 +6,8 @@
 #include <cmath>
 #include <stdio.h>
 #include <RcppArmadillo.h> //require RcppArmadillopackage and Namespaced defined
+#include <RcppGSL.h> //require RcppArmadillopackage and Namespaced defined
+//#include <gsl/gsl_sf_gamma.h> //required for cdf of gamma
 //#include <armadillo> 
 using namespace std;
 using namespace arma;
@@ -37,22 +39,7 @@ const double PIVAL = std::acos(0.0)*2;
  //Y will be a N height vector (static), X is a (NxC) contribution matrix (dynamic), Z is a N vector which colSums X (this is required to quickly know what alleles are relevant in calculation).
 
 
-
-//helpfunction for logged lower incomplete gamma function
-double logincgamma (double x, double a){
- double sum=0;
- double term=1.0/a;
- int n=1;
- while (term != 0){
-  sum = sum + term;
-  term = term*(x/(a+n));
-  n++;
- }
- return a*log(x)-x + log(sum);
-//return pow(x,a)*exp(-1*x)*sum;
-}
-
-class recurseClass { //recurse-class for each loci
+class recurseClassDrop { //recurse-class for each loci
  public: 
   //input:
   int *model; //number of contr
@@ -202,7 +189,7 @@ class recurseClass { //recurse-class for each loci
    //return;
   } //end recursive function
 
-  recurseClass(int *mod, double *pC, double *pD, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, double *sY,double *tau ,double *t0, double *fstin, int *mkvector, int *nkvalue) {
+  recurseClassDrop(int *mod, double *pC, double *pD, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, double *sY,double *tau ,double *t0, double *fstin, int *mkvector, int *nkvalue) {
    nC = C; //copy pointer to number of contributors
    nAi = nA; //copy pointer to number of alleles in evidence
    nAalli = nAall; //copy pointer to number of alleles in population
@@ -254,6 +241,7 @@ class recurseClass { //recurse-class for each loci
    delete Xij;
   } //end constructor
 }; //end recursiveClass
+
 
 
 class recurseClassStutter { //recurse-class for each loci
@@ -356,20 +344,30 @@ class recurseClassStutter { //recurse-class for each loci
       Xijtmp.rows(psiRtoS) = Xijtmp.rows(psiRfromS); //insert relevant stutter-contributors
       mui = sYi/2*( (1-xi)*(*Xij) + xi*Xijtmp )*(*mvec); //mean peak height of model (contributed means only)
       //model-parameter finished
-     } //else { //no stutter ratio
+     } else { //no stutter ratio
       mui = sYi/2*( (*Xij)*(*mvec) ); //mean peak height of model
-//     }
-     //find different subsets:
-     psiYmu = find( (*Yi>0 + mui>0)==2 ); //Indices for modelled alleles
-     psiDO = find( ((*Yi==0) + *Zi>0)==2 ); //Indices for dropped out alleles
-     psiDI = find( (*Yi>0 + (mui==0))==2 ); //Indices for dropped in alleles
+     }
+     psiYmu = find( ((*Yi>0) + (mui>0))==2 ); //Indices for modelled alleles
+     psiDO = find( ((*Yi==0) + (*Zi>0))==2 ); //Indices for dropped out alleles
+     psiDI = find( ((*Yi>0) + (mui==0))==2 ); //Indices for dropped in alleles
 
+/*     printf("Xmatrix:\n");
+     Xij->print();
+     printf("Expectation:\n");
+     trans(mui).print();
+     printf("Relevant positions:\n");
+     trans(psiYmu).print();
+     printf("Dropout positions:\n");
+     trans(psiDO).print();
+     printf("Dropin positions:\n");
+     trans(psiDI).print();
+*/
      //calculate dropin:
      if(*prC>0) { //only if drop-in probability is >0. 
       if(psiDI.n_elem>0) {
         pDprod = 1;
-        for(l2=0; l2<psiDI.n_elem; l2++) {
-         pDprod *= (*prC)*(pAvec->at( psiDI.at(l2) )); //multiply with allele probability
+        for(l=0; l<psiDI.n_elem; l++) {
+         pDprod *= (*prC)*(pAvec->at( psiDI.at(l) )); //multiply with allele probability
         }
       } else { //if no dropin found
        pDprod = (1-*prC); //scale with probability of not dropping in
@@ -381,27 +379,31 @@ class recurseClassStutter { //recurse-class for each loci
      if(*model==1) { //normal density function
       ri = Yi->elem(psiYmu) - mui.elem(psiYmu); //residual is a vector
       Di = dot(ri,ri)/tau; //FASTEST!! 
-      lik = -0.5*Di - psiYmu.n_elem*log(konstant); //likelihood of model
+      lik = - 0.5*psiYmu.n_elem*log(konstant) - 0.5*Di ; //likelihood of model
       //consider drop-out elements (psiD)
       if(psiDO.n_elem>0) { //there are drop.out elements (i.e. contributing genos gives peak 0)
-       for(l2=0;l2<psiDO.n_elem;l2++) { //for each dropped out alleles (erf only takes elements)
-        Di = (*t0) - mui.at( psiDO.at(l2) ); //take out correct mui
-        Di = (1+std::tr1::erf(Di/sqrt(2*tau)))/2; //calculate cumulate probability
+       for(l=0;l<psiDO.n_elem;l++) { //for each dropped out alleles (erf only takes elements)
+        Di = (*t0) - mui.at( psiDO.at(l) ); //take out correct mui
+        Di = (1+std::erf(Di/sqrt(2*tau)))/2; //calculate cumulate probability
         lik = lik + log(Di); //add log-probability
        }
       } //end dropout
 
      } else if(*model==2) { //gamma density function
       Ytmp = Yi->elem(psiYmu); //take out relevant peak heights
-      lik = - konstant*sum( mui.elem(psiYmu) )*konstant2 + sum(mui*log(Ytmp))*konstant2 - sum(log(Ytmp)) - sum(Ytmp)*konstant2; 
-      for(l2=0;l2<psiYmu.n_elem;l2++) { //for each alleles in non-dropped out allees
-       lik = lik - std::tr1::lgamma(mui.at(psiYmu.at(l2))*konstant2); //add last expression in sum 
+      mutmp = mui.elem(psiYmu); 
+      lik = dot(mutmp,log(Ytmp))*konstant2- konstant*sum(mutmp)*konstant2  - sum(log(Ytmp)) - sum(Ytmp)*konstant2; 
+      for(l=0;l<psiYmu.n_elem;l++) { //for each alleles in non-dropped out allees
+       lik = lik - std::lgamma(mui.at(psiYmu.at(l))*konstant2); //add last expression in sum 
       }
+//      printf("lik=%f\n",lik);
       //consider drop-out elements (psiD)
       if(psiDO.n_elem>0) { //there are drop.out elements (i.e. contributing genos gives peak 0)
-       for(l2=0;l2<psiDO.n_elem;l2++) { //for each dropped out alleles (erf only takes elements)
-        Di = logincgamma(mui.at(psiDO.at(l2))*konstant2,(*t0)*konstant2) - std::tr1::lgamma(mui.at(psiDO.at(l2))*konstant2);
-        lik = lik + log(Di); //add log-probability
+       for(l=0;l<psiDO.n_elem;l++) { //for each dropped out alleles (erf only takes elements)
+        Di = mui.at(psiDO.at(l)); 
+        Di = gsl_sf_gamma_inc_P(Di*konstant2,(*t0)*konstant2);
+//        printf("dropout=%f\n",Di);
+        lik = lik + log(Di);// - std::lgamma(mui.at(psiDO.at(l))*konstant2); //add log-probability
        }
       } //end dropout
      } //end model
@@ -445,8 +447,8 @@ class recurseClassStutter { //recurse-class for each loci
    t0 = t0in;//copy pointer to threshold
 
    if(*model==1) { //normal
-    tau = tau*sYi; //weighted by sum of peak heights
-    konstant = sqrt(2*PIVAL*tau);
+    tau = tau*sYi;//*sYi; //weighted by sum of peak heights
+    konstant = 2*PIVAL*tau;
    } else if(*model==2) { //gamma
     konstant = log(tau);
     konstant2 = 1/tau;
@@ -487,7 +489,7 @@ class recurseClassStutter { //recurse-class for each loci
    delete Zi;
    delete Xij;
   } //end constructor
-}; //end recursiveClassStutter
+}; //end recursiveClass
 
 
 extern "C" {
@@ -586,7 +588,7 @@ void contlikdropC(double *PE, double *theta, int *model, int *nC, int *nL, int *
 
  //for each loci we need to run the recursion:
  for(i=0; i<*nL; i++) { 
-   recurseClass *rec = new recurseClass(model, pC, pDvec, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &sY[i], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i]); //create object of recursion
+   recurseClassDrop *rec = new recurseClassDrop(model, pC, pDvec, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &sY[i], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i]); //create object of recursion
    *PE = (*PE)*(rec->bigsum);
    delete rec;
   }//end for each loci i:
