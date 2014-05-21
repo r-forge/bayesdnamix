@@ -136,17 +136,10 @@ class recurseClassDrop { //recurse-class for each loci
        pDprod *= pDprodTmp;  //if droped allele (get probability for no dropout) 
       } 
      } //end for each allele-elements
-     //1b) find info of non-contributing alleles (C) drop-in
-     //drop-in heights are considered as artifacts (not peak height modeled)
-//       printf("Z:\n");
-//       trans(*Zi).print();
      if(*prC>0) { //only if drop-in probability is >0. 
       pAprod = 1;
-//      printf("\n");
- //     trans(psiR).print();
       for(l=0; l<*nAi; l++) { //check each allele
        nondrop = sum(psiR==Ai->at(l)); //check whether allele are drop-in (dropin=0,no dropin=1)
-//       printf("nondrop=%d\t",nondrop);
        if(!nondrop) { //if dropin
         pAprod *= (*prC)*(pAvec->at( Ai->at(l) )); //multiply with allele probability
        }
@@ -243,7 +236,6 @@ class recurseClassDrop { //recurse-class for each loci
 }; //end recursiveClass
 
 
-
 class recurseClassStutter { //recurse-class for each loci
  public: 
   //input:
@@ -308,7 +300,7 @@ class recurseClassStutter { //recurse-class for each loci
    for(j=0; j<*nGi; j++) { //for each loci we need to run recursion on each combination
     if( (condVec.at(k))>=0 ) { j = condVec.at(k); } //Known genotype: insert static combination 
     Zi->elem((Gset->row(j))) += 1; //update values in Zi. Updates twice if homozygote.
-    if(k==(*nC-1) && *prC==0) { //if in last contributor and dropin-probability is zero -> no necessary evaluation
+    if(k==(*nC-1) && *prC==0 && xi==0) { //if in last contributor, dropin-probability and stutterratio is zero -> no eval
      if(sum((Zi->elem(*Ai))==0) >0) { //still missing allele contributor in evidence: not valid combinations 
       Zi->elem((Gset->row(j))) -= 1; //update values in Zi
       continue; //continoue loop with j++
@@ -335,15 +327,17 @@ class recurseClassStutter { //recurse-class for each loci
       psiR = find(*Zi>0); //Indices for contributing alleles. checks those non-zero
       psitmp = Abpind->elem(psiR); //take out bp of contributing alleles.
       psiBP = find(psitmp>0); //indices relevant to stutter
-      psiRtoS = psitmp.elem(psiBP)-1; //find indices which may be stuttered to. Adjust index (starting from 0)
-      psiRfromS = psiR.elem(psiBP); //find indices which may be stuttered from
-
-      //fix stutter-contributor-X:
-      Xijtmp = *Xij;
-      Xijtmp.zeros();
-      Xijtmp.rows(psiRtoS) = Xijtmp.rows(psiRfromS); //insert relevant stutter-contributors
-      mui = sYi/2*( (1-xi)*((*Xij)*(*mvec)) + xi*(Xijtmp*(*mvec)) ); //mean peak height of model (contributed means only)
-      //model-parameter finished
+      if(psiBP.n_elem>0) {
+       psiRtoS = psitmp.elem(psiBP)-1; //find indices which may be stuttered to. Adjust index (starting from 0)
+       psiRfromS = psiR.elem(psiBP); //find indices which may be stuttered from
+       //fix stutter-contributor-X:
+       Xijtmp = *Xij;
+       Xijtmp.zeros();
+       Xijtmp.rows(psiRtoS) = Xij->rows(psiRfromS); //insert relevant stutter-contributors
+       mui = sYi/2*( (1-xi)*((*Xij)*(*mvec)) + xi*(Xijtmp*(*mvec))  ); //mean peak height of model (contributed means only)
+      } else { //if none in stutter-position
+       mui = sYi/2*( (1-xi)*((*Xij)*(*mvec)) ); //mean peak height of model (contributed means only)
+      }
      } else { //no stutter ratio
       mui = sYi/2*( (*Xij)*(*mvec) ); //mean peak height of model
      }
@@ -351,62 +345,50 @@ class recurseClassStutter { //recurse-class for each loci
      psiDO = find( ((*Yi==0) + (*Zi>0))==2 ); //Indices for dropped out alleles
      psiDI = find( ((*Yi>0) + (mui==0))==2 ); //Indices for dropped in alleles
 
-//     Xij->print("Xmatrix:");
-//     trans(mui).print("Expectation:");
-//     trans(psiYmu).print("Relevant positions:");
-//     trans(psiDO).print("Dropout positions:");
-//     trans(psiDI).print("Dropin positions:");
-
-     //calculate dropin:
+	 //calculate dropin:
      if(*prC>0) { //only if drop-in probability is >0. 
-      if(psiDI.n_elem>0) {
-        pDprod = 1;
-        for(l2=0; l2<psiDI.n_elem; l2++) {
-         pDprod *= (*prC)*(pAvec->at( psiDI.at(l2) )); //multiply with allele probability
-        }
+      if(psiDI.n_elem>0) {        
+       pDprod = prod( (*prC)*(pAvec->elem(psiDI))) ; //multiply with allele probability
       } else { //if no dropin found
        pDprod = (1-*prC); //scale with probability of not dropping in
       }
      } //end if drop-in probability given
 
-     //Step 2) calculating log-likelihood of models
-     lik = 0; //binary model is default
-     if(*model==1) { //normal density function
-      ri = Yi->elem(psiYmu) - mui.elem(psiYmu); //residual is a vector
-      Di = dot(ri,ri)/tau; //FASTEST!! 
-      lik = - 0.5*psiYmu.n_elem*log(konstant) - 0.5*Di ; //likelihood of model
-      //consider drop-out elements (psiD)
-      if(psiDO.n_elem>0) { //there are drop.out elements (i.e. contributing genos gives peak 0)
-       for(l2=0;l2<psiDO.n_elem;l2++) { //for each dropped out alleles (erf only takes elements)
-        Di = (*t0) - mui.at( psiDO.at(l2) ); //take out correct mui
-        Di = (1+std::tr1::erf(Di/sqrt(2*tau)))/2; //calculate cumulate probability
-        lik = lik + log(Di); //add log-probability
+     if(*prC>0 || psiDI.n_elem==0) { //if possible for dropin or no drop-in given
+      //Step 2) calculating log-likelihood of models
+      lik = 0; //binary model is default
+      if(*model==1) { //normal density function
+       ri = Yi->elem(psiYmu) - mui.elem(psiYmu); //residual is a vector
+       Di = dot(ri,ri)/tau; //FASTEST!! 
+       lik = - 0.5*psiYmu.n_elem*log(konstant) - 0.5*Di ; //likelihood of model
+       //consider drop-out elements (psiD)
+       if(psiDO.n_elem>0) { //there are drop.out elements (i.e. contributing genos gives peak 0)
+        for(l2=0;l2<psiDO.n_elem;l2++) { //for each dropped out alleles (erf only takes elements)
+         Di = (*t0) - mui.at( psiDO.at(l2) ); //take out correct mui
+         Di = (1+std::tr1::erf(Di/sqrt(2*tau)))/2; //calculate cumulate probability
+         lik = lik + log(Di); //add log-probability
+        }
+       } //end dropout
+      } else if(*model==2) { //gamma density function
+       Ytmp = Yi->elem(psiYmu); //take out relevant peak heights
+       mutmp = mui.elem(psiYmu); 
+       lik = dot(mutmp,log(Ytmp))*konstant2- konstant*sum(mutmp)*konstant2  - sum(log(Ytmp)) - sum(Ytmp)*konstant2; 
+       for(l2=0;l2<psiYmu.n_elem;l2++) { //for each alleles in non-dropped out allees
+        lik = lik - std::tr1::lgamma(mui.at(psiYmu.at(l2))*konstant2); //add last expression in sum 
        }
-      } //end dropout
-
-     } else if(*model==2) { //gamma density function
-      Ytmp = Yi->elem(psiYmu); //take out relevant peak heights
-      mutmp = mui.elem(psiYmu); 
-      lik = dot(mutmp,log(Ytmp))*konstant2- konstant*sum(mutmp)*konstant2  - sum(log(Ytmp)) - sum(Ytmp)*konstant2; 
-      for(l2=0;l2<psiYmu.n_elem;l2++) { //for each alleles in non-dropped out allees
-       lik = lik - std::tr1::lgamma(mui.at(psiYmu.at(l2))*konstant2); //add last expression in sum 
-      }
-//      printf("lik=%f\n",lik);
-      //consider drop-out elements (psiD)
-      if(psiDO.n_elem>0) { //there are drop.out elements (i.e. contributing genos gives peak 0)
-       for(l2=0;l2<psiDO.n_elem;l2++) { //for each dropped out alleles (erf only takes elements)
-        Di = mui.at(psiDO.at(l2)); 
-		Di = gamma_p(Di*konstant2,(*t0)*konstant2);
-        //printf("dropout=%f\n",log(Di));
-        lik = lik + log(Di);
-       }
-      } //end dropout
-     } //end model
-     bigsum += exp(lik)*pGprod*pDprod; //# multiply with dropout-prob and genotype prob
+       if(psiDO.n_elem>0) { //there are drop.out elements (i.e. contributing genos gives peak 0)
+        for(l2=0;l2<psiDO.n_elem;l2++) { //for each dropped out alleles (erf only takes elements)
+         Di = mui.at(psiDO.at(l2)); 
+     	 Di = gamma_p(Di*konstant2,(*t0)*konstant2);
+         lik = lik + log(Di);// - std::lgamma(mui.at(psiDO.at(l))*konstant2); //add log-probability
+        }
+       } //end dropout
+      } //end model
+      bigsum += exp(lik)*pGprod*pDprod; //# multiply with dropout-prob and genotype prob
+     } //end possible combination
     } else { //IF NOT IN LAST CONTRIBUTOR
      recUpdateXM1(k+1); //recurse to next contributor if not in last
     }
-
     //reversing:
     Xij->elem((Gset->row(j) + k*(*nAalli))) -= 1; //update elements in Xij-matrix
     Zi->elem((Gset->row(j))) -= 1; //update values in Zi. Updates twice if homozygote.
@@ -484,7 +466,8 @@ class recurseClassStutter { //recurse-class for each loci
    delete Zi;
    delete Xij;
   } //end constructor
-}; //end recursiveClass
+}; //end recursiveClassStutter
+
 
 
 extern "C" {

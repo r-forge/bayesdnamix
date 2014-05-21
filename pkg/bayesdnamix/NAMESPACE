@@ -1,5 +1,6 @@
 export(contLik)
 export(contLikDrop)
+export(contLikStutter)
 export(genDataset)
 export(getContrCombs)
 useDynLib(bayesdnamix)
