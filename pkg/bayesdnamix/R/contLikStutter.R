@@ -31,9 +31,6 @@
 contLikStutter = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC=0,model=1,pTau=function(x) { return(1)},taumax=100, maxeval=5000,threshT=50,fst=0){
  require(cubature)
  nA = unlist(lapply(mixData$adata,length)) #number of alleles of selected loci
- if(max(nA)>(2*nC)) {
-  stop(paste('Max alleles in a locus is ',max(nA),'. You must specify a greater number of contributors',sep=''))
- }
  nL <- length(nA) #number of loci in data
  locnames <- toupper(names(mixData$adata))
  missind <- !locnames%in%toupper(names(popFreq))  #indice of missing loci
