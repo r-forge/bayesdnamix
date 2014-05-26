@@ -460,7 +460,8 @@ class recurseClassStutter { //recurse-class for each loci
    delete pGvec;
    delete pAvec;
    delete mkvec;
-
+   delete Abpind;
+   
    delete pGenotmp;
    delete Yi;
    delete Zi;
