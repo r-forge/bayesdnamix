@@ -4,8 +4,9 @@
 \title{contLikStutter}
 \usage{
 contLikStutter(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  xi = NULL, prC = 0, model = 1, pTau = function(x) {     return(1) },
-  taumax = 100, maxeval = 5000, threshT = 50, fst = 0)
+  xi = NULL, prC = 0, model = 2, pTau = function(x) {     return(1) },
+  taumax = 100, maxeval = 5000, threshT = 50, fst = 0, lambda = 0,
+  pXi = function(x) {     return(1) })
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -33,6 +34,10 @@ contLikStutter(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 \item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
 
 \item{fst}{is the coancestry coeffecient. Default is 0.}
+
+\item{lambda}{Parameter in modeled peak height shifted exponential model. Default is 0.}
+
+\item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
 }
 \value{
 lik Marginalized likelihood of the hypothesis (model) given observed evidence.

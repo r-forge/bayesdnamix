@@ -25,10 +25,12 @@
 #' @param maxeval Maxumum number of evaluations in the interale function. Default is 5000.
 #' @param threshT The detection threshold given. Used when considering probability of allele drop-outs.
 #' @param fst is the coancestry coeffecient. Default is 0.
+#' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
+#' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
 #' @return lik Marginalized likelihood of the hypothesis (model) given observed evidence.
 #' @keywords continuous, Bayesian models
 
-contLikStutter = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC=0,model=1,pTau=function(x) { return(1)},taumax=100, maxeval=5000,threshT=50,fst=0){
+contLikStutter = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC=0,model=2,pTau=function(x) { return(1)},taumax=100, maxeval=5000,threshT=50,fst=0,lambda=0,pXi=function(x) { return(1) }){
  require(cubature)
  nA = unlist(lapply(mixData$adata,length)) #number of alleles of selected loci
  nL <- length(nA) #number of loci in data
@@ -141,20 +143,17 @@ contLikStutter = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL
 
 
  #Two cases: Integrate over Stutter or Stutter known
- if(is.null(xi)) {
   likYtheta <- function(theta) {   #call c++- function: length(theta)=nC
-   val  <- .C("contlikstutterdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),PACKAGE="bayesdnamix")[[1]]
-   return(val*pTau(theta[nC]))
-  }
-  lik <- adaptIntegrate(likYtheta, lowerLimit = rep(0,nC+1), upperLimit = c(rep(1,nC-1),taumax,1),maxEval = maxeval )[[1]]
- } else {
-  likYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
+   val  <- .C("contlikstutterdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="bayesdnamix")[[1]]
+   return(val*pXi(theta[nC+1])*pTau(theta[nC])) #weight with prior of tau and stutter.
+  } 
+  likYthetaS <- function(theta2) {   #call c++- function: length(theta)=nC
    theta <- c(theta2,xi) #stutter-parameter added as known
-   val  <- .C("contlikstutterdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),PACKAGE="bayesdnamix")[[1]]
-   return(val*pTau(theta[nC]))
+   val  <- .C("contlikstutterdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="bayesdnamix")[[1]]
+   return(val*pXi(theta[nC+1])*pTau(theta[nC])) #weight with prior of tau and stutter.
   }
-  lik = adaptIntegrate(likYtheta , lowerLimit = rep(0,nC), upperLimit = c(rep(1,nC-1),taumax),maxEval = maxeval )[[1]]
- }
- return(lik)
+  if(is.null(xi)) lik <- adaptIntegrate(likYtheta, lowerLimit = rep(0,nC+1), upperLimit = c(rep(1,nC-1),taumax,1),maxEval = maxeval )[[1]]
+  if(!is.null(xi)) lik = adaptIntegrate(likYthetaS , lowerLimit = rep(0,nC), upperLimit = c(rep(1,nC-1),taumax),maxEval = maxeval )[[1]]
+   return(lik)
 }
 

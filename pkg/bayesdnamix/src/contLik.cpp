@@ -38,204 +38,6 @@ const double PIVAL = std::acos(0.0)*2;
  //This correspond to index of placement in vectors. Makes assignment of X,Z,Y, very fast.
  //Y will be a N height vector (static), X is a (NxC) contribution matrix (dynamic), Z is a N vector which colSums X (this is required to quickly know what alleles are relevant in calculation).
 
-
-class recurseClassDrop { //recurse-class for each loci
- public: 
-  //input:
-  int *model; //number of contr
-  int *nC; //number of contr
-  int *nGi; //Number of genotypes in populaiton
-  int *nAi; //number of alleles in locus
-  int *nAalli; //Number of alleles in population
-  Col<uword> *Ai; //alleles
-  Col<double> *Hi; //heights (small vector)
-  Col<double> *Yi; //heights (full vector)
-  Col<double> Ytmp; //temporary used
-  Mat<uword> *Gset; //(Nx2)-Matrix of allele-genotypes (full vector)
-  Col<double> *pGvec; //probability of genotypes
-  Col<double> *pAvec; //probability of alleles
-  double *pDvec; //probability of dropout for each contributor
-  double *prC; //probability of dropin for each allele
-
-  //fst-correction:
-  double *fst; //theta-correction
-  Col<int> *mkvec; //count-vector for each alleles
-  int *nkval; //counts number of sampled alleles
-  Col <double> *pGenotmp; //pointer for storing genotypeproduct if theta>0
-
-  Col<double> *mvec;
-  Mat<int> *Xij; //(N x C) - matrix. Taking out columns to use for restriction
-  Col<int> *Zi; //N-vector. used as colsum of Xij
-  Row<int> condVec; //Define row in condmatrix
-  Mat<int> XijSub; //(tilde(N) x C) - matrix. Subset of X for non-dropout: X[E,]
-
-
-  //parameters
-  double sigma;
-  double sigmasq;
-  double konstant;
-  double sYi;
-
-  //temporary variables:
-  Col<double> mui;
-  Col<double> ri; //column vector
-  double Di; //residual sum squared
-  double lik;
-  double pGprod; //genotype probability product
-  double pDprod; //dropout/nondropout probability product
-  double pDprodTmp; //dropout/nondropout probability product
-  double pAprod; //allele probability product (used for dropin)
-  double bigsum; //summed marginal
-  Col<uword> psiR; //row-indice of Y,X in calculation: contributing alleles
-
-  void recUpdateXM1(int k) { 
-   int j,l; //used to traverse genotype probabilites
-   uword l2; //used when comparing psi_elem
-   for(j=0; j<*nGi; j++) { //for each loci we need to run recursion on each combination
-    if( (condVec.at(k))>=0 ) { j = condVec.at(k); } //Known genotype: insert static combination 
-    Zi->elem((Gset->row(j))) += 1; //update values in Zi. Updates twice if homozygote.
-    if(k==(*nC-1) && *prC==0) { //if in last contributor and dropin-probability is zero -> no necessary evaluation
-     if(sum((Zi->elem(*Ai))==0) >0) { //still missing allele contributor in evidence: not valid combinations 
-      Zi->elem((Gset->row(j))) -= 1; //update values in Zi
-      continue; //continoue loop with j++
-     }
-    } 
-    Xij->elem((Gset->row(j) + k*(*nAalli))) += 1; //update elements in Xij-matrix
-    if( (condVec.at(k))<0 ) { //only if no restriction
-     if(*fst>0) { //if theta-correction given
-      pGenotmp->at(k) = 1; //important to reset element first!
-      for(l=0; l<2; l++) { //for each allele
-       pGenotmp->at(k) *= ( mkvec->at(Gset->at(j,l))*(*fst) + (1-*fst)*pAvec->at(Gset->at(j,l)) ) / ( 1+(*nkval-1)*(*fst) );
-       mkvec->at(Gset->at(j,l))+=1; //update counter of sampled allele
-       (*nkval)+=1; //update with sampled 
-      }
-      if(Gset->at(j,0)!=Gset->at(j,1)) pGenotmp->at(k)*=2; 
-      pGprod *=  pGenotmp->at(k);
-     } else { //use genotypes directly (Hardy Weinberg)
-      pGprod *= (pGvec->at(j));   //If unknown: multiply with unknown genotype product
-     }
-    }
-
-    if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
-     int m; //used to traverse alleles in X
-     int nondrop; //if non-droped
-     psiR = find((*Zi)>0); //Indices for contributing alleles. checks those non-zero
-     //Step 1) calculate dropout/dropin probabilities using info in X
-     pDprod = 1; //must multiply drop-out probability for each allele (both dropped and non-dropped)
-     XijSub = Xij->rows(psiR); //get relevant alleles for X
-     //1a) find info of contributing alleles (B1,B2) non-dropout-sets
-     for(l2=0; l2<psiR.n_elem; l2++) { 
-      nondrop = sum((*Ai)==psiR[l2]); //check whether allele are non-dropped (0,1)
-      pDprodTmp = 1;
-      for(m=0; m<*nC; m++) { //for each contributor
-        pDprodTmp *= pow(pDvec[m],XijSub.at(l2,m)); //powered with number of contributing alleles
-      }  //end for each contributors
-      if(nondrop) { 
-       pDprod *= (1-pDprodTmp);  //if non-droped allele (get probability for no dropout)
-      }  else {
-       pDprod *= pDprodTmp;  //if droped allele (get probability for no dropout) 
-      } 
-     } //end for each allele-elements
-     if(*prC>0) { //only if drop-in probability is >0. 
-      pAprod = 1;
-      for(l=0; l<*nAi; l++) { //check each allele
-       nondrop = sum(psiR==Ai->at(l)); //check whether allele are drop-in (dropin=0,no dropin=1)
-       if(!nondrop) { //if dropin
-        pAprod *= (*prC)*(pAvec->at( Ai->at(l) )); //multiply with allele probability
-       }
-      }
-      if(pAprod==1) { //if no dropin found
-       pDprod *= (1-*prC); //scale with probability of not dropping in
-      } else {  
-       pDprod *= pAprod; //multiply with dropin-probability of droped in alleles
-      }
-     } //end if drop-in probability given
-     //Step 2) calculating likelihood of peak heights
-     lik = 1; //binary model is default
-     if(*model==1) {
-      mui = sYi/2*( (Xij->rows(psiR))*(*mvec) ); //mean peak height
-      Ytmp = (Yi->elem(psiR));
-      ri = Ytmp/sum(Ytmp) - mui; //residual is a vector
-      Di = dot(ri,ri)/sigmasq; //FASTEST!! 
-      lik = exp(-0.5*Di)/pow(konstant,psiR.n_elem); //likelihood of model
-     }
-     bigsum += lik*pGprod*pDprod; //# multiply with dropout-prob and genotype prob
-    } else { //IF NOT IN LAST CONTRIBUTOR
-     recUpdateXM1(k+1); //recurse to next contributor if not in last
-    }
-
-    //reversing:
-    Xij->elem((Gset->row(j) + k*(*nAalli))) -= 1; //update elements in Xij-matrix
-    Zi->elem((Gset->row(j))) -= 1; //update values in Zi. Updates twice if homozygote.
-    if(condVec.at(k)>=0) { 
-     j = *nGi;  //end loop if known combination
-    } else {
-     if(*fst>0) { //if theta-correction given
-      pGprod /=  pGenotmp->at(k);
-      mkvec->elem(Gset->row(j))-=1; //update counter of sampled allele
-      (*nkval)-=2; //update with sampled 
-     } else { //use genotypes directly (Hardy Weinberg)
-      pGprod /= (pGvec->at(j));   //If unknown: multiply with unknown genotype product
-     }
-    }
-   } //end for each combination
-   //return;
-  } //end recursive function
-
-  recurseClassDrop(int *mod, double *pC, double *pD, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, double *sY,double *tau ,double *t0, double *fstin, int *mkvector, int *nkvalue) {
-   nC = C; //copy pointer to number of contributors
-   nAi = nA; //copy pointer to number of alleles in evidence
-   nAalli = nAall; //copy pointer to number of alleles in population
-   nGi = nG; //copy pointer to number of genotypes
-   mvec = omega;  //copy pointer to mix-prop vector
-   sYi = *sY;
-   sigmasq = *tau;  //copy pointer to mix-prop vector
-   condVec = condV; //assign value where condV points 
-   pDvec = pD; //copy pointer to drop-out probabilities
-   prC = pC; //copy pointer to drop-in probability
-   model = mod; //copy pointer to model choice
-   fst = fstin; //copy pointer theta-correction
-   nkval = nkvalue; //copy pointer to sample-counter
-
-   sigma = sqrt(*tau);
-   konstant = sqrt(2*PIVAL)*sigma;
-   Ai = new Col<uword>( A, *nAi, false); //insert allele evidence (allele indices)
-   Hi = new Col<double>( H, *nAi, false); //insert allele evidence
-   Gset = new Mat<uword>( Gvec, *nGi, 2,false); //insert genotype-combinations (allele indices)
-   pGvec = new Col<double>( pG, *nGi, false); //insert genotype probabilities
-   pAvec = new Col<double>( pA, *nAalli, false); //insert allele probabilities
-   mkvec = new Col<int>( mkvector, *nAalli, false); //insert allele-sampled
-
-   pGenotmp = new Col<double>(*nC); //init datavector
-   Yi =  new Col<double>(*nAalli); //init datavector
-   Zi =  new Col<int>(*nAalli); //init datavector
-   Xij = new Mat<int>(*nAalli, *nC); //init. Xij-matrix with zeros
-   Yi->fill(*t0); //insert imputed peak heights
-   Xij->zeros();
-   Zi->zeros();
-   Yi->elem(*Ai) = *Hi; //insert heights
-
-//   Yi->submat(E) = sub( allY[CnA[i]], nA[i]); //insert observed peak heights
-   bigsum = 0.0; //init big sum over all genotypes
-   pGprod = 1.0; //init genotype-prob product
-   //start recursion
-   recUpdateXM1(0); 
-   //delete when finished
-   delete Ai;
-   delete Hi;
-   delete Gset;
-   delete pGvec;
-   delete pAvec;
-   delete mkvec;
-
-   delete pGenotmp;
-   delete Yi;
-   delete Zi;
-   delete Xij;
-  } //end constructor
-}; //end recursiveClass
-
-
 class recurseClassStutter { //recurse-class for each loci
  public: 
   //input:
@@ -471,6 +273,204 @@ class recurseClassStutter { //recurse-class for each loci
 
 
 
+class recurseClassDrop { //recurse-class for each loci
+ public: 
+  //input:
+  int *model; //number of contr
+  int *nC; //number of contr
+  int *nGi; //Number of genotypes in populaiton
+  int *nAi; //number of alleles in locus
+  int *nAalli; //Number of alleles in population
+  Col<uword> *Ai; //alleles
+  Col<double> *Hi; //heights (small vector)
+  Col<double> *Yi; //heights (full vector)
+  Col<double> Ytmp; //temporary used
+  Mat<uword> *Gset; //(Nx2)-Matrix of allele-genotypes (full vector)
+  Col<double> *pGvec; //probability of genotypes
+  Col<double> *pAvec; //probability of alleles
+  double *pDvec; //probability of dropout for each contributor
+  double *prC; //probability of dropin for each allele
+
+  //fst-correction:
+  double *fst; //theta-correction
+  Col<int> *mkvec; //count-vector for each alleles
+  int *nkval; //counts number of sampled alleles
+  Col <double> *pGenotmp; //pointer for storing genotypeproduct if theta>0
+
+  Col<double> *mvec;
+  Mat<int> *Xij; //(N x C) - matrix. Taking out columns to use for restriction
+  Col<int> *Zi; //N-vector. used as colsum of Xij
+  Row<int> condVec; //Define row in condmatrix
+  Mat<int> XijSub; //(tilde(N) x C) - matrix. Subset of X for non-dropout: X[E,]
+
+
+  //parameters
+  double sigma;
+  double sigmasq;
+  double konstant;
+  double sYi;
+
+  //temporary variables:
+  Col<double> mui;
+  Col<double> ri; //column vector
+  double Di; //residual sum squared
+  double lik;
+  double pGprod; //genotype probability product
+  double pDprod; //dropout/nondropout probability product
+  double pDprodTmp; //dropout/nondropout probability product
+  double pAprod; //allele probability product (used for dropin)
+  double bigsum; //summed marginal
+  Col<uword> psiR; //row-indice of Y,X in calculation: contributing alleles
+
+  void recUpdateXM1(int k) { 
+   int j,l; //used to traverse genotype probabilites
+   uword l2; //used when comparing psi_elem
+   for(j=0; j<*nGi; j++) { //for each loci we need to run recursion on each combination
+    if( (condVec.at(k))>=0 ) { j = condVec.at(k); } //Known genotype: insert static combination 
+    Zi->elem((Gset->row(j))) += 1; //update values in Zi. Updates twice if homozygote.
+    if(k==(*nC-1) && *prC==0) { //if in last contributor and dropin-probability is zero -> no necessary evaluation
+     if(sum((Zi->elem(*Ai))==0) >0) { //still missing allele contributor in evidence: not valid combinations 
+      Zi->elem((Gset->row(j))) -= 1; //update values in Zi
+      continue; //continoue loop with j++
+     }
+    } 
+    Xij->elem((Gset->row(j) + k*(*nAalli))) += 1; //update elements in Xij-matrix
+    if( (condVec.at(k))<0 ) { //only if no restriction
+     if(*fst>0) { //if theta-correction given
+      pGenotmp->at(k) = 1; //important to reset element first!
+      for(l=0; l<2; l++) { //for each allele
+       pGenotmp->at(k) *= ( mkvec->at(Gset->at(j,l))*(*fst) + (1-*fst)*pAvec->at(Gset->at(j,l)) ) / ( 1+(*nkval-1)*(*fst) );
+       mkvec->at(Gset->at(j,l))+=1; //update counter of sampled allele
+       (*nkval)+=1; //update with sampled 
+      }
+      if(Gset->at(j,0)!=Gset->at(j,1)) pGenotmp->at(k)*=2; 
+      pGprod *=  pGenotmp->at(k);
+     } else { //use genotypes directly (Hardy Weinberg)
+      pGprod *= (pGvec->at(j));   //If unknown: multiply with unknown genotype product
+     }
+    }
+
+    if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
+     int m; //used to traverse alleles in X
+     int nondrop; //if non-droped
+     psiR = find((*Zi)>0); //Indices for contributing alleles. checks those non-zero
+     //Step 1) calculate dropout/dropin probabilities using info in X
+     pDprod = 1; //must multiply drop-out probability for each allele (both dropped and non-dropped)
+     XijSub = Xij->rows(psiR); //get relevant alleles for X
+     //1a) find info of contributing alleles (B1,B2) non-dropout-sets
+     for(l2=0; l2<psiR.n_elem; l2++) { 
+      nondrop = sum((*Ai)==psiR[l2]); //check whether allele are non-dropped (0,1)
+      pDprodTmp = 1;
+      for(m=0; m<*nC; m++) { //for each contributor
+        pDprodTmp *= pow(pDvec[m],XijSub.at(l2,m)); //powered with number of contributing alleles
+      }  //end for each contributors
+      if(nondrop) { 
+       pDprod *= (1-pDprodTmp);  //if non-droped allele (get probability for no dropout)
+      }  else {
+       pDprod *= pDprodTmp;  //if droped allele (get probability for no dropout) 
+      } 
+     } //end for each allele-elements
+     if(*prC>0) { //only if drop-in probability is >0. 
+      pAprod = 1;
+      for(l=0; l<*nAi; l++) { //check each allele
+       nondrop = sum(psiR==Ai->at(l)); //check whether allele are drop-in (dropin=0,no dropin=1)
+       if(!nondrop) { //if dropin
+        pAprod *= (*prC)*(pAvec->at( Ai->at(l) )); //multiply with allele probability
+       }
+      }
+      if(pAprod==1) { //if no dropin found
+       pDprod *= (1-*prC); //scale with probability of not dropping in
+      } else {  
+       pDprod *= pAprod; //multiply with dropin-probability of droped in alleles
+      }
+     } //end if drop-in probability given
+     //Step 2) calculating likelihood of peak heights
+     lik = 1; //binary model is default
+     if(*model==1) {
+      mui = sYi/2*( (Xij->rows(psiR))*(*mvec) ); //mean peak height
+      Ytmp = (Yi->elem(psiR));
+      ri = Ytmp/sum(Ytmp) - mui; //residual is a vector
+      Di = dot(ri,ri)/sigmasq; //FASTEST!! 
+      lik = exp(-0.5*Di)/pow(konstant,psiR.n_elem); //likelihood of model
+     }
+     bigsum += lik*pGprod*pDprod; //# multiply with dropout-prob and genotype prob
+    } else { //IF NOT IN LAST CONTRIBUTOR
+     recUpdateXM1(k+1); //recurse to next contributor if not in last
+    }
+
+    //reversing:
+    Xij->elem((Gset->row(j) + k*(*nAalli))) -= 1; //update elements in Xij-matrix
+    Zi->elem((Gset->row(j))) -= 1; //update values in Zi. Updates twice if homozygote.
+    if(condVec.at(k)>=0) { 
+     j = *nGi;  //end loop if known combination
+    } else {
+     if(*fst>0) { //if theta-correction given
+      pGprod /=  pGenotmp->at(k);
+      mkvec->elem(Gset->row(j))-=1; //update counter of sampled allele
+      (*nkval)-=2; //update with sampled 
+     } else { //use genotypes directly (Hardy Weinberg)
+      pGprod /= (pGvec->at(j));   //If unknown: multiply with unknown genotype product
+     }
+    }
+   } //end for each combination
+   //return;
+  } //end recursive function
+
+  recurseClassDrop(int *mod, double *pC, double *pD, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, double *sY,double *tau ,double *t0, double *fstin, int *mkvector, int *nkvalue) {
+   nC = C; //copy pointer to number of contributors
+   nAi = nA; //copy pointer to number of alleles in evidence
+   nAalli = nAall; //copy pointer to number of alleles in population
+   nGi = nG; //copy pointer to number of genotypes
+   mvec = omega;  //copy pointer to mix-prop vector
+   sYi = *sY;
+   sigmasq = *tau;  //copy pointer to mix-prop vector
+   condVec = condV; //assign value where condV points 
+   pDvec = pD; //copy pointer to drop-out probabilities
+   prC = pC; //copy pointer to drop-in probability
+   model = mod; //copy pointer to model choice
+   fst = fstin; //copy pointer theta-correction
+   nkval = nkvalue; //copy pointer to sample-counter
+
+   sigma = sqrt(*tau);
+   konstant = sqrt(2*PIVAL)*sigma;
+   Ai = new Col<uword>( A, *nAi, false); //insert allele evidence (allele indices)
+   Hi = new Col<double>( H, *nAi, false); //insert allele evidence
+   Gset = new Mat<uword>( Gvec, *nGi, 2,false); //insert genotype-combinations (allele indices)
+   pGvec = new Col<double>( pG, *nGi, false); //insert genotype probabilities
+   pAvec = new Col<double>( pA, *nAalli, false); //insert allele probabilities
+   mkvec = new Col<int>( mkvector, *nAalli, false); //insert allele-sampled
+
+   pGenotmp = new Col<double>(*nC); //init datavector
+   Yi =  new Col<double>(*nAalli); //init datavector
+   Zi =  new Col<int>(*nAalli); //init datavector
+   Xij = new Mat<int>(*nAalli, *nC); //init. Xij-matrix with zeros
+   Yi->fill(*t0); //insert imputed peak heights
+   Xij->zeros();
+   Zi->zeros();
+   Yi->elem(*Ai) = *Hi; //insert heights
+
+//   Yi->submat(E) = sub( allY[CnA[i]], nA[i]); //insert observed peak heights
+   bigsum = 0.0; //init big sum over all genotypes
+   pGprod = 1.0; //init genotype-prob product
+   //start recursion
+   recUpdateXM1(0); 
+   //delete when finished
+   delete Ai;
+   delete Hi;
+   delete Gset;
+   delete pGvec;
+   delete pAvec;
+   delete mkvec;
+
+   delete pGenotmp;
+   delete Yi;
+   delete Zi;
+   delete Xij;
+  } //end constructor
+}; //end recursiveClass
+
+
+
 extern "C" {
 
 
@@ -509,8 +509,12 @@ void contlikstutterdropC(double *PE, double *theta, int *model, int *nC, int *nL
  condMatrix = new Mat<int>(condRef, *nL, *nC,false); //insert condRef-matrix directly
  Col<double> mvec; //vector of mixture proportions. Update in X easier
  mvec = Col<double>(*nC); //initialize vector 
- mvec.subvec(0,*nC-2) = *omega;
- mvec.at(*nC-1) = 1-sum(*omega); 
+ if(*nC==1) {
+  mvec.at(0) = 1; //insert full mix-prop if one contributor 
+ } else {
+  mvec.subvec(0,*nC-2) = *omega;
+  mvec.at(*nC-1) = 1-sum(*omega); 
+ }
 
  //for each loci we need to run the recursion:
  for(i=0; i<*nL; i++) { 
