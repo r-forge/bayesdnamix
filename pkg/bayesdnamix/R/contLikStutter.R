@@ -141,9 +141,8 @@ contLikStutter = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL
  CnAall <- c(0,cumsum(nAall)) #cumulative number of alleles
  pA <- unlist(popFreq) #need each allele probability for drop-in probabilities
 
-
- #Two cases: Integrate over Stutter or Stutter known
-  likYtheta <- function(theta) {   #call c++- function: length(theta)=nC
+  #Two cases: Integrate over Stutter or Stutter known
+  likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
    val  <- .C("contlikstutterdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="bayesdnamix")[[1]]
    return(val*pXi(theta[nC+1])*pTau(theta[nC])) #weight with prior of tau and stutter.
   } 
@@ -152,6 +151,9 @@ contLikStutter = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL
    val  <- .C("contlikstutterdropC",as.numeric(PE),as.numeric(theta),as.integer(model),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.numeric(sY),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="bayesdnamix")[[1]]
    return(val*pXi(theta[nC+1])*pTau(theta[nC])) #weight with prior of tau and stutter.
   }
+
+  #likYthetaS(as.numeric(c(rep(1/nC,nC-1),100))) #test
+
   if(is.null(xi)) lik <- adaptIntegrate(likYtheta, lowerLimit = rep(0,nC+1), upperLimit = c(rep(1,nC-1),taumax,1),maxEval = maxeval )[[1]]
   if(!is.null(xi)) lik = adaptIntegrate(likYthetaS , lowerLimit = rep(0,nC), upperLimit = c(rep(1,nC-1),taumax),maxEval = maxeval )[[1]]
    return(lik)

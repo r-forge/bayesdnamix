@@ -38,6 +38,10 @@ const double PIVAL = std::acos(0.0)*2;
  //This correspond to index of placement in vectors. Makes assignment of X,Z,Y, very fast.
  //Y will be a N height vector (static), X is a (NxC) contribution matrix (dynamic), Z is a N vector which colSums X (this is required to quickly know what alleles are relevant in calculation).
 
+//dropout is modeled through model (depending only on threshold)
+//dropin is modeled with prior probability pC and dropped in peak heights are shifted exponential modeled with lambda-param:  
+
+
 class recurseClassStutter { //recurse-class for each loci
  public: 
   //input:
@@ -55,6 +59,7 @@ class recurseClassStutter { //recurse-class for each loci
   double *prC; //probability of dropin for each allele
   double *t0; //threshold for detecting peak height
   Col<uword> *Abpind; //Indices of alleles
+  double *lambda; //parameter for dropin-peak height exponential model
 
   //fst-correction:
   double *fst; //theta-correction
@@ -144,13 +149,16 @@ class recurseClassStutter { //recurse-class for each loci
       mui = sYi/2*( (*Xij)*(*mvec) ); //mean peak height of model
      }
      psiYmu = find( ((*Yi>0) + (mui>0))==2 ); //Indices for modelled alleles
-     psiDO = find( ((*Yi==0) + (*Zi>0))==2 ); //Indices for dropped out alleles
+     psiDO = find( ((*Yi==0) + (mui>0))==2 ); //Indices for dropped out alleles
      psiDI = find( ((*Yi>0) + (mui==0))==2 ); //Indices for dropped in alleles
 
-	 //calculate dropin:
+     //calculate dropin:
      if(*prC>0) { //only if drop-in probability is >0. 
       if(psiDI.n_elem>0) {        
        pDprod = prod( (*prC)*(pAvec->elem(psiDI))) ; //multiply with allele probability
+       if(*lambda>0) { //weighting drop-out probability with peak height. Lambda=0 reduces to standard procedure
+        pDprod *= exp( psiDI.n_elem*( log(*lambda) + (*lambda)*(*t0) ) - (*lambda)*sum(Yi->elem(psiDI)) );
+       }
       } else { //if no dropin found
        pDprod = (1-*prC); //scale with probability of not dropping in
       }
@@ -181,7 +189,8 @@ class recurseClassStutter { //recurse-class for each loci
        if(psiDO.n_elem>0) { //there are drop.out elements (i.e. contributing genos gives peak 0)
         for(l2=0;l2<psiDO.n_elem;l2++) { //for each dropped out alleles (erf only takes elements)
          Di = mui.at(psiDO.at(l2)); 
-     	 Di = gamma_p(Di*konstant2,(*t0)*konstant2);
+//		 fprintf(stderr,"val1=%f,val2=%f",Di,konstant2);
+         Di = gamma_p(Di*konstant2,(*t0)*konstant2);
          lik = lik + log(Di);// - std::lgamma(mui.at(psiDO.at(l))*konstant2); //add log-probability
         }
        } //end dropout
@@ -209,7 +218,7 @@ class recurseClassStutter { //recurse-class for each loci
    //return;
   } //end recursive function
 
-  recurseClassStutter(int *mod, double *pC, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, double *sY, uword *allAbpind,double *th ,double *t0in, double *fstin, int *mkvector, int *nkvalue) {
+  recurseClassStutter(int *mod, double *pC, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, double *sY, uword *allAbpind,double *th ,double *t0in, double *fstin, int *mkvector, int *nkvalue, double *lam) {
    nC = C; //copy pointer to number of contributors
    nAi = nA; //copy pointer to number of alleles in evidence
    nAalli = nAall; //copy pointer to number of alleles in population
@@ -224,6 +233,7 @@ class recurseClassStutter { //recurse-class for each loci
    fst = fstin; //copy pointer theta-correction
    nkval = nkvalue; //copy pointer to sample-counter
    t0 = t0in;//copy pointer to threshold
+   lambda = lam; //copy pointer to parameter of exponential drop-in model
 
    if(*model==1) { //normal
     tau = tau*sYi;//*sYi; //weighted by sum of peak heights
@@ -244,11 +254,10 @@ class recurseClassStutter { //recurse-class for each loci
    Yi =  new Col<double>(*nAalli); //init datavector
    Zi =  new Col<int>(*nAalli); //init datavector
    Xij = new Mat<int>(*nAalli, *nC); //init. Xij-matrix with zeros
-//   Yi->fill(*t0in); //insert imputed peak heights
    Yi->zeros(); //insert all as zeros
    Xij->zeros();
    Zi->zeros();
-   Yi->elem(*Ai) = *Hi; //insert heights
+   Yi->elem(*Ai) = *Hi; //insert observed peak heights
 
 //   Yi->submat(E) = sub( allY[CnA[i]], nA[i]); //insert observed peak heights
    bigsum = 0.0; //init big sum over all genotypes
@@ -262,14 +271,15 @@ class recurseClassStutter { //recurse-class for each loci
    delete pGvec;
    delete pAvec;
    delete mkvec;
+
    delete Abpind;
-   
    delete pGenotmp;
    delete Yi;
    delete Zi;
    delete Xij;
   } //end constructor
 }; //end recursiveClassStutter
+
 
 
 
@@ -475,7 +485,7 @@ extern "C" {
 
 
 //function for calculating likelihood of data with genotypes marginalised out
-void contlikstutterdropC(double *PE, double *theta, int *model, int *nC, int *nL, int *nA, double *allY, uword *allA , int *CnA, double *sY,uword *allAbpind, int *nAall, int *CnAall, uword *Gvec, int *nG, int *CnG,int *CnG2, double *pG,  double *pA,  double *pC, int* condRef, double *t0, double *fst, int *mkvec, int *nkval) {
+void contlikstutterdropC(double *PE, double *theta, int *model, int *nC, int *nL, int *nA, double *allY, uword *allA , int *CnA, double *sY,uword *allAbpind, int *nAall, int *CnAall, uword *Gvec, int *nG, int *CnG,int *CnG2, double *pG,  double *pA,  double *pC, int* condRef, double *t0, double *fst, int *mkvec, int *nkval, double *lambda) {
  //PE  - density value of evidence
  //theta  - model parameters
  //model - {0 = binary, 1=mixsep}
@@ -518,7 +528,7 @@ void contlikstutterdropC(double *PE, double *theta, int *model, int *nC, int *nL
 
  //for each loci we need to run the recursion:
  for(i=0; i<*nL; i++) { 
-   recurseClassStutter *rec = new recurseClassStutter(model, pC, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &sY[i], &allAbpind[CnAall[i]], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i]); //create object of recursion
+  recurseClassStutter *rec = new recurseClassStutter(model, pC, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &sY[i], &allAbpind[CnAall[i]], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i], lambda); //create object of recursion
    *PE = (*PE)*(rec->bigsum);
    delete rec;
   }//end for each loci i:
