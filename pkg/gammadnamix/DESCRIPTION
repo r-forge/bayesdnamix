@@ -1,0 +1,23 @@
+Package: gammadnamix
+Type: Package
+Title: Procedure for evaluate marginal likelihood for quantitative STR DNA
+    mixture bayesian models
+Version: 0.1
+Date: 2014-07-02
+Author: Oyvind Bleka <Oyvind.bleka@fhi.no>
+Maintainer: Oyvind Bleka <Oyvind.bleka@fhi.no>
+Description: gammadnamix contains a procedure for evaluating maximised likelihood and marginal
+    likelihoods for quantitative bayesian models for STR DNA mixtures for
+    general specifiactions of hypothesis. 
+License: GPL(>=2)
+Depends:
+    R (>= 3.0.1),
+LinkingTo: Rcpp, RcppArmadillo, BH
+Imports:
+    cubature,gtools
+Suggests:
+    cubature,gtools
+Collate:
+    'contLikMLE.R'
+    'contLikMarg.R'
+    'genDataset.R'
