@@ -21,11 +21,42 @@
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
-#' @param M Number of evaluations for importance sampling.
-#' @return ret A list(MLE,Sigma,CI,loglik,margL) with Maximixed likelihood elements for hypothesis (model) given observed evidence.
+#' @param ximax Maximum range of xi-parameter. Default is 1.
+#' @return ret A list(MLE,Sigma,CI,loglik) with Maximixed likelihood elements for hypothesis (model) given observed evidence.
 #' @keywords continuous, Bayesian models
+#' @examples
+#' \dontrun{
+#' #data model:
+#' threshT <- 50 #threshold
+#' load(system.file("mcData.Rdata", package = "gammadnamix"))
+#' popFreq <- data$popFreq
+#' mixData <- data$samples$MC15
+#' refData <- data$refData
+#' #Q-assignation
+#' popFreq2 <- popFreq
+#' for(i in 1:length(popFreq)) { #make Q-assignation for each loci
+#'  tmp <- popFreq[[i]][names(popFreq[[i]])%in%mixData$adata[[i]]]
+#'  tmp <- c(tmp,1-sum(tmp))
+#'  names(tmp)[length(tmp)] <- "99"
+#'  popFreq2[[i]] <- tmp
+#' }
+#' #Hypothesis:
+#' nC <- 2 #number of contributors
+#' condhp <- condhd <- rep(0,length(refData)) 
+#' condhp [1] <- 1 #condition on first one in refdata
+#' nDone <- 2 #number of random start points to optimization
+#' #without stutter:
+#' hpD <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhp,xi=0,threshT=threshT,nDone=nDone )
+#' hdD <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhd,xi=0,threshT=threshT,nDone=nDone )
+#' LRD <- exp(hpD$loglik - hdD$loglik) #estimated LR
+#' #with stutter:
+#' hpS <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhp,threshT=threshT,nDone=nDone,ximax=1 )
+#' hdS <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhd,threshT=threshT,nDone=nDone,ximax=1 )
+#' LRS <- exp(hpS$loglik - hdS$loglik) #estimated LR
+#' }
 
-contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC=0,pRhoTau=function(x) {1},rhotaumax=c(1000,1000),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x) {1},M=NULL ){
+contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC=0,pRhoTau=function(x) {1},rhotaumax=c(1000,1000),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x) {1},ximax=0.5){
+ require(Rsolnp)
  nA = unlist(lapply(mixData$adata,length)) #number of alleles of selected loci
  nL <- length(nA) #number of loci in data
  locnames <- toupper(names(mixData$adata))
@@ -119,7 +150,7 @@ contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC
 
 
  #Fix input-variables for Cpp-function
- logPE <- 1
+ logPE <- 0
  CnA <- c(0,cumsum(nA))
  allA <- as.integer(unlist(mixData$adata))
  allY <- as.numeric(unlist(mixData$hdata))
@@ -134,94 +165,65 @@ contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC
  CnAall <- c(0,cumsum(nAall)) #cumulative number of alleles
  pA <- unlist(popFreq) #need each allele probability for drop-in probabilities
 
-
-
 #Optimize MLE:
  #Two cases: Integrate over Stutter or Stutter known
- negloglikYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-  if(any(theta<lower | theta>upper)) return(Inf)
-  if(sum(theta[1:(nC-1)])>1) return(Inf)
-  Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-  loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(theta[nC+2])) #weight with prior of tau and 
-  return(-loglik) #weight with prior of tau and stutter.
- } 
- negloglikYthetaS <- function(theta2) {   #call c++- function: length(theta)=nC
-  theta <- c(theta2,xi) #stutter-parameter added as known
-  if(any(theta<lower | theta>upper)) return(Inf)
-  if(sum(theta[1:(nC-1)])>1) return(Inf)
-  Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-  loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(xi)) #weight with prior of tau and stutter.
-  return(-loglik)
+ if(is.null(xi)) {
+  negloglikYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
+   Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
+   loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(theta[nC+2])) #weight with prior of tau and 
+   return(-loglik) #weight with prior of tau and stutter.
+  }
+ } else {  
+  negloglikYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
+   theta <- c(theta2,xi) #stutter-parameter added as known
+   Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
+   loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(xi)) #weight with prior of tau and stutter.
+   return(-loglik)
+  }
  }
-
+ lower <- lower0 <- rep(0,nC+1)
+ upper <- upper0 <- c(rep(1,nC-1),rhotaumax)
  if(is.null(xi)) { #if stutter model
-  lower <- rep(0,nC+2)
-  upper = c(rep(1,nC-1),rhotaumax,1)
-  minL <- Inf
-  nOK <- 0 #number of times for reaching optimum
-  while(nOK<nDone) {
-   tryCatch( {
-    foo <- nlm(negloglikYtheta , p=runif(length(lower),lower,upper))
-    if(foo$min<minL) {
-     minL <- foo$min
-     topfoo <- foo
-     if(topfoo$code==1 && topfoo$iterations>2) nOK=nOK+1
-    }
-   },error=function(e) e) #end trycatch 
-  } #end loop
-  foo2 <- nlm(negloglikYtheta , p=topfoo$est ,hessian=TRUE)
- } else { #if stutter ratio assumed known known
-  lower <- rep(0,nC+1)
-  upper = c(rep(1,nC-1),rhotaumax)
-  minL <- Inf
-  nOK <- 0 #number of times for reaching optimum
-  while(nOK<nDone) {
-   tryCatch( {
-    foo <- nlm(negloglikYthetaS , p=runif(length(lower),lower,upper))
-    if(foo$min<minL) {
-     minL <- foo$min
-     topfoo <- foo
-     if(topfoo$code==1 && topfoo$iterations>2) nOK=nOK+1
-    }
-   },error=function(e) e) #end trycatch 
-  } #end loop
-  foo2 <- nlm(negloglikYthetaS , p=topfoo$est ,hessian=TRUE)
+  lower <- c(lower0,0)
+  upper = c(upper0,ximax)
  }
- Sigma <- solve(foo2$hessian)
- dev <- qnorm(0.975)*sqrt(diag(Sigma))
- tab <- cbind( foo2$est - dev ,foo2$est , foo2$est + dev)
+ mixsum <- function(x) sum(x[1:(nC-1)])
+ opti <- function(x) {
+  val <- negloglikYtheta(x)
+  if(is.infinite(val)) return(1e20) #return some large number
+  return(val)
+ }
+ minL <- Inf
+ nOK <- 0 #number of times for reaching optimum
+ while(nOK<nDone) {
+   p0 <- runif(length(lower0),lower0,upper0)
+   if(is.null(xi)) {
+     xi0 <- rexp(1,20)
+     if(xi0>ximax) next
+     p0  <- c(p0,xi0) #decay start-value of stutter
+   }
+   if(is.infinite(negloglikYtheta(p0))) next #skip to next if still INF
+   tryCatch( {
+      foo <- solnp(pars=p0, fun=opti, ineqfun = mixsum ,ineqLB=0, ineqUB=1,LB = lower, UB = upper,control=list(trace=0))
+      if(foo$convergence==0 && foo$nfuneval>2) {
+       nOK=nOK+1
+       likval <- -negloglikYtheta(foo$pars)
+       if(likval<minL) {
+        minL <- likval #maximized likelihood
+        topfoo <- foo #set as topfoo
+       }
+      }
+   },error=function(e) e) #end trycatch 
+ } #end while loop
+ mle <- topfoo$pars #get MLE
+ nn <- nrow(topfoo$hessian)
+ Sigma <- solve(topfoo$hessian[2:nn,2:nn]) #consider jointly with the constraint variable
+ dev <- qnorm(0.975)*sqrt(diag(Sigma))#[2:nn] #constrained part is first
+ tab <- cbind(mle - dev ,mle, mle + dev)
  colnames(tab) <- c("2.5%","MLE","97.5%")
  if(!is.null(xi)) rownames(tab) <- c(paste0("omega",1:(nC-1)),"rho","tau")
  if(is.null(xi)) rownames(tab) <- c(paste0("omega",1:(nC-1)),"rho","tau","xi")
-
- #I) Trying to do Importance samplgin using Normal(MLEhat,Jhat)
- margL <- NULL
- if(!is.null(M)) {
-  logdmvnorm <- function(X,mean,cholC) { #function taken from mvtnorm-package
-   p <- nrow(cholC)
-   tmp <- backsolve(cholC,t(X)-mean,p,transpose=TRUE)
-   rss <- colSums(tmp^2)
-   logretval <- -sum(log(diag(cholC))) - 0.5*p*log(2*pi) - 0.5*rss
-   return(logretval)
-  }
-  p <- nrow(Sigma) #dimension
-  C <- chol(Sigma)
-  X <- t( t(C)%*%matrix(rnorm(p*M),ncol=M,nrow=p) + foo2$est )
-  logpX <- logdmvnorm(X=X,mean=foo2$est,cholC=C) #get distr-values
-  indrm <- numeric()
-  for(i in 1:p) indrm <- c(indrm, which( X[,i]<lower[i] | X[,i]>upper[i] ) )
-  if(length(indrm)>0) X <- X[-indrm,] 
-  #go through each proposal
-  M <- nrow(X) #update counter
-  bigsum <- 0
-  if(is.null(xi)) {
-   for(m in 1:M) bigsum <- bigsum + exp( -negloglikYtheta(X[m,]) - logpX[m] ) 
-  } else {
-   for(m in 1:M) bigsum <- bigsum + exp( -negloglikYthetaS(X[m,]) - logpX[m] ) 
-  }
-  margL <- bigsum/M #estimated marginal likelihood
- }
- ret <- list(MLE=foo2$est,Sigma=Sigma,CI=tab,loglik=-minL,margL=margL)
+ ret <- list(MLE=mle,Sigma=Sigma,CI=tab,loglik=minL)
  return(ret)
 } #end function
 

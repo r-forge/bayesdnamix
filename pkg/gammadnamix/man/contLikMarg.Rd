@@ -4,9 +4,9 @@
 \title{contLikMarg}
 \usage{
 contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  xi = NULL, prC = 0, pRhoTau = function(x) {     1 },
-  rhotaumax = c(1000, 1000), maxeval = 5000, threshT = 50, fst = 0,
-  lambda = 0, pXi = function(x) {     1 })
+  xi = NULL, prC = 0, method = "divonne", pRhoTau = function(x) {     1
+  }, rhotaumax = c(1000, 1000), maxeval = 5000, threshT = 50, fst = 0,
+  lambda = 0, pXi = function(x) {     1 }, ximax = 1)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -23,6 +23,8 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
+\item{method}{Name of multivariate integration technique used in R2Cuba package. Default is "divonne".}
+
 \item{pRhoTau}{Prior function for (rho,tau)-parameters. Flat prior is default.}
 
 \item{rhotaumax}{Maximum range of rho and tau-parameter. Default is 1000.}
@@ -36,9 +38,11 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 \item{lambda}{Parameter in modeled peak height shifted exponential model. Default is 0.}
 
 \item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
+
+\item{ximax}{Maximum range of xi-parameter. Default is 1000.}
 }
 \value{
-lik Marginalized likelihood of the hypothesis (model) given observed evidence.
+ret A list(margL,error,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, error is numerical error from the integrale, nEvals is number of evaluations.
 }
 \description{
 contLikMarg marginalized the likelihood of the STR DNA mixture given some assumed a bayesian model.
@@ -47,6 +51,37 @@ contLikMarg marginalized the likelihood of the STR DNA mixture given some assume
 The procedure are doing numerical integration to approximate the marginal probability over noisance parameters. Mixture proportions have flat prior.
 
 Function calls procedure in c++ by using the package Armadillo and Boost.
+Using one of the methods in the R2Cuba package.
+}
+\examples{
+\dontrun{
+#data model:
+threshT <- 50 #threshold
+load(system.file("mcData.Rdata", package = "gammadnamix"))
+popFreq <- data$popFreq
+mixData <- data$samples$MC15
+refData <- data$refData
+#Q-assignation
+popFreq2 <- popFreq
+for(i in 1:length(popFreq)) { #make Q-assignation for each loci
+ tmp <- popFreq[[i]][names(popFreq[[i]])\%in\%mixData$adata[[i]]]
+ tmp <- c(tmp,1-sum(tmp))
+ names(tmp)[length(tmp)] <- "99"
+ popFreq2[[i]] <- tmp
+}
+#Hypothesis:
+nC <- 2 #number of contributors
+condhp <- condhd <- rep(0,length(refData))
+condhp [1] <- 1 #condition on first one in refdata
+#without stutter:
+hpD2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=xi,threshT=threshT)
+hdD2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=xi,threshT=threshT)
+LRD2 <- hpD2$margL/hdD2$margL #estimated LR
+#with stutter:
+hpS2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=xi,threshT=threshT,ximax=1 )
+hdS2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=xi,threshT=threshT,ximax=1 )
+LRS2 <- hpS2$margL/hdS2$margL #estimated LR
+}
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

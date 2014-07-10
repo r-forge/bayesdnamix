@@ -1,5 +1,6 @@
 export(contLikMLE)
 export(contLikMarg)
+export(contLikMCMC)
 export(genDataset)
 useDynLib(gammadnamix)
 exportPattern("^[[:alpha:]]+")

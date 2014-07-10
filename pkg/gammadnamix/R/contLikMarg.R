@@ -5,7 +5,7 @@
 #' @details The procedure are doing numerical integration to approximate the marginal probability over noisance parameters. Mixture proportions have flat prior.
 #' 
 #' Function calls procedure in c++ by using the package Armadillo and Boost.
-#'
+#' Using one of the methods in the R2Cuba package.
 #'
 #' @param nC Number of contributors in model.
 #' @param mixData Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.
@@ -14,6 +14,7 @@
 #' @param condOrder Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!
 #' @param xi A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
+#' @param method Name of multivariate integration technique used in R2Cuba package. Default is "divonne".
 #' @param pRhoTau Prior function for (rho,tau)-parameters. Flat prior is default.
 #' @param rhotaumax Maximum range of rho and tau-parameter. Default is 1000.
 #' @param maxeval Maxumum number of evaluations in integration routine. Default is 5000.
@@ -21,11 +22,43 @@
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
-#' @return lik Marginalized likelihood of the hypothesis (model) given observed evidence.
+#' @param ximax Maximum range of xi-parameter. Default is 1000.
+#' @return ret A list(margL,error,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, error is numerical error from the integrale, nEvals is number of evaluations.
 #' @keywords continuous, Bayesian models
+#' @examples
+#' \dontrun{
+#' #data model:
+#' threshT <- 50 #threshold
+#' load(system.file("mcData.Rdata", package = "gammadnamix"))
+#' popFreq <- data$popFreq
+#' mixData <- data$samples$MC15
+#' refData <- data$refData
+#' #Q-assignation
+#' popFreq2 <- popFreq
+#' for(i in 1:length(popFreq)) { #make Q-assignation for each loci
+#'  tmp <- popFreq[[i]][names(popFreq[[i]])%in%mixData$adata[[i]]]
+#'  tmp <- c(tmp,1-sum(tmp))
+#'  names(tmp)[length(tmp)] <- "99"
+#'  popFreq2[[i]] <- tmp
+#' }
+#' #Hypothesis:
+#' nC <- 2 #number of contributors
+#' condhp <- condhd <- rep(0,length(refData)) 
+#' condhp [1] <- 1 #condition on first one in refdata
+#' #without stutter:
+#' hpD2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=xi,threshT=threshT)
+#' hdD2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=xi,threshT=threshT)
+#' LRD2 <- hpD2$margL/hdD2$margL #estimated LR
+#' #with stutter:
+#' hpS2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=xi,threshT=threshT,ximax=1 )
+#' hdS2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=xi,threshT=threshT,ximax=1 )
+#' LRS2 <- hpS2$margL/hdS2$margL #estimated LR
+#' }
 
-contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC=0,pRhoTau=function(x) {1},rhotaumax=c(1000,1000),maxeval=5000,threshT=50,fst=0,lambda=0,pXi=function(x) {1} ){
- require(cubature)
+contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,prC=0,method="divonne",pRhoTau=function(x) {1},rhotaumax=c(1000,1000),maxeval=5000,threshT=50,fst=0,lambda=0,pXi=function(x) {1} ,ximax=1){
+ #require(cubature) 
+ require(R2Cuba) 
+
  nA = unlist(lapply(mixData$adata,length)) #number of alleles of selected loci
  nL <- length(nA) #number of loci in data
  locnames <- toupper(names(mixData$adata))
@@ -119,7 +152,7 @@ contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,pr
 
 
  #Fix input-variables for Cpp-function
- logPE <- 1
+ logPE <- 0
  CnA <- c(0,cumsum(nA))
  allA <- as.integer(unlist(mixData$adata))
  allY <- as.numeric(unlist(mixData$hdata))
@@ -134,31 +167,36 @@ contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,xi=NULL,pr
  CnAall <- c(0,cumsum(nAall)) #cumulative number of alleles
  pA <- unlist(popFreq) #need each allele probability for drop-in probabilities
 
-#Optimize MLE:
+ #Numerical integration:
  #Two cases: Integrate over Stutter or Stutter known
- likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-  if(any(theta<lower | theta>upper)) return(Inf)
-  Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-  loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(theta[nC+2])) #weight with prior of tau and 
-  return(exp(loglik)) #weight with prior of tau and stutter.
- } 
- likYthetaS <- function(theta2) {   #call c++- function: length(theta)=nC
-  theta <- c(theta2,xi) #stutter-parameter added as known
-  if(any(theta<lower | theta>upper)) return(Inf)
-  Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-  loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(xi)) #weight with prior of tau and stutter.
-  return(exp(loglik))
- }
-
  if(is.null(xi)) { #if stutter model
-  lower <- rep(0,nC+2)
-  upper = c(rep(1,nC-1),rhotaumax,1)
-  ret <- adaptIntegrate(likYtheta, lowerLimit = lower , upperLimit = upper ,maxEval = maxeval )[[1]]
- } else { #if stutter ratio known
- lower <- rep(0,nC+1)
-  upper = c(rep(1,nC-1),rhotaumax)
-  ret <- adaptIntegrate(likYthetaS, lowerLimit = lower , upperLimit = upper ,maxEval = maxeval )[[1]]
+  likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
+   if(any(theta<lower | theta>upper)) return(Inf)
+   Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
+   loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(theta[nC+2])) #weight with prior of tau and 
+   return(exp(loglik)) #weight with prior of tau and stutter.
+  }
+ } else {
+  likYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
+   if(any(theta2<lower | theta2>upper)) return(Inf)
+   theta <- c(theta2,xi) #stutter-parameter added as known
+   Cval  <- .C("loglikgammaC",as.numeric(logPE),as.numeric(theta),as.integer(nC),as.integer(nL),as.integer(nA), as.numeric(allY),as.integer(allA),as.integer(CnA),as.integer(allAbpind),as.integer(nAall),as.integer(CnAall),as.integer(Gvec),as.integer(nG),as.integer(CnG),as.integer(CnG2),as.numeric(pG),as.numeric(pA), as.numeric(prC), as.integer(condRef),as.numeric(threshT),as.numeric(fst),as.integer(mkvec),as.integer(nkval),as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
+   loglik <- Cval + log(pRhoTau(theta[c(nC,nC+1)])) + log(pXi(xi)) #weight with prior of tau and stutter.
+   return(exp(loglik))
+  }
  }
- return(ret)
+ lower <- rep(0,nC+1)
+ upper <- c(rep(1,nC-1),rhotaumax)
+ if(is.null(xi)) { #if stutter model
+  lower <- c(lower,0)
+  upper <- c(upper,ximax)
+ }
+ #foo <- adaptIntegrate(likYtheta, lowerLimit = lower , upperLimit = upper ,maxEval = maxeval )
+ if(method=="cuhre") foo <- cuhre(length(lower),1, likYtheta,lower=lower, upper=upper,flags=list(verbose=0),max.eval=maxeval)
+ if(method=="divonne") foo <- divonne(length(lower),1, likYtheta,lower=lower, upper=upper,flags=list(verbose=0),max.eval=maxeval)
+ if(method=="suave") foo <- suave(length(lower),1, likYtheta,lower=lower, upper=upper,flags=list(verbose=0),max.eval=maxeval)
+ if(method=="vegas") foo <- vegas(length(lower),1, likYtheta,lower=lower, upper=upper,flags=list(verbose=0),max.eval=maxeval)
+
+ return(list(margL=foo$value,error=foo$abs.error,nEvals=foo$neval))
 }
 

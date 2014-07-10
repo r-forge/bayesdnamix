@@ -272,6 +272,7 @@ void loglikgammaC(double *logPE, double *theta, int *nC, int *nL, int *nA, doubl
  //mkvec - full vector of #sampled alleles (each alleles in population) 
  //nkval - total number of sampled alleles (for each loci)
  int i;
+ double Li; //likelihood for a given locus
  Col<double> *omega; //mixture proportion 
  Mat<int> *condMatrix; //conditional matrix for each contributor (values equal Gset-indices)
  omega = new Col<double>( theta, *nC-1, false); //insert mixture proportion: (C-1)-vector
@@ -282,19 +283,21 @@ void loglikgammaC(double *logPE, double *theta, int *nC, int *nL, int *nA, doubl
   mvec.at(0) = 1; //insert full mix-prop if one contributor 
  } else {
   mvec.subvec(0,*nC-2) = *omega;
-  mvec.at(*nC-1) = 1-sum(*omega); 
+  mvec.at(*nC-1) = 1-sum(*omega);  //restrict last mix-prop as sum of the others
  }
 
  //for each loci we need to run the recursion:
  for(i=0; i<*nL; i++) { 
    recurseClassStutter *rec = new recurseClassStutter(pC, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &allAbpind[CnAall[i]], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i], lambda); //create object of recursion
-   *logPE = (*logPE) + log(rec->bigsum);
-   delete rec;
- }//end for each loci i:
-
+   Li = rec->bigsum; //extract likelihood
+   delete rec; //delete recurse object
+   *logPE = (*logPE) + log(Li);
+   if(Li==0) {
+     break; //finished if the likelihood hits 0
+   }//end for each loci i:
+ }  
  delete omega;
  delete condMatrix;
 } //end function
-
 
 } 
