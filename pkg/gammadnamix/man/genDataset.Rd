@@ -3,30 +3,40 @@
 \alias{genDataset}
 \title{genDataset}
 \usage{
-genDataset(nC, popFreq, mu = 1000, sd = 1000, sorted = FALSE,
-  thresh = 50)
+genDataset(nC, popFreq, mu = 5000, sd = 400, sorted = FALSE,
+  threshT = 50, refData = NULL, Mx = NULL)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
 
 \item{popFreq}{A list of allele frequencies for a given population.}
 
-\item{mu}{Expected peak heights for an allele of a contributor.}
+\item{mu}{Expected peak heights for a het. single contributor allele}
 
-\item{sd}{Standard deviation of peak heights for an allele of a contributor.}
+\item{sd}{Standard deviation of peak heights for a het. single contributor allele}
 
 \item{sorted}{Boolean for wheter sorting the contributors with respect to decreasingly mixture proportions.}
 
-\item{thresh}{Threshold given}
+\item{threshT}{Required allele peak height in mixture}
+
+\item{refData}{A list of given reference profiles given as refData[[i]][[s]]. Default is random from population.}
+
+\item{Mx}{A vector of known mixture proportions. Default is random uniform.}
 }
 \value{
-List with elements Mx,mixData,refData
+List with elements theta,mixData,refData,nDrop where theta is the true parameters of the model and nDrop number of dropped alleles for each loci.
 }
 \description{
-genDataset samples a random mixture with Normal[+] peak heights.
+genDataset samples a random mixture peak heights given as gamma(rho*sum(h_k),tau), with h_k as peak height of k-te contributor.
 }
 \details{
 Simple function for generating a random peak height mixture distributed as normal positive truncated.
+}
+\examples{
+\dontrun{
+load(system.file("mcData.Rdata", package = "gammadnamix"))
+mixdata <- genDataset(nC=2,popFreq=data$popFreq,mu=1000,sd=100,threshT=50) #generate a random mixture
+}
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

@@ -4,10 +4,10 @@
 \title{contLikMCMC}
 \usage{
 contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  xi = NULL, prC = 0, method = 2, pRhoTau = function(x) {     1 },
-  rhotaumax = c(1000, 1000), nDone = 1, threshT = 50, fst = 0,
-  lambda = 0, pXi = function(x) {     1 }, ximax = 1, M = 10000,
-  theta0 = NULL, Sigma = NULL, delta = 0.3)
+  knownRef = NULL, xi = NULL, prC = 0, method = 2,
+  musigmamax = c(10000, 1000), nDone = 1, threshT = 50, fst = 0,
+  lambda = 0, pXi = function(x) 1, ximax = 1, M = 10000,
+  theta0 = NULL, Sigma = NULL, delta = 10)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -20,17 +20,17 @@ contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{condOrder}{Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!}
 
+\item{knownRef}{Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.}
+
 \item{xi}{A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.}
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
-\item{method}{Selected MCMC-routine for calculate marginal Likelihood (1=Normal Approximation, 2=Metropolis Hastings).}
+\item{method}{Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=Metropolis Hastings with "Gelfand and Dey" method).}
 
-\item{pRhoTau}{Prior function for (rho,tau)-parameters. Flat prior is default.}
+\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,1000).}
 
-\item{rhotaumax}{Maximum range of rho and tau-parameter. Default is c(1000,1000).}
-
-\item{nDone}{Maxumum number of random evaluations nlm-optimizing routing. Default is 1.}
+\item{nDone}{Required number of attained optimization for random start points. Default is 1.}
 
 \item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
 
@@ -42,16 +42,16 @@ contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{ximax}{Maximum range of xi-parameter. Default is 1.}
 
-\item{M}{Number of evaluations for MCMC-sampling.}
+\item{M}{Number of samples in the MCMC-sampling.}
 
-\item{theta0}{Start values for parameters in MCMC-sampling. Default is to find these using MLE.}
+\item{theta0}{Initial values for parameters in MCMC-sampling. Default is to find these using MLE.}
 
-\item{Sigma}{Covariance matrix used in kernel-function in MCMC-sampling. Default is to use inverse -hessian from optimization. If theta0 is spesified but not Sigma, Sigma becomes an eye-matrix.}
+\item{Sigma}{Covariance matrix used in transition kernel in MCMC-sampling. Default is to use inverse -hessian from optimization. If theta0 is spesified but not Sigma, Sigma becomes an eye-matrix.}
 
-\item{delta}{A numerical parameter to scale with Sigma. Useful for better MCMC sampling.}
+\item{delta}{A numerical parameter to scale with the covariance function Sigma. Default is 2. Should be higher to obtain lower acception rate.}
 }
 \value{
-ret A list(margL,posttheta,postlogL,logpX,nacc) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, posttheta is the posterior samples from a MC routine, postlogL is sampled log-likelihood values, nacc is number of accepted samples.
+ret A list (margL,posttheta,postlogL,logpX,accrat) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, posttheta is the posterior samples from a MC routine, postlogL is sampled log-likelihood values, accrat is ratio of accepted samples.
 }
 \description{
 contLikMCMC simulates from the posterior distribution for a bayesian STR DNA mixture model.
@@ -59,58 +59,51 @@ contLikMCMC simulates from the posterior distribution for a bayesian STR DNA mix
 \details{
 The procedure are doing MCMC to approximate the marginal probability over noisance parameters. Mixture proportions have flat prior.
 
+If no initial values or covariance matrix has been provided to the function, a call to the MLE function is applied.
+The Metropolis Hastings routine uses a Multivariate Normal distribution with mean 0 and covariance as delta multiplied with the inverse negative hessian with MLE inserted as transistion kernel.
 Function calls procedure in c++ by using the package Armadillo and Boost.
 }
 \examples{
 \dontrun{
-#data model:
 threshT <- 50 #threshold
 load(system.file("mcData.Rdata", package = "gammadnamix"))
-popFreq <- data$popFreq
 mixData <- data$samples$MC15
-refData <- data$refData
-#Q-assignation
-popFreq2 <- popFreq
-for(i in 1:length(popFreq)) { #make Q-assignation for each loci
- tmp <- popFreq[[i]][names(popFreq[[i]])\%in\%mixData$adata[[i]]]
- tmp <- c(tmp,1-sum(tmp))
- names(tmp)[length(tmp)] <- "99"
- popFreq2[[i]] <- tmp
-}
+retlist <- Qassignate(mixData,popFreq=data$popFreq,refData=data$refData) #Q-assignation
+popFreq <- retlist$popFreq #get updated popFreq
+refData <- retlist$refData #get updated popFreq
 #Hypothesis:
 nC <- 2 #number of contributors
 condhp <- condhd <- rep(0,length(refData))
 condhp [1] <- 1 #condition on first one in refdata
-#helpfunction for checking samples:
-validMCMC <- function(X) {
- p <- ncol(X)
- par(mfrow=c(p,2))
- for(i in 1:p) {
-  plot(density(X[,i],from=0),ty="l")
-  plot(X[,i],ty="l")
- }
- par(mfrow=c(1,1))
-}
 M <- 1e5 #number of samples from posterior
-delta = 0.3 #tweak parameter in MCMC
+delta = 10  #Step parameter for covariance of the proposal used in the Metropolis Hastings routine
 #without stutter:
-hpD4 <- contLikMCMC(nC,mixData,popFreq2,refData=refData,condOrder=condhp,xi=0,threshT=threshT,M=M,delta=delta)
-hdD4 <- contLikMCMC(nC,mixData,popFreq2,refData=refData,condOrder=condhd,xi=0,threshT=threshT,M=M,delta=delta)
-validMCMC(hpD4$posttheta)
-validMCMC(hpD4$posttheta)
-LRD4 <- hpD4$margL/hdD4$margL #estimated LR
+hpD <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=0,threshT=threshT,M=M,delta=delta)
+validMCMC(hpD$posttheta)
+hdD <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=0,threshT=threshT,M=M,delta=delta)
+validMCMC(hdD$posttheta)
+print(hpD$margL/hdD$margL) #estimated LR
 #with stutter:
-hpS4 <- contLikMCMC(nC,mixData,popFreq2,refData=refData,condOrder=condhp,threshT=threshT,M=M,ximax=1,delta=delta)
-hdS4 <- contLikMCMC(nC,mixData,popFreq2,refData=refData,condOrder=condhd,threshT=threshT,M=M,ximax=1,delta=delta)
-validMCMC(hpS4$posttheta)
-validMCMC(hdS4$posttheta)
-LRS4 <- hpS4$margL/hdS4$margL #estimated LR
+hpS <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhp,threshT=threshT,M=M,delta=delta,ximax=0.2)
+validMCMC(hpS$posttheta)
+hdS <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhd,threshT=threshT,M=M,delta=delta,ximax=0.2)
+validMCMC(hdS$posttheta)
+print(hpS$margL/hdS$margL) #estimated LR
 }
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 }
+\references{
+Craiu,R.V. and Rosenthal, J.S. (2014). Bayesian Computation Via Markov Chain Monte Carlo. Annu. Rev. Stat. Appl., 1,179-201.
+}
 \keyword{Bayesian}
+\keyword{Hastings,}
+\keyword{Likelihood}
+\keyword{MCMC,}
+\keyword{Marginalized}
+\keyword{Metropolis}
 \keyword{continuous,}
-\keyword{models}
+\keyword{estimation}
+\keyword{models,}
 

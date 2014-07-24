@@ -4,9 +4,9 @@
 \title{contLikMarg}
 \usage{
 contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  xi = NULL, prC = 0, method = "divonne", pRhoTau = function(x) {     1
-  }, rhotaumax = c(1000, 1000), maxeval = 5000, threshT = 50, fst = 0,
-  lambda = 0, pXi = function(x) {     1 }, ximax = 1)
+  knownRef = NULL, xi = NULL, prC = 0, method = "cubature",
+  musigmamax = c(10000, 1000), musigmamin = c(0, 0), reltol = 0.001,
+  threshT = 50, fst = 0, lambda = 0, pXi = function(x) 1, ximax = 1)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -19,17 +19,19 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{condOrder}{Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!}
 
+\item{knownRef}{Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.}
+
 \item{xi}{A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.}
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
-\item{method}{Name of multivariate integration technique used in R2Cuba package. Default is "divonne".}
+\item{method}{Name of multivariate integration technique used in R2Cuba package. method={"cuhre","divonne","suave","vegas"}. Default is "divonne".}
 
-\item{pRhoTau}{Prior function for (rho,tau)-parameters. Flat prior is default.}
+\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,1000).}
 
-\item{rhotaumax}{Maximum range of rho and tau-parameter. Default is 1000.}
+\item{musigmamin}{Minimum range of mu and sigma-parameter. Default is c(0,0).}
 
-\item{maxeval}{Maxumum number of evaluations in integration routine. Default is 5000.}
+\item{reltol}{Required relative tolerance error of evaluations in integration routine. Default is 0.001.}
 
 \item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
 
@@ -42,7 +44,7 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 \item{ximax}{Maximum range of xi-parameter. Default is 1000.}
 }
 \value{
-ret A list(margL,error,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, error is numerical error from the integrale, nEvals is number of evaluations.
+ret A list(margL,deviation,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, deviation is the confidence-interval of margL, nEvals is number of evaluations.
 }
 \description{
 contLikMarg marginalized the likelihood of the STR DNA mixture given some assumed a bayesian model.
@@ -51,42 +53,41 @@ contLikMarg marginalized the likelihood of the STR DNA mixture given some assume
 The procedure are doing numerical integration to approximate the marginal probability over noisance parameters. Mixture proportions have flat prior.
 
 Function calls procedure in c++ by using the package Armadillo and Boost.
-Using one of the methods in the R2Cuba package.
+Using "cubature" method (cubature) or "divonne" method (R2Cuba). "cubature" gives more accuracy but require more evaluations than "divonne".
+"cuhre","suave" and "vegas" not recommended by experience.
 }
 \examples{
 \dontrun{
-#data model:
 threshT <- 50 #threshold
 load(system.file("mcData.Rdata", package = "gammadnamix"))
-popFreq <- data$popFreq
 mixData <- data$samples$MC15
-refData <- data$refData
-#Q-assignation
-popFreq2 <- popFreq
-for(i in 1:length(popFreq)) { #make Q-assignation for each loci
- tmp <- popFreq[[i]][names(popFreq[[i]])\%in\%mixData$adata[[i]]]
- tmp <- c(tmp,1-sum(tmp))
- names(tmp)[length(tmp)] <- "99"
- popFreq2[[i]] <- tmp
-}
+retlist <- Qassignate(mixData,popFreq=data$popFreq,refData=data$refData) #Q-assignation
+popFreq <- retlist$popFreq #get updated popFreq
+refData <- retlist$refData #get updated popFreq
 #Hypothesis:
 nC <- 2 #number of contributors
 condhp <- condhd <- rep(0,length(refData))
 condhp [1] <- 1 #condition on first one in refdata
 #without stutter:
-hpD2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=xi,threshT=threshT)
-hdD2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=xi,threshT=threshT)
-LRD2 <- hpD2$margL/hdD2$margL #estimated LR
+hpD <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=0,threshT=threshT)
+hdD <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=0,threshT=threshT)
+print(hpD$margL/hdD$margL) #estimated LR=8670.289
 #with stutter:
-hpS2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=xi,threshT=threshT,ximax=1 )
-hdS2 <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=xi,threshT=threshT,ximax=1 )
-LRS2 <- hpS2$margL/hdS2$margL #estimated LR
+hpS <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhp,threshT=threshT,ximax=0.2)
+hdS <- contLikMarg(nC,mixData,popFreq,refData=refData,condOrder=condhd,threshT=threshT,ximax=0.2)
+print(hpS$margL/hdS$margL) #estimated LR=8645.057
 }
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 }
+\references{
+Hahn,T. (2005). CUBA - a library for multidimensional numerical integration. Computer Physics Communications, 168(2),78-95.
+}
 \keyword{Bayesian}
+\keyword{Likelihood}
+\keyword{Marginalized}
 \keyword{continuous,}
-\keyword{models}
+\keyword{estimation}
+\keyword{models,}
 

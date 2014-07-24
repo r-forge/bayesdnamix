@@ -1,21 +1,16 @@
 Package: gammadnamix
 Type: Package
-Title: Procedure for evaluate likelihood for quantitative STR DNA mixture bayesian models
-Version: 0.1.2
-Date: 2014-07-10
+Title: Procedure for evaluate likelihood for quantitative STR DNA mixture Bayesian models
+Version: 0.2.0
+Date: 2014-07-24
 Author: Oyvind Bleka <Oyvind.bleka@fhi.no>
 Maintainer: Oyvind Bleka <Oyvind.bleka@fhi.no>
-Description: gammadnamix contains procedures for evaluating maximized likelihood and marginal likelihoods for quantitative bayesian gamma model for STR DNA mixtures for general specifications of hypotheses. 
+Description: gammadnamix contains procedures for evaluating maximized likelihood and marginal likelihoods for quantitative Bayesian gamma model for STR DNA mixtures for general specifications of hypotheses. 
 License: GPL(>=2)
 Depends:
     R (>= 3.0.1),
 LinkingTo: Rcpp, RcppArmadillo, BH
 Imports:
-    R2Cuba,gtools
+    cubature,R2Cuba,Rsolnp,numDeriv
 Suggests:
-    R2Cuba,gtools
-Collate:
-    'contLikMLE.R'
-    'contLikMarg.R'
-    'contLikMCMC.R'
-    'genDataset.R'
+    cubature,R2Cuba,Rsolnp,numDeriv

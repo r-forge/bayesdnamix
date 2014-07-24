@@ -4,9 +4,9 @@
 \title{contLikMLE}
 \usage{
 contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  xi = NULL, prC = 0, pRhoTau = function(x) {     1 },
-  rhotaumax = c(1000, 1000), nDone = 1, threshT = 50, fst = 0,
-  lambda = 0, pXi = function(x) {     1 }, ximax = 0.5)
+  knownRef = NULL, xi = NULL, prC = 0, musigmamax = c(10000, 1000),
+  nDone = 1, threshT = 50, fst = 0, lambda = 0, pXi = function(x) 1,
+  ximax = 1)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -19,13 +19,13 @@ contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{condOrder}{Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!}
 
+\item{knownRef}{Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.}
+
 \item{xi}{A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.}
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
-\item{pRhoTau}{Prior function for (rho,tau)-parameters. Flat prior is default.}
-
-\item{rhotaumax}{Maximum range of rho and tau-parameter. Default is c(1000,1000).}
+\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,1000).}
 
 \item{nDone}{Maxumum number of random evaluations nlm-optimizing routing. Default is 1.}
 
@@ -40,7 +40,7 @@ contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 \item{ximax}{Maximum range of xi-parameter. Default is 1.}
 }
 \value{
-ret A list(MLE,Sigma,CI,loglik) with Maximixed likelihood elements for hypothesis (model) given observed evidence.
+ret A list(MLE,Sigma,Sigma2,CI,loglik) with Maximixed likelihood elements for hypothesis (model) given observed evidence.
 }
 \description{
 contLikMLE optimizes the likelihood of the STR DNA mixture given some assumed a bayesian model.
@@ -52,39 +52,35 @@ Function calls procedure in c++ by using the package Armadillo and Boost.
 }
 \examples{
 \dontrun{
-#data model:
 threshT <- 50 #threshold
 load(system.file("mcData.Rdata", package = "gammadnamix"))
-popFreq <- data$popFreq
 mixData <- data$samples$MC15
-refData <- data$refData
-#Q-assignation
-popFreq2 <- popFreq
-for(i in 1:length(popFreq)) { #make Q-assignation for each loci
- tmp <- popFreq[[i]][names(popFreq[[i]])\%in\%mixData$adata[[i]]]
- tmp <- c(tmp,1-sum(tmp))
- names(tmp)[length(tmp)] <- "99"
- popFreq2[[i]] <- tmp
-}
+retlist <- Qassignate(mixData,popFreq=data$popFreq,refData=data$refData) #Q-assignation
+popFreq <- retlist$popFreq #get updated popFreq
+refData <- retlist$refData #get updated popFreq
 #Hypothesis:
 nC <- 2 #number of contributors
 condhp <- condhd <- rep(0,length(refData))
 condhp [1] <- 1 #condition on first one in refdata
-nDone <- 2 #number of random start points to optimization
-#without stutter:
-hpD <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhp,xi=0,threshT=threshT,nDone=nDone )
-hdD <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhd,xi=0,threshT=threshT,nDone=nDone )
-LRD <- exp(hpD$loglik - hdD$loglik) #estimated LR
-#with stutter:
-hpS <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhp,threshT=threshT,nDone=nDone,ximax=1 )
-hdS <- contLikMLE(nC,mixData,popFreq2,refData=refData,condOrder=condhd,threshT=threshT,nDone=nDone,ximax=1 )
-LRS <- exp(hpS$loglik - hdS$loglik) #estimated LR
+nDone <- 3 #require 3 optimizations
+hpD <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=0,threshT=threshT,nDone=nDone )
+hdD <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=0,threshT=threshT,nDone=nDone )
+print(exp(hpD$loglik - hdD$loglik)) #estimated LR=21554.24
+#with stutter, but stuttarratio at most 0.2:
+hpS <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhp,threshT=threshT,nDone=nDone,ximax=0.2)
+hdS <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhd,threshT=threshT,nDone=nDone,ximax=0.2)
+print(exp(hpS$loglik - hdS$loglik)) #estimated LR=21554.4
 }
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 }
-\keyword{Bayesian}
-\keyword{continuous,}
-\keyword{models}
+\references{
+Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
+}
+\keyword{Estimation}
+\keyword{Likelihood}
+\keyword{Maximum}
+\keyword{continuous}
+\keyword{model,}
 
