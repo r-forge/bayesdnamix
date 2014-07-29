@@ -5,7 +5,7 @@
 \usage{
 contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
   knownRef = NULL, xi = NULL, prC = 0, method = 2,
-  musigmamax = c(10000, 1000), nDone = 1, threshT = 50, fst = 0,
+  musigmamax = c(10000, 10), nDone = 1, threshT = 50, fst = 0,
   lambda = 0, pXi = function(x) 1, ximax = 1, M = 10000,
   theta0 = NULL, Sigma = NULL, delta = 10)
 }
@@ -28,7 +28,7 @@ contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{method}{Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=Metropolis Hastings with "Gelfand and Dey" method).}
 
-\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,1000).}
+\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,10).}
 
 \item{nDone}{Required number of attained optimization for random start points. Default is 1.}
 

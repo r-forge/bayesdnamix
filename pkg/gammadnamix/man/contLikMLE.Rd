@@ -4,7 +4,7 @@
 \title{contLikMLE}
 \usage{
 contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  knownRef = NULL, xi = NULL, prC = 0, musigmamax = c(10000, 1000),
+  knownRef = NULL, xi = NULL, prC = 0, musigmamax = c(10000, 10),
   nDone = 1, threshT = 50, fst = 0, lambda = 0, pXi = function(x) 1,
   ximax = 1)
 }
@@ -25,7 +25,7 @@ contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
-\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,1000).}
+\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,10).}
 
 \item{nDone}{Maxumum number of random evaluations nlm-optimizing routing. Default is 1.}
 

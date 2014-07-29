@@ -14,7 +14,7 @@
 #' @param knownRef Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.
 #' @param xi A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
-#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,1000).
+#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,10).
 #' @param nDone Maxumum number of random evaluations nlm-optimizing routing. Default is 1.
 #' @param threshT The detection threshold given. Used when considering probability of allele drop-outs.
 #' @param fst is the coancestry coeffecient. Default is 0.
@@ -47,7 +47,7 @@
 #' print(exp(hpS$loglik - hdS$loglik)) #estimated LR=21554.4
 #' }
 
-contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,musigmamax =c(10000,1000),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,ximax=1){
+contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,musigmamax =c(10000,10),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,ximax=1){
  require(Rsolnp)
  require(numDeriv)
  ret <- prepareC(nC,mixData,popFreq,refData,condOrder,knownRef)

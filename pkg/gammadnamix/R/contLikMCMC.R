@@ -17,7 +17,7 @@
 #' @param xi A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
 #' @param method Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=Metropolis Hastings with "Gelfand and Dey" method).
-#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,1000).
+#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,10).
 #' @param nDone Required number of attained optimization for random start points. Default is 1.
 #' @param threshT The detection threshold given. Used when considering probability of allele drop-outs.
 #' @param fst is the coancestry coeffecient. Default is 0.
@@ -60,7 +60,7 @@
 #' print(hpS$margL/hdS$margL) #estimated LR
 #' }
 
-contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,method=2,musigmamax =c(10000,1000),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,ximax=1,M=1e4,theta0=NULL,Sigma=NULL,delta=10){
+contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,method=2,musigmamax =c(10000,10),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,ximax=1,M=1e4,theta0=NULL,Sigma=NULL,delta=10){
  #Optimize with MLE if theta0,Sigma not given
  if(is.null(theta0) || is.null(Sigma)) { #if any is missing:
   mle <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condOrder,knownRef=knownRef,xi=xi,prC=prC,musigmamax=musigmamax,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi,ximax=ximax,nDone=3)
@@ -68,6 +68,7 @@ contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=N
   if(is.null(Sigma)) Sigma <- mle$Sigma
  }
  if(!all(length(theta0)%in%dim(Sigma))) stop("Length of theta0 and dimension of Sigma was not the same!")
+
  ret <- prepareC(nC,mixData,popFreq,refData,condOrder,knownRef)
  if(is.null(condOrder)) condOrder <- rep(0,nC) #insert condorder if missing
  unRange <- (1:nC)[!(1:nC)%in%condOrder] #get the range of the unknowns

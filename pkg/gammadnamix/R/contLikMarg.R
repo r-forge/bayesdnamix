@@ -17,7 +17,7 @@
 #' @param xi A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
 #' @param method Name of multivariate integration technique used in R2Cuba package. method={"cuhre","divonne","suave","vegas"}. Default is "divonne".
-#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,1000).
+#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,10).
 #' @param musigmamin Minimum range of mu and sigma-parameter. Default is c(0,0).
 #' @param reltol Required relative tolerance error of evaluations in integration routine. Default is 0.001.
 #' @param threshT The detection threshold given. Used when considering probability of allele drop-outs.
@@ -51,7 +51,7 @@
 #' print(hpS$margL/hdS$margL) #estimated LR=8645.057
 #' }
 
-contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,method="cubature",musigmamax =c(10000,1000),musigmamin=c(0,0),reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1 ,ximax=1){
+contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,method="cubature",musigmamax =c(10000,10),musigmamin=c(0,0),reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1 ,ximax=1){
  require(cubature) 
  require(R2Cuba) 
  ret <- prepareC(nC,mixData,popFreq,refData,condOrder,knownRef)

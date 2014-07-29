@@ -5,7 +5,7 @@
 #' @param nC Number of contributors in model.
 #' @param popFreq A list of allele frequencies for a given population.
 #' @param mu Expected peak heights for a het. single contributor allele
-#' @param sd Standard deviation of peak heights for a het. single contributor allele
+#' @param cv Coeffecient of variance of peak heights.
 #' @param sorted Boolean for wheter sorting the contributors with respect to decreasingly mixture proportions.
 #' @param threshT Required allele peak height in mixture
 #' @param refData A list of given reference profiles given as refData[[i]][[s]]. Default is random from population. 
@@ -15,11 +15,9 @@
 #' @examples
 #' \dontrun{
 #' load(system.file("mcData.Rdata", package = "gammadnamix"))
-#' mixdata <- genDataset(nC=2,popFreq=data$popFreq,mu=1000,sd=100,threshT=50) #generate a random mixture
+#' mixdata <- genDataset(nC=2,popFreq=data$popFreq,mu=1000,cv=0.1,threshT=50) #generate a random mixture
 #' }
-genDataset = function(nC,popFreq,mu=5000,sd=400,sorted=FALSE,threshT=50,refData=NULL,Mx=NULL) {
-  #mu = total expected sum peak height
-  #sd = standard deviations
+genDataset = function(nC,popFreq,mu=1000,cv=0.1,sorted=FALSE,threshT=50,refData=NULL,Mx=NULL) {
   nL<-length(popFreq)
   if(is.null(Mx)) {
    Mx <- rgamma(nC,1)
@@ -34,8 +32,8 @@ genDataset = function(nC,popFreq,mu=5000,sd=400,sorted=FALSE,threshT=50,refData=
   nDrop <- rep(NA,nL)
 
   #convert to gamma-parameters
-  rho <- (mu/sd)^2
-  tau <- sd^2/mu 
+  rho <- 1/(cv^2)
+  tau <- mu/rho
 
   for(i in 1:nL) {
    if( length(refData) < i) { #if no refData given

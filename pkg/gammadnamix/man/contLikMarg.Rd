@@ -5,7 +5,7 @@
 \usage{
 contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
   knownRef = NULL, xi = NULL, prC = 0, method = "cubature",
-  musigmamax = c(10000, 1000), musigmamin = c(0, 0), reltol = 0.001,
+  musigmamax = c(10000, 10), musigmamin = c(0, 0), reltol = 0.001,
   threshT = 50, fst = 0, lambda = 0, pXi = function(x) 1, ximax = 1)
 }
 \arguments{
@@ -27,7 +27,7 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{method}{Name of multivariate integration technique used in R2Cuba package. method={"cuhre","divonne","suave","vegas"}. Default is "divonne".}
 
-\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,1000).}
+\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,10).}
 
 \item{musigmamin}{Minimum range of mu and sigma-parameter. Default is c(0,0).}
 

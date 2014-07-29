@@ -198,8 +198,8 @@ class recurseClassStutter { //recurse-class for each loci
    t0 = t0in;//copy pointer to threshold
    lambda = lam; //copy pointer to parameter of exponential drop-in model
 //reparameterization: (mu,sd) -> (rho,tau)
-   tau = th[1]*th[1]/th[0];  
-   rho = th[0]/tau;  //get value of model parameter (distr-param)
+   rho = 1/(th[1]*th[1]); 
+   tau = th[0]/rho;  
 //   rho = th[0];  //get value of model parameter (distr-param)
 //   tau = th[1];  //get value of model parameter (distr-param)
    xi = th[2]; //get value of model parameter (stutter-param)

@@ -3,7 +3,7 @@
 \alias{genDataset}
 \title{genDataset}
 \usage{
-genDataset(nC, popFreq, mu = 5000, sd = 400, sorted = FALSE,
+genDataset(nC, popFreq, mu = 1000, cv = 0.1, sorted = FALSE,
   threshT = 50, refData = NULL, Mx = NULL)
 }
 \arguments{
@@ -13,7 +13,7 @@ genDataset(nC, popFreq, mu = 5000, sd = 400, sorted = FALSE,
 
 \item{mu}{Expected peak heights for a het. single contributor allele}
 
-\item{sd}{Standard deviation of peak heights for a het. single contributor allele}
+\item{cv}{Coeffecient of variance of peak heights.}
 
 \item{sorted}{Boolean for wheter sorting the contributors with respect to decreasingly mixture proportions.}
 
@@ -35,7 +35,7 @@ Simple function for generating a random peak height mixture distributed as norma
 \examples{
 \dontrun{
 load(system.file("mcData.Rdata", package = "gammadnamix"))
-mixdata <- genDataset(nC=2,popFreq=data$popFreq,mu=1000,sd=100,threshT=50) #generate a random mixture
+mixdata <- genDataset(nC=2,popFreq=data$popFreq,mu=1000,cv=0.1,threshT=50) #generate a random mixture
 }
 }
 \author{
