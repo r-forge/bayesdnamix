@@ -5,8 +5,7 @@
 #' @details The procedure are doing numerical integration to approximate the marginal probability over noisance parameters. Mixture proportions have flat prior.
 #' 
 #' Function calls procedure in c++ by using the package Armadillo and Boost.
-#' Using "cubature" method (cubature) or "divonne" method (R2Cuba). "cubature" gives more accuracy but require more evaluations than "divonne".
-#' "cuhre","suave" and "vegas" not recommended by experience.
+#' Using adaptIntegral method (cubature package)
 #'
 #' @param nC Number of contributors in model.
 #' @param mixData Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.
@@ -51,9 +50,8 @@
 #' print(hpS$margL/hdS$margL) #estimated LR=8645.057
 #' }
 
-contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,method="cubature",musigmamax =c(10000,10),musigmamin=c(0,0),reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1 ,ximax=1){
+contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,musigmamax =c(10000,10),musigmamin=c(0,0),reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1 ,ximax=1){
  require(cubature) 
- require(R2Cuba) 
  ret <- prepareC(nC,mixData,popFreq,refData,condOrder,knownRef)
  if(is.null(condOrder)) condOrder <- rep(0,nC) #insert condorder if missing
  unRange <- (1:nC)[!(1:nC)%in%condOrder] #get the range of the unknowns
@@ -84,21 +82,10 @@ contLikMarg = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=N
  }
  bisectMx <- (nC==2 && nU==2) #if exact 2 unknown contributors in the hypothesis
  if(bisectMx) upper[1] <- 0.5 #restrict outcome of mixture proportions
- if(method=="cubature") {
-   foo <- adaptIntegrate(likYtheta, lowerLimit = lower , upperLimit = upper , tol = reltol)
-   val <- foo$integral
-   dev <- val/(1+c(1,-1)*foo$error)
-   nEvals <- foo[[3]]
- } else {
-#  if(method=="cuhre") f <- cuhre
-#  if(method=="suave") f <- suave 
-#  if(method=="vegas")  f <- vegas
-  if(method=="divonne") f <- divonne
-  foo <- f(length(lower),1, likYtheta,lower=lower, upper=upper,flags=list(verbose=0),rel.tol=reltol)
-  val <- foo$value
-  dev <- val + c(-1,1)*foo$abs.error  #deviation interval
-  nEvals <- foo$neval
- }
+ foo <- adaptIntegrate(likYtheta, lowerLimit = lower , upperLimit = upper , tol = reltol)
+ val <- foo$integral
+ dev <- val + c(-1,1)*foo$error
+ nEvals <- foo[[3]]
  if(bisectMx) {
   val <- 2*val 
   dev <- 2*dev 

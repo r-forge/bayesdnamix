@@ -4,7 +4,7 @@
 \title{contLikMarg}
 \usage{
 contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  knownRef = NULL, xi = NULL, prC = 0, method = "cubature",
+  knownRef = NULL, xi = NULL, prC = 0,
   musigmamax = c(10000, 10), musigmamin = c(0, 0), reltol = 0.001,
   threshT = 50, fst = 0, lambda = 0, pXi = function(x) 1, ximax = 1)
 }
@@ -53,8 +53,6 @@ contLikMarg marginalized the likelihood of the STR DNA mixture given some assume
 The procedure are doing numerical integration to approximate the marginal probability over noisance parameters. Mixture proportions have flat prior.
 
 Function calls procedure in c++ by using the package Armadillo and Boost.
-Using "cubature" method (cubature) or "divonne" method (R2Cuba). "cubature" gives more accuracy but require more evaluations than "divonne".
-"cuhre","suave" and "vegas" not recommended by experience.
 }
 \examples{
 \dontrun{

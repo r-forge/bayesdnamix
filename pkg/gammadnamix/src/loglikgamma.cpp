@@ -289,8 +289,10 @@ void loglikgammaC(double *logPE, double *theta, int *nC, int *nL, int *nA, doubl
   mvec.at(*nC-1) = 1-sum(*omega);  //restrict last mix-prop as sum of the others
  }
 
- //for each loci we need to run the recursion:
- for(i=0; i<*nL; i++) { 
+if(mvec.at(*nC-1)<0) {
+  *logPE = log(0);
+} else {
+ for(i=0; i<*nL; i++) {  //for each loci we need to run the recursion:
    recurseClassStutter *rec = new recurseClassStutter(pC, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &allAbpind[CnAall[i]], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i], lambda); //create object of recursion
    Li = rec->bigsum; //extract likelihood
    delete rec; //delete recurse object
@@ -299,6 +301,7 @@ void loglikgammaC(double *logPE, double *theta, int *nC, int *nL, int *nA, doubl
      break; //finished if the likelihood hits 0
    }//end for each loci i:
  }  
+}
  delete omega;
  delete condMatrix;
 } //end function
