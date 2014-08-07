@@ -4,10 +4,10 @@
 \title{contLikMCMC}
 \usage{
 contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  knownRef = NULL, xi = NULL, prC = 0, method = 2,
-  musigmamax = c(10000, 10), nDone = 1, threshT = 50, fst = 0,
-  lambda = 0, pXi = function(x) 1, ximax = 1, M = 10000,
-  theta0 = NULL, Sigma = NULL, delta = 10)
+  knownRef = NULL, xi = NULL, prC = 0, method = 2, nDone = 1,
+  threshT = 50, fst = 0, lambda = 0, musigmamax = c(10000, 1),
+  pXi = function(x) 1, M = 10000, mlefit = NULL, delta = 2,
+  isPhi = FALSE)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -28,8 +28,6 @@ contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{method}{Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=Metropolis Hastings with "Gelfand and Dey" method).}
 
-\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,10).}
-
 \item{nDone}{Required number of attained optimization for random start points. Default is 1.}
 
 \item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
@@ -38,17 +36,17 @@ contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{lambda}{Parameter in modeled peak height shifted exponential model. Default is 0.}
 
-\item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
+\item{musigmamax}{Upper boundary of rho-tau-parameters. Default (10000,1)}
 
-\item{ximax}{Maximum range of xi-parameter. Default is 1.}
+\item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
 
 \item{M}{Number of samples in the MCMC-sampling.}
 
-\item{theta0}{Initial values for parameters in MCMC-sampling. Default is to find these using MLE.}
-
-\item{Sigma}{Covariance matrix used in transition kernel in MCMC-sampling. Default is to use inverse -hessian from optimization. If theta0 is spesified but not Sigma, Sigma becomes an eye-matrix.}
+\item{mlefit}{Fitted object using contLikMLE}
 
 \item{delta}{A numerical parameter to scale with the covariance function Sigma. Default is 2. Should be higher to obtain lower acception rate.}
+
+\item{isPhi}{Boolean whether we are working with reparameterizated parameters}
 }
 \value{
 ret A list (margL,posttheta,postlogL,logpX,accrat) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, posttheta is the posterior samples from a MC routine, postlogL is sampled log-likelihood values, accrat is ratio of accepted samples.
@@ -75,7 +73,7 @@ refData <- retlist$refData #get updated popFreq
 nC <- 2 #number of contributors
 condhp <- condhd <- rep(0,length(refData))
 condhp [1] <- 1 #condition on first one in refdata
-M <- 1e5 #number of samples from posterior
+M <- 1e2 #number of samples from posterior
 delta = 10  #Step parameter for covariance of the proposal used in the Metropolis Hastings routine
 #without stutter:
 hpD <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=0,threshT=threshT,M=M,delta=delta)

@@ -3,10 +3,10 @@
 \alias{contLikMarg}
 \title{contLikMarg}
 \usage{
-contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  knownRef = NULL, xi = NULL, prC = 0,
-  musigmamax = c(10000, 10), musigmamin = c(0, 0), reltol = 0.001,
-  threshT = 50, fst = 0, lambda = 0, pXi = function(x) 1, ximax = 1)
+contLikMarg(nC, mixData, popFreq, lower, upper, refData = NULL,
+  condOrder = NULL, knownRef = NULL, xi = NULL, prC = 0,
+  reltol = 0.001, threshT = 50, fst = 0, lambda = 0, pXi = function(x)
+  1, isPhi = FALSE)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -14,6 +14,10 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 \item{mixData}{Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.}
 
 \item{popFreq}{A list of allele frequencies for a given population.}
+
+\item{lower}{Lower bounds of parameters}
+
+\item{upper}{Upper bounds of parameters}
 
 \item{refData}{Reference objects with list element [[s]]$adata[[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.}
 
@@ -25,12 +29,6 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
-\item{method}{Name of multivariate integration technique used in R2Cuba package. method={"cuhre","divonne","suave","vegas"}. Default is "divonne".}
-
-\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,10).}
-
-\item{musigmamin}{Minimum range of mu and sigma-parameter. Default is c(0,0).}
-
 \item{reltol}{Required relative tolerance error of evaluations in integration routine. Default is 0.001.}
 
 \item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
@@ -41,7 +39,7 @@ contLikMarg(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
 
-\item{ximax}{Maximum range of xi-parameter. Default is 1000.}
+\item{isPhi}{Boolean whether we are working with reparameterizated parameters}
 }
 \value{
 ret A list(margL,deviation,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, deviation is the confidence-interval of margL, nEvals is number of evaluations.
@@ -53,6 +51,8 @@ contLikMarg marginalized the likelihood of the STR DNA mixture given some assume
 The procedure are doing numerical integration to approximate the marginal probability over noisance parameters. Mixture proportions have flat prior.
 
 Function calls procedure in c++ by using the package Armadillo and Boost.
+Using "cubature" method (cubature) or "divonne" method (R2Cuba). "cubature" gives more accuracy but require more evaluations than "divonne".
+"cuhre","suave" and "vegas" not recommended by experience.
 }
 \examples{
 \dontrun{

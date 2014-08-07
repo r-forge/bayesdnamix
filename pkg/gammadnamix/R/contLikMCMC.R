@@ -17,17 +17,16 @@
 #' @param xi A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
 #' @param method Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=Metropolis Hastings with "Gelfand and Dey" method).
-#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,10).
 #' @param nDone Required number of attained optimization for random start points. Default is 1.
 #' @param threshT The detection threshold given. Used when considering probability of allele drop-outs.
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
+#' @param musigmamax Upper boundary of rho-tau-parameters. Default (10000,1)
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
-#' @param ximax Maximum range of xi-parameter. Default is 1.
 #' @param M Number of samples in the MCMC-sampling.
-#' @param theta0 Initial values for parameters in MCMC-sampling. Default is to find these using MLE.
-#' @param Sigma Covariance matrix used in transition kernel in MCMC-sampling. Default is to use inverse -hessian from optimization. If theta0 is spesified but not Sigma, Sigma becomes an eye-matrix.
+#' @param mlefit Fitted object using contLikMLE
 #' @param delta A numerical parameter to scale with the covariance function Sigma. Default is 2. Should be higher to obtain lower acception rate.
+#' @param isPhi Boolean whether we are working with reparameterizated parameters
 #' @return ret A list (margL,posttheta,postlogL,logpX,accrat) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, posttheta is the posterior samples from a MC routine, postlogL is sampled log-likelihood values, accrat is ratio of accepted samples.
 #' @export 
 #' @references Craiu,R.V. and Rosenthal, J.S. (2014). Bayesian Computation Via Markov Chain Monte Carlo. Annu. Rev. Stat. Appl., 1,179-201.
@@ -44,7 +43,7 @@
 #' nC <- 2 #number of contributors
 #' condhp <- condhd <- rep(0,length(refData)) 
 #' condhp [1] <- 1 #condition on first one in refdata
-#' M <- 1e5 #number of samples from posterior
+#' M <- 1e2 #number of samples from posterior
 #' delta = 10  #Step parameter for covariance of the proposal used in the Metropolis Hastings routine
 #' #without stutter:
 #' hpD <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=0,threshT=threshT,M=M,delta=delta)
@@ -60,35 +59,67 @@
 #' print(hpS$margL/hdS$margL) #estimated LR
 #' }
 
-contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,method=2,musigmamax =c(10000,10),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,ximax=1,M=1e4,theta0=NULL,Sigma=NULL,delta=10){
+contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,method=2,nDone=1,threshT=50,fst=0,lambda=0,musigmamax=c(10000,1),pXi=function(x)1,M=1e4,mlefit=NULL,delta=2,isPhi=FALSE){
+ #Phi should be faster than theta since it doesn't check limits
  #Optimize with MLE if theta0,Sigma not given
- if(is.null(theta0) || is.null(Sigma)) { #if any is missing:
-  mle <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condOrder,knownRef=knownRef,xi=xi,prC=prC,musigmamax=musigmamax,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi,ximax=ximax,nDone=3)
-  theta0 <- mle$MLE
-  if(is.null(Sigma)) Sigma <- mle$Sigma
+ if(is.null(mlefit)) { #if any is missing:
+  mlefit <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condOrder,knownRef=knownRef,xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi,nDone=3)
  }
- if(!all(length(theta0)%in%dim(Sigma))) stop("Length of theta0 and dimension of Sigma was not the same!")
-
+ loglik0 <- mlefit$loglik0
+ if(isPhi) {
+  theta0 <- mlefit$theta0
+  Sigma0 <- mlefit$Sigma0
+ } else {
+  theta0 <- mlefit$theta1
+  Sigma0 <- mlefit$Sigma1
+ }
+ if(!all(length(theta0)%in%dim(Sigma0))) stop("Length of theta0 and dimension of Sigma was not the same!")
  ret <- prepareC(nC,mixData,popFreq,refData,condOrder,knownRef)
- if(is.null(condOrder)) condOrder <- rep(0,nC) #insert condorder if missing
- unRange <- (1:nC)[!(1:nC)%in%condOrder] #get the range of the unknowns
- nU <- length(unRange) #number of unknown in model
 
- #Two cases: Stutter unknown or Stutter known
- if(is.null(xi)) {
-  loglikYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-   Cval  <- .C("loglikgammaC",ret$logPE,as.numeric(theta),ret$nC,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-   loglik <- Cval + log(pXi(theta[nC+2])) #weight with prior of tau and 
-   return(loglik) #weight with prior of tau and stutter.
-  } 
- } else { #stutter known
-  loglikYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
-   theta <- c(theta2,xi) #stutter-parameter added as known
-   Cval  <- .C("loglikgammaC",ret$logPE,as.numeric(theta),ret$nC,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-   loglik <- Cval + log(pXi(xi)) #weight with prior of tau and stutter.
-   return(loglik)
+ if(isPhi) {
+  if(is.null(xi)) {
+    loglikYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
+     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
+     loglik <- Cval + log(pXi(1/(1+exp(-theta[nC+2])))) #weight with prior of tau and 
+     return(loglik) #weight with prior of tau and stutter.
+    }
+  } else {  
+    loglikYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
+     theta <- c(theta2,xi) #stutter-parameter added as known
+     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
+     return(Cval)
+    }
+  }
+ } else {
+  if(is.null(xi)) {
+    loglikYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
+     if(any(theta<lower | theta>upper)) return(-Inf)
+     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
+     loglik <- Cval + log(pXi(theta[nC+2])) #weight with prior of tau and 
+     return(loglik) #weight with prior of tau and stutter.
+    }
+  } else {  
+    loglikYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
+     if(any(theta2<lower | theta2>upper)) return(-Inf)
+     theta <- c(theta2,xi) #stutter-parameter added as known
+     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
+     return(Cval)
+    }
   }
  }
+ np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
+ C <- chol(delta*Sigma0) #scale variance with a factor 2: ensures broad posterior
+ X <- t( t(C)%*%matrix(rnorm(np*M),ncol=M,nrow=np)) #proposal values
+
+ if(!isPhi) {
+  lower <- rep(0,nC+1)
+  upper <- c(rep(1,nC-1),musigmamax)
+  if(is.null(xi)) {
+   lower <- c(lower,0)
+   upper <- c(upper,1)
+  }
+ }
+
  logdmvnorm <- function(X,mean,cholC) { #function taken from mvtnorm-package
    p <- nrow(cholC)
    tmp <- backsolve(cholC,t(X)-mean,p,transpose=TRUE)
@@ -96,77 +127,23 @@ contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=N
    logretval <- -sum(log(diag(cholC))) - 0.5*p*log(2*pi) - 0.5*rss
    return(logretval)
  }
- p <- length(theta0) #dimension
- C <- chol(delta*Sigma) #scale variance with a factor 2: ensures broad posterior
- X <- t( t(C)%*%matrix(rnorm(p*M),ncol=M,nrow=p)) #proposal values
-
- #get boundary of parameters
- if(is.null(xi)) { #if stutter unknown
-  lower <- rep(0,nC+2)
-  upper = c(rep(1,nC-1),musigmamax,ximax)
- } else {
-  lower <- rep(0,nC+1)
-  upper = c(rep(1,nC-1),musigmamax)
- }
-
- f_posttheta <- function(ptheta) { #prop-posterior function
-  if(any(ptheta<lower | ptheta>upper)) { #must be inside the boundaries
-    plogL <- -Inf
-  } else {
-   tmp <- sum(ptheta[1:(nC-1)])
-   if(tmp>1) return(-Inf)
-   mx <- c(ptheta[1:(nC-1)],1-tmp)   
-   if(any(mx[unRange]!=sort(mx[unRange],decreasing=TRUE,))) return(-Inf)
-   plogL  <- loglikYtheta(ptheta) #get new-likelihood 
-  }
-  return(plogL)
- }
-
  #v1: Importance sampling using Normal(theta0,delta*Sigma)
  if(method==1) {
-  X <- t( t(X)+ theta0 ) #lazy-bayes simulation from N(theta0,Sigma)
-  #throw away non-acceptable samples
-  indrm <- numeric()
-  for(i in 1:p) indrm <- c(indrm, which( X[,i]<lower[i] | X[,i]>upper[i] ) ) #outside parameter space
-
-  if(nC>=2) { #if at least 2 contributors
-   MX <- cbind(X[,1:(nC-1)])
-   MX <- cbind(MX,1-rowSums(MX) ) 
-   indrm <- c(indrm, which(MX[,nC]<0)) #remove any outside the paramter space
-   if(nU>=2) { #if at least 2 unknown contributors
-    for(rr in 2:nU) {
-     indrm <- c(indrm , which(MX[,rr-1]<MX[,rr]) ) #require strictly decreasingly mix-proportions
-    }
-   }
-  }
-  #remove non-satisfactory
-  if(length(indrm)>0) {
-   X <- X[-indrm,]  #remove proposed
-  }
-  logpX <- logdmvnorm(X=X,mean=theta0,cholC=C) #get logged distr-values
-
-  #go through each proposal
-  accrat <- 1/M
-  M <- nrow(X) #update counter
-  accrat <- M*accrat
-  postlogL <- rep(NA,M)
-  for(m in 1:M) postlogL[m] <- loglikYtheta(X[m,]) #calculate postlogL for all proposals
-  bigsum <- sum( exp( postlogL - logpX ) )
-  margL <- bigsum/M #estimated marginal likelihood
-  posttheta <- X #lazy-bayes samples
+  print("Removed")
+  return(NULL)
 
  #v2: MCMC by Gelfand and Dey (1994), using h() = Normal(theta0,delta*Sigma)
  } else if(method==2) { #Simulate variable at-the time: Two blocks
    rlist <- list()
    rlist[[1]] <- 1:(nC-1)
    rlist[[2]] <- nC:(nC+1)
-   if(is.null(xi))  rlist[[3]] <- p
+   if(is.null(xi))  rlist[[3]] <- np
    nB <- length(rlist) #number of blocks
    M2 <- nB*M+1
-   posttheta <- matrix(NA,ncol=p,nrow=M2) #accepted theta
+   posttheta <- matrix(NA,ncol=np,nrow=M2) #accepted theta
    postlogL <- rep(NA,M2) #accepted theta
    posttheta[1,] <- theta0
-   postlogL[1] <- loglikYtheta(theta0) #get start-likelihood   
+   postlogL[1] <- loglik0 #loglikYtheta(theta0) #get start-likelihood   
    U <- runif(M2) #random numbers
    m <- 2 #counter for samples
    m2 <- 1 #counter for proposal
@@ -176,7 +153,7 @@ contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=N
      range <- rlist[[r]]
      posttheta[m,] <-  posttheta[m-1,] #proposed theta
      posttheta[m,range] <- X[m2,range] + posttheta[m,range]
-     postlogL[m] <- f_posttheta(posttheta[m,])
+     postlogL[m] <- loglikYtheta(posttheta[m,])
      pr <- exp(postlogL[m]- postlogL[m-1]) #acceptance rate
      if(U[m]>pr) { #if not accepted, i.e. random pr too large
       posttheta[m,] <-  posttheta[m-1,]
@@ -184,17 +161,23 @@ contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=N
      } else {
       nacc <- nacc + 1
      }
+#     print(posttheta[m,])
+#     print(1-sum(posttheta[m,1:(nC-1)]))
      m <- m + 1 #update counter
     } #end for each blocks
     m2 <- m2 +1 #update proposal counter
    } #end while not done
   accrat <- nacc/M2 #acceptance ratio
-  logpX <- logdmvnorm(posttheta,mean=theta0,cholC=chol(Sigma)) #insert with Normal-approx of post-theta
+  logpX <- logdmvnorm(posttheta,mean=theta0,cholC=chol(Sigma0)) #insert with Normal-approx of post-theta
   #plot(postlogL,ty="l")
   #plot(logpX,ty="l")
   margL <- 1/mean(exp(logpX - postlogL)) #estimated marginal likelihood
  }
- if(nU>=2) margL <- 2*margL #if there was at least 2 unknown contributors
+ nU <- nC-ret$nK #number of unknowns
+ if(nU>1) { #if more than 1 unknown 
+  margL <- factorial(nU)*margL #get correct ML adjusting for symmetry
+ }
+
  return(list(margL=margL,posttheta=posttheta,postlogL=postlogL,logpX=logpX,accrat=accrat))
 } #end function
 

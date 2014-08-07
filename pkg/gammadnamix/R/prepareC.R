@@ -19,7 +19,17 @@ prepareC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  if(any(missind)) {
   stop(paste('Missing locus (',locnames[missind],') in popFreq.',sep=''))
  }
-
+ if(is.null(condOrder)) {
+  condOrder <- rep(0,nC) #insert condorder if missing
+  nK <- 0
+ } else { #check that they are unique and in right order
+  tmp <- condOrder[condOrder>0]
+  nK <- length(tmp)
+  if( nK!=length(unique(tmp)) ) stop("Specify unique positions!")
+  if( any( sort(tmp,decreasing=FALSE)!=(1:nK)) ) stop("Please condition references starting from 1. position")
+  if( nK==nC ) stop("Not implemented yet!")
+ }
+ 
  #convertion of values in popFreq, mixData and Glist$G:
  #loci-order follows as in mixData: "locnames". Rearrange names:
  names(popFreq) <- toupper(names((popFreq))) #make invariant to capital
@@ -121,7 +131,7 @@ prepareC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  CnAall <- c(0,cumsum(nAall)) #cumulative number of alleles
  pA <- unlist(popFreq) #need each allele probability for drop-in probabilities
 
- retlist <- list(logPE=as.numeric(0),nC=as.integer(nC),nL=as.integer(nL),nA=as.integer(nA), allY=as.numeric(allY),allA=as.integer(allA),CnA=as.integer(CnA),allAbpind=as.integer(allAbpind),nAall=as.integer(nAall),CnAall=as.integer(CnAall),Gvec=as.integer(Gvec),nG=as.integer(nG),CnG=as.integer(CnG),CnG2=as.integer(CnG2),pG=as.numeric(pG),pA=as.numeric(pA), condRef=as.integer(condRef),mkvec=as.integer(mkvec),nkval=as.integer(nkval) )
+ retlist <- list(nC=as.integer(nC),nK=as.integer(nK),nL=as.integer(nL),nA=as.integer(nA), allY=as.numeric(allY),allA=as.integer(allA),CnA=as.integer(CnA),allAbpind=as.integer(allAbpind),nAall=as.integer(nAall),CnAall=as.integer(CnAall),Gvec=as.integer(Gvec),nG=as.integer(nG),CnG=as.integer(CnG),CnG2=as.integer(CnG2),pG=as.numeric(pG),pA=as.numeric(pA), condRef=as.integer(condRef),mkvec=as.integer(mkvec),nkval=as.integer(nkval) )
  return(retlist)
 } #end function
 

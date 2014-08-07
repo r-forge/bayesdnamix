@@ -3,7 +3,7 @@
 \alias{validMCMC}
 \title{validMCMC}
 \usage{
-validMCMC(X, trace = TRUE, acf = TRUE)
+validMCMC(X, trace = TRUE, acf = TRUE, mlefit = NULL, isPhi = FALSE)
 }
 \arguments{
 \item{X}{A(Mxp) matrix with MCMC samples.}
@@ -11,6 +11,10 @@ validMCMC(X, trace = TRUE, acf = TRUE)
 \item{trace}{Boolean for whether showing trace of samples.}
 
 \item{acf}{Boolean for whether showing autocorrelation function of samples.}
+
+\item{mlefit}{Fitted object using contLikMLE}
+
+\item{isPhi}{Boolean whether we are working with reparameterizited parameters}
 }
 \description{
 Validates aposteriori samples from MCMC method

@@ -4,9 +4,8 @@
 \title{contLikMLE}
 \usage{
 contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  knownRef = NULL, xi = NULL, prC = 0, musigmamax = c(10000, 10),
-  nDone = 1, threshT = 50, fst = 0, lambda = 0, pXi = function(x) 1,
-  ximax = 1)
+  knownRef = NULL, xi = NULL, prC = 0, nDone = 1, threshT = 50,
+  fst = 0, lambda = 0, pXi = function(x) 1, delta = 10)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -25,8 +24,6 @@ contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
-\item{musigmamax}{Maximum range of mu and sigma-parameter. Default is c(10000,10).}
-
 \item{nDone}{Maxumum number of random evaluations nlm-optimizing routing. Default is 1.}
 
 \item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
@@ -37,7 +34,7 @@ contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 
 \item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
 
-\item{ximax}{Maximum range of xi-parameter. Default is 1.}
+\item{delta}{Standard deviation of normal distribution when drawing random startpoints. Default is 10.}
 }
 \value{
 ret A list(MLE,Sigma,Sigma2,CI,loglik) with Maximixed likelihood elements for hypothesis (model) given observed evidence.

@@ -14,13 +14,12 @@
 #' @param knownRef Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.
 #' @param xi A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
-#' @param musigmamax Maximum range of mu and sigma-parameter. Default is c(10000,10).
 #' @param nDone Maxumum number of random evaluations nlm-optimizing routing. Default is 1.
 #' @param threshT The detection threshold given. Used when considering probability of allele drop-outs.
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
-#' @param ximax Maximum range of xi-parameter. Default is 1.
+#' @param delta Standard deviation of normal distribution when drawing random startpoints. Default is 10.
 #' @return ret A list(MLE,Sigma,Sigma2,CI,loglik) with Maximixed likelihood elements for hypothesis (model) given observed evidence.
 #' @export
 #' @references Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
@@ -47,73 +46,94 @@
 #' print(exp(hpS$loglik - hdS$loglik)) #estimated LR=21554.4
 #' }
 
-contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,musigmamax =c(10000,10),nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,ximax=1){
- require(Rsolnp)
- require(numDeriv)
+contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10){
  ret <- prepareC(nC,mixData,popFreq,refData,condOrder,knownRef)
- if(is.null(condOrder)) condOrder <- rep(0,nC) #insert condorder if missing
- unRange <- (1:nC)[!(1:nC)%in%condOrder] #get the range of the unknowns
- nU <- length(unRange)
 
-#Optimize MLE:
- #Two cases: Integrate over Stutter or Stutter known
  if(is.null(xi)) {
   negloglikYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-   Cval  <- .C("loglikgammaC",ret$logPE,as.numeric(theta),ret$nC,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-   loglik <- Cval + log(pXi(theta[nC+2])) #weight with prior of tau and 
+   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
+   loglik <- Cval + log(pXi(1/(1+exp(-theta[nC+2])))) #weight with prior of tau and 
    return(-loglik) #weight with prior of tau and stutter.
   }
  } else {  
   negloglikYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
    theta <- c(theta2,xi) #stutter-parameter added as known
-   Cval  <- .C("loglikgammaC",ret$logPE,as.numeric(theta),ret$nC,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),PACKAGE="gammadnamix")[[1]]
-   loglik <- Cval + log(pXi(xi)) #weight with prior of tau and stutter.
-   return(-loglik)
+   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nA,ret$allY,ret$allA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
+   return(-Cval)
   }
  }
-
- lower <- lower0 <- rep(0,nC+1)
- upper <- upper0 <- c(rep(1,nC-1),musigmamax)
- if(is.null(xi)) { #if stutter model
-  lower <- c(lower0,0)
-  upper = c(upper0,ximax)
- }
- np <- length(lower) #number of unknown parameters
- mixsum <- function(x) sum(x[1:(nC-1)]) #avoid that the sum exeeds 1
+ np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
  maxL <- -Inf #
  nOK <- 0 #number of times for reaching optimum
  while(nOK<nDone) {
-   p0 <- runif(length(lower0),lower0,upper0)
-   if(is.null(xi)) {
-     xi0 <- rexp(1,20)
-     if(xi0>ximax) next
-     p0  <- c(p0,xi0) #decay start-value of stutter
-   }
+   p0 <- rnorm(np,sd=delta)
    if(is.infinite(negloglikYtheta(p0))) next #skip to next if still INF
    tryCatch( {
-      foo <- solnp(pars=p0, fun=negloglikYtheta, ineqfun = mixsum ,ineqLB=0, ineqUB=1,LB = lower, UB = upper,control=list(trace=0))
-      if(foo$convergence==0 && foo$nfuneval>2) {
-       likval <- -negloglikYtheta(foo$pars) #get maximized log-likelihood
-       if(is.infinite(likval)) next
-       hess <- hessian(negloglikYtheta,foo$pars) #get the hessian
-       if(any(is.infinite(hess) | is.nan(hess))) next
-       if(any(diag(solve(hess))<=0)) next; #not a local optimum
+      foo <- nlm(f=negloglikYtheta, p=p0,hessian=TRUE)
+      Sigma <- solve(foo$hessian)
+      if(any(diag(Sigma)<=0)) next; #not a local optimum
+      if(foo$code==1 && foo$iterations>2) {
+       likval <- -foo$min
        nOK=nOK+1 #it was accepted as an optimum
        if(likval>maxL) {
         maxL <- likval #maximized likelihood
-        topfoo <- foo #set as topfoo
+        maxTheta <- foo$est #set as topfoo     
+        maxSigma <- Sigma 
        }
       }
-   },error=function(e) e) #end trycatch 
- } #end while loop
- mle <- topfoo$pars #get MLE
- mx <- c(mle[1:(nC-1)],1-sum(mle[1:(nC-1)])) #get all mix-props
- if(nU>1) {
-  mx[unRange] <- sort(mx[unRange],decreasing=TRUE) #sort unknowns in decreasing mix prop
-  mle <- c(mx[-nC],mle[nC:np]) #last index is removed. This could again be a known contributor
+    },error=function(e) e) #end trycatch 
+  } #end while loop
+ #transfer back: 
+ mx <- 1/(1+exp(-maxTheta[1:(nC-1)]))
+ if(nC>2) { #need to transfer back
+  for(i in 2:(nC-1)) {
+   mx[i] <- mx[i]*(1-sum(mx[1:(i-1)]))
+  }
  }
- Sigma <- solve(hessian(negloglikYtheta,mle))
- mle2 <- c(mx,mle[nC:np])
+ musigma <- exp(maxTheta[nC:(nC+1)]) #inverse-log
+ mle <- c(mx,musigma) #last index is removed. This could again be a known contributor
+ mle2 <- c(mx,1-sum(mx),musigma) #last index is removed. This could again be a known contributor
+ if(is.null(xi)) {
+  tmp <- 1/(1+exp(-maxTheta[nC+2]))
+  mle <- c(mle,tmp) #add xi to parameters
+  mle2 <- c(mle2,tmp) #add xi to parameters
+ }
+
+ alpha <- 0.05
+ #CI:
+ SD0 <- sqrt(diag(maxSigma))
+ CL <- maxTheta + qnorm(alpha/2)*SD0
+ CU <- maxTheta + qnorm(1-alpha/2)*SD0 
+ CI0 <- maxTheta + cbind(CL,maxTheta ,CU)
+
+ #Delta-method to Sigma matrix
+ Jacob <- function(phi,mle) { #Jabobian matrix
+  J <- matrix(0,length(phi),length(phi))
+  DmDm <- matrix(0,nC-1,nC-1)
+  for(i in 1:(nC-1)) {
+   mitmp <- 1/(1+exp(-phi[i])) #temporary variable
+   for(j in 1:i) {
+    if(j==i) {
+      DmDm[i,i] <- exp(-phi[i])*mitmp^2
+      if(i>1) DmDm[i,i] <- DmDm[i,i]*(1-sum(mle[1:(j-1)])) #note using mle(theta) here!
+    } else {
+      DmDm[i,j] <- -mitmp*(sum( DmDm[1:i,j] ))
+    } #end case
+   } #end for each col j (xj)
+  } #end for each row i (fi)
+  J[1:(nC-1),1:(nC-1)] <- DmDm
+  for(i in nC:(nC+1)) J[i,i] <- exp(phi[i])
+  if(is.null(xi)) {
+   tmp <- exp(-phi[nC+2])
+   J[nC+2,nC+2] <- tmp*(1+tmp)^(-2)
+  }
+  return(J)
+ } #end jacobian
+ J <- Jacob(maxTheta,mle)
+ Sigma <- (t(J)%*%maxSigma%*%J) #this is correct covariance of mle. Observed hessian is used
+ #Sigma <- (J%*%maxSigma%*%t(J))/sqrt(np) #this formula is wrong!
+
+ #get extended Sigma (all parameters)
  Sigma2 <- matrix(NA,nrow=np+1,ncol=np+1) #extended covariance matrix also including mx[nC]
  Sigma2[1:(nC-1),1:(nC-1)] <- Sigma[1:(nC-1),1:(nC-1)] 
  Sigma2[nC:np+1,nC:np+1] <- Sigma[nC:np,nC:np] 
@@ -124,12 +144,11 @@ contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  for(k in (1:(np+1))[-nC]) {
   Sigma2[nC,k] <- Sigma2[k,nC] <- -sum(Sigma[1:(nC-1),k-sum(k>nC)]) 
  }
- dev <- qnorm(0.975)*sqrt(diag(Sigma2))  #constrained part is first
- tab <- cbind(mle2 - dev ,mle2, mle2 + dev)
- colnames(tab) <- c("2.5%","MLE","97.5%")
- if(!is.null(xi)) rownames(tab) <- c(paste0("mx",1:nC),"mu","sigma")
- if(is.null(xi)) rownames(tab) <- c(paste0("mx",1:nC),"mu","sigma","xi")
- ret <- list(MLE=mle,Sigma=Sigma,Sigma2=Sigma2,CI=tab,loglik=maxL)
+ SD <- sqrt(diag(Sigma2))
+ CL <- mle2 + qnorm(alpha/2)*SD 
+ CU <- mle2 + qnorm(1-alpha/2)*SD
+ CI <- cbind(CL,mle2,CU)
+ ret <- list(theta0=maxTheta,Sigma0=maxSigma,loglik0=maxL,CI0=CI0,theta1=mle,Sigma1=Sigma,MLE=mle2,SIGMA=Sigma2,CI=CI)
  return(ret)
 } #end function
 

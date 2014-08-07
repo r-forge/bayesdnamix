@@ -185,7 +185,7 @@ class recurseClassStutter { //recurse-class for each loci
    //return;
   } //end recursive function
 
-  recurseClassStutter(double *pC, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, uword *allAbpind,double *th ,double *t0in, double *fstin, int *mkvector, int *nkvalue, double *lam) {
+  recurseClassStutter(double *pC, double *pG, double *pA, Row<int> condV, uword *A, double *H, uword *Gvec, int *C, int *nA, int *nAall, int *nG, Col<double> *omega, uword *allAbpind,double *theta2 ,double *t0in, double *fstin, int *mkvector, int *nkvalue, double *lam) {
    nC = C; //copy pointer to number of contributors
    nAi = nA; //copy pointer to number of alleles in evidence
    nAalli = nAall; //copy pointer to number of alleles in population
@@ -197,12 +197,13 @@ class recurseClassStutter { //recurse-class for each loci
    nkval = nkvalue; //copy pointer to sample-counter
    t0 = t0in;//copy pointer to threshold
    lambda = lam; //copy pointer to parameter of exponential drop-in model
-//reparameterization: (mu,sd) -> (rho,tau)
-   rho = 1/(th[1]*th[1]); 
-   tau = th[0]/rho;  
+//reparameterization: (mu,sd) -> (rho,tau) notice the switched placement
+   //transformation to R
+   tau = theta2[0];
+   rho = theta2[1];
+   xi = theta2[2];
 //   rho = th[0];  //get value of model parameter (distr-param)
 //   tau = th[1];  //get value of model parameter (distr-param)
-   xi = th[2]; //get value of model parameter (stutter-param)
    konstant = log(tau);
    konstant2 = 1/tau;
 
@@ -248,11 +249,13 @@ class recurseClassStutter { //recurse-class for each loci
 extern "C" {
 
 //function for calculating likelihood of data with genotypes marginalised out
-void loglikgammaC(double *logPE, double *theta, int *nC, int *nL, int *nA, double *allY, uword *allA , int *CnA,uword *allAbpind, int *nAall, int *CnAall, uword *Gvec, int *nG, int *CnG,int *CnG2, double *pG,  double *pA,  double *pC, int* condRef, double *t0, double *fst, int *mkvec, int *nkval, double *lambda) {
+void loglikgammaC(double *logPE, double *theta, int *np,int *nC, int *nK, int *nL, int *nA, double *allY, uword *allA , int *CnA,uword *allAbpind, int *nAall, int *CnAall, uword *Gvec, int *nG, int *CnG,int *CnG2, double *pG,  double *pA,  double *pC, int* condRef, double *t0, double *fst, int *mkvec, int *nkval, double *lambda, int *isPhi) {
 
  //logPE  - logged density value of evidence
- //theta  - model parameters
+ //theta  - model parameters (is phi if transformed)
+ //np	- number of unknown paramters
  //nC  - number of contributors
+ //nK  - number of restricted contributors
  //nL  - number of loci
  //nA - number of alleles on each loci (in evidence)
  //allY - observed peak height of alleles
@@ -274,36 +277,75 @@ void loglikgammaC(double *logPE, double *theta, int *nC, int *nL, int *nA, doubl
  //fst - theta-correction 
  //mkvec - full vector of #sampled alleles (each alleles in population) 
  //nkval - total number of sampled alleles (for each loci)
+ //lambda - parameter in drop-in model
+ //isPhi - equal 1 means transformation from theta to phi- variables.
+ 
  int i;
  double Li; //likelihood for a given locus
  Col<double> *omega; //mixture proportion 
- Mat<int> *condMatrix; //conditional matrix for each contributor (values equal Gset-indices)
- omega = new Col<double>( theta, *nC-1, false); //insert mixture proportion: (C-1)-vector
- condMatrix = new Mat<int>(condRef, *nL, *nC,false); //insert condRef-matrix directly
  Col<double> mvec; //vector of mixture proportions. Update in X easier
+ double cs; //sum(mx) on the go
+ omega = new Col<double>( theta, *nC-1, false); //insert nu: (C-1)-vector
  mvec = Col<double>(*nC); //initialize vector 
+ bool doCalc = true; //true if restrictions holds: doing calculations
  if(*nC==1) {
   mvec.at(0) = 1; //insert full mix-prop if one contributor 
- } else {
-  mvec.subvec(0,*nC-2) = *omega;
-  mvec.at(*nC-1) = 1-sum(*omega);  //restrict last mix-prop as sum of the others
+ } else if(*isPhi==1) { //transform mvec
+  cs = 0; //cumulative summing of mixture proportions
+  for(i=0; i<(*nC-1); i++) {
+   mvec.at(i) = 1/(1+exp(-(omega->at(i)))); //transform from R to M
+   if(i>0) {
+    mvec.at(i) = mvec.at(i)*(1-cs); //transform further (see formula for explanation)
+   }
+   cs = cs + mvec.at(i); //add mixture proportion
+  }
+  mvec.at(*nC-1) = 1-cs;  //restrict last mix-prop as 1- sum of the others
+ } else { //no transformation
+  mvec.subvec(0,*nC-2) = *omega; 
+  cs = sum(mvec.subvec(0,*nC-2));
+  if(cs>1) { //sum(mk)<=1 restriction required! 
+   doCalc = false;
+  } else {
+   mvec.at(*nC-1) = 1-cs;  //restrict last mix-prop as 1- sum of the others
+  }
  }
-
-if(mvec.at(*nC-1)<0) {
-  *logPE = log(0);
-} else {
- for(i=0; i<*nL; i++) {  //for each loci we need to run the recursion:
-   recurseClassStutter *rec = new recurseClassStutter(pC, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &allAbpind[CnAall[i]], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i], lambda); //create object of recursion
-   Li = rec->bigsum; //extract likelihood
-   delete rec; //delete recurse object
-   *logPE = (*logPE) + log(Li);
-   if(Li==0) {
-     break; //finished if the likelihood hits 0
-   }//end for each loci i:
- }  
-}
+ if(doCalc) { //restrict unknowns with decreases order of mx: Makes calculation faster
+  if((*nC-*nK)>1) { //if more than 2 unknowns.
+   for(i=(*nK+1); i<*nC; i++) { //check for each unknown
+    if( mvec.at(i)>mvec.at(i-1)) {  //restrict unknowns to have decreasing sorted order of mx
+     doCalc = false;
+ 	 break; //stop and return
+    }
+   }
+  } 
+ }
+ if(doCalc) { //if calculating loglik
+  if(*isPhi==1) { //make transformation of mu,sigma first!
+   theta[*nC-1] = exp(theta[*nC-1]); 
+   theta[*nC] = exp(theta[*nC]); 
+   if(*np==(*nC+2)) { //if stutter unknown
+    theta[*nC+1] = 1/(1+exp(-theta[*nC+1])); //inv-logit transformation if different from C+2 unknown parameters.
+   }
+  } //end if phi-dimension
+  //then transfer to rho,tau
+  theta[*nC] = 1/(theta[*nC]*theta[*nC]); //fix rho (takes only sigma)
+  theta[*nC-1] = theta[*nC-1]/theta[*nC];  //fix tau (takes mu+rho)
+  Mat<int> *condMatrix; //conditional matrix for each contributor (values equal Gset-indices)
+  condMatrix = new Mat<int>(condRef, *nL, *nC,false); //insert condRef-matrix directly
+  for(i=0; i<*nL; i++) {  //for each loci we need to run the recursion:
+    recurseClassStutter *rec = new recurseClassStutter(pC, &pG[CnG[i]],&pA[CnAall[i]] ,condMatrix->row(i),&allA[CnA[i]],&allY[CnA[i]], &Gvec[CnG2[i]], nC, &nA[i], &nAall[i],&nG[i],  &mvec, &allAbpind[CnAall[i]], &theta[*nC-1]  , t0, fst, &mkvec[CnAall[i]], &nkval[i], lambda); //create object of recursion
+    Li = rec->bigsum; //extract likelihood
+    delete rec; //delete recurse object
+    *logPE = (*logPE) + log(Li);
+    if(Li==0) { //if the likelihood hits 0
+      break;  //stop and return
+    }
+  } //end for each loci i:
+  delete condMatrix;
+ } else { //end calculations
+     *logPE = log(0); //return -Inf 
+ }
  delete omega;
- delete condMatrix;
 } //end function
 
 } 
