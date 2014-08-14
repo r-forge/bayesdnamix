@@ -135,9 +135,9 @@ contLikMCMC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=N
  #v2: MCMC by Gelfand and Dey (1994), using h() = Normal(theta0,delta*Sigma)
  } else if(method==2) { #Simulate variable at-the time: Two blocks
    rlist <- list()
-   rlist[[1]] <- 1:(nC-1)
-   rlist[[2]] <- nC:(nC+1)
-   if(is.null(xi))  rlist[[3]] <- np
+   if(nC>1) rlist[[length(rlist)+1]] <- 1:(nC-1)
+   rlist[[length(rlist)+1]] <- nC:(nC+1)
+   if(is.null(xi))  rlist[[length(rlist)+1]] <- np
    nB <- length(rlist) #number of blocks
    M2 <- nB*M+1
    posttheta <- matrix(NA,ncol=np,nrow=M2) #accepted theta

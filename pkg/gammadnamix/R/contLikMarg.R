@@ -96,13 +96,11 @@ contLikMarg = function(nC,mixData,popFreq,lower,upper,refData=NULL,condOrder=NUL
  val <- foo$integral
  dev <- val + c(-1,1)*foo$error
  nEvals <- foo[[3]]
-
  if(nU>1) { #if more than 1 unknown 
   comb <- factorial(nU)
   val <- comb*val
   dev <- comb*dev
  }
-
  return(list(margL=val,deviation=dev,nEvals=nEvals))
 }
 

@@ -27,7 +27,7 @@ prepareC = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
   nK <- length(tmp)
   if( nK!=length(unique(tmp)) ) stop("Specify unique positions!")
   if( any( sort(tmp,decreasing=FALSE)!=(1:nK)) ) stop("Please condition references starting from 1. position")
-  if( nK==nC ) stop("Not implemented yet!")
+  #if( nK==nC ) stop("Not implemented yet!")
  }
  
  #convertion of values in popFreq, mixData and Glist$G:

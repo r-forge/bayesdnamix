@@ -84,10 +84,13 @@ contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
     },error=function(e) e) #end trycatch 
   } #end while loop
  #transfer back: 
- mx <- 1/(1+exp(-maxTheta[1:(nC-1)]))
- if(nC>2) { #need to transfer back
-  for(i in 2:(nC-1)) {
-   mx[i] <- mx[i]*(1-sum(mx[1:(i-1)]))
+ mx <- numeric()
+ if(nC>1) {
+  mx <- 1/(1+exp(-maxTheta[1:(nC-1)]))
+  if(nC>2) { #need to transfer back
+   for(i in 2:(nC-1)) {
+    mx[i] <- mx[i]*(1-sum(mx[1:(i-1)]))
+   }
   }
  }
  musigma <- exp(maxTheta[nC:(nC+1)]) #inverse-log
@@ -109,19 +112,21 @@ contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  #Delta-method to Sigma matrix
  Jacob <- function(phi,mle) { #Jabobian matrix
   J <- matrix(0,length(phi),length(phi))
-  DmDm <- matrix(0,nC-1,nC-1)
-  for(i in 1:(nC-1)) {
-   mitmp <- 1/(1+exp(-phi[i])) #temporary variable
-   for(j in 1:i) {
-    if(j==i) {
-      DmDm[i,i] <- exp(-phi[i])*mitmp^2
-      if(i>1) DmDm[i,i] <- DmDm[i,i]*(1-sum(mle[1:(j-1)])) #note using mle(theta) here!
-    } else {
-      DmDm[i,j] <- -mitmp*(sum( DmDm[1:i,j] ))
-    } #end case
-   } #end for each col j (xj)
-  } #end for each row i (fi)
+  if(nC>1) {
+   DmDm <- matrix(0,nC-1,nC-1)
+   for(i in 1:(nC-1)) {
+    mitmp <- 1/(1+exp(-phi[i])) #temporary variable
+    for(j in 1:i) {
+     if(j==i) {
+       DmDm[i,i] <- exp(-phi[i])*mitmp^2
+       if(i>1) DmDm[i,i] <- DmDm[i,i]*(1-sum(mle[1:(j-1)])) #note using mle(theta) here!
+     } else {
+       DmDm[i,j] <- -mitmp*(sum( DmDm[1:i,j] ))
+     } #end case
+    } #end for each col j (xj)
+   } #end for each row i (fi)
   J[1:(nC-1),1:(nC-1)] <- DmDm
+  }
   for(i in nC:(nC+1)) J[i,i] <- exp(phi[i])
   if(is.null(xi)) {
    tmp <- exp(-phi[nC+2])
@@ -135,14 +140,18 @@ contLikMLE = function(nC,mixData,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
 
  #get extended Sigma (all parameters)
  Sigma2 <- matrix(NA,nrow=np+1,ncol=np+1) #extended covariance matrix also including mx[nC]
- Sigma2[1:(nC-1),1:(nC-1)] <- Sigma[1:(nC-1),1:(nC-1)] 
  Sigma2[nC:np+1,nC:np+1] <- Sigma[nC:np,nC:np] 
  Sigma2[nC:np+1,nC:np+1] <- Sigma[nC:np,nC:np] 
- Sigma2[nC:np+1,1:(nC-1)] <- Sigma[nC:np,1:(nC-1)] 
- Sigma2[1:(nC-1),nC:np+1] <- Sigma[1:(nC-1),nC:np] 
- Sigma2[nC,nC] <- sum(Sigma[1:(nC-1),1:(nC-1)])
- for(k in (1:(np+1))[-nC]) {
-  Sigma2[nC,k] <- Sigma2[k,nC] <- -sum(Sigma[1:(nC-1),k-sum(k>nC)]) 
+ if(nC>1) {
+  Sigma2[nC:np+1,1:(nC-1)] <- Sigma[nC:np,1:(nC-1)] 
+  Sigma2[1:(nC-1),1:(nC-1)] <- Sigma[1:(nC-1),1:(nC-1)] 
+  Sigma2[1:(nC-1),nC:np+1] <- Sigma[1:(nC-1),nC:np] 
+  Sigma2[nC,nC] <- sum(Sigma[1:(nC-1),1:(nC-1)])
+  for(k in (1:(np+1))[-nC]) {
+   Sigma2[nC,k] <- Sigma2[k,nC] <- -sum(Sigma[1:(nC-1),k-sum(k>nC)]) 
+  }
+ } else {
+  Sigma2[1,1:(np+1)] <- Sigma2[1:(np+1),1] <- 0 #no uncertainty
  }
  SD <- sqrt(diag(Sigma2))
  CL <- mle2 + qnorm(alpha/2)*SD 

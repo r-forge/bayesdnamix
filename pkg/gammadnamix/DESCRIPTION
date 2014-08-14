@@ -1,8 +1,8 @@
 Package: gammadnamix
 Type: Package
 Title: Procedure for evaluate likelihood for quantitative STR DNA mixture Bayesian models
-Version: 0.2.3
-Date: 2014-08-07
+Version: 0.2.4
+Date: 2014-08-14
 Author: Oyvind Bleka <Oyvind.bleka@fhi.no>
 Maintainer: Oyvind Bleka <Oyvind.bleka@fhi.no>
 Description: gammadnamix contains procedures for evaluating maximized likelihood and marginal likelihoods for quantitative Bayesian gamma model for STR DNA mixtures for general specifications of hypotheses. 
