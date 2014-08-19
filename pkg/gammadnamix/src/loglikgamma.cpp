@@ -130,10 +130,11 @@ class recurseClassStutter { //recurse-class for each loci
      } else { //no stutter ratio
       mui = ( (*Xij)*(*mvec) ); //mean peak height of model
      }
-     mui = mui*rho; //this is now alpha-parameter!
-     psiYmu = find( ((*Yi>0) + (mui>0))==2 ); //Indices for modelled alleles
-     psiDO = find( ((*Yi==0) + (mui>0))==2 ); //Indices for dropped out alleles
-     psiDI = find( ((*Yi>0) + (mui==0))==2 ); //Indices for dropped in alleles
+     mui = mui*rho; //this is now alpha-parameter (not expected mean peak height)!
+	 mutmp = mui*tau; //expected mean peak height
+     psiYmu = find( ((*Yi>=*t0) + (mutmp>=*t0))==2 ); //Indices for modelled alleles
+     psiDO = find( ((*Yi<*t0) + (mutmp>=*t0))==2 ); //Indices for dropped out alleles
+     psiDI = find( ((*Yi>=*t0) + (mutmp<*t0))==2 ); //Indices for dropped in alleles
 
      //calculate dropin:
      if(*prC>0) { //only if drop-in probability is >0. 
