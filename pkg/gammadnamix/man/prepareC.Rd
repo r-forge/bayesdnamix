@@ -3,17 +3,17 @@
 \alias{prepareC}
 \title{prepareC}
 \usage{
-prepareC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
+prepareC(nC, samples, popFreq, refData = NULL, condOrder = NULL,
   knownRef = NULL)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
 
-\item{mixData}{Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.}
+\item{samples}{A List with samples which for each samples has locus-list elements with list elements adata and hdata. 'adata' is a qualitative (allele) data vector and 'hdata' is a quantitative (peak heights) data vector.}
 
 \item{popFreq}{A list of allele frequencies for a given population.}
 
-\item{refData}{Reference objects with list element [[s]]$adata[[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.}
+\item{refData}{Reference objects with list element [[s]][[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.}
 
 \item{condOrder}{Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!}
 

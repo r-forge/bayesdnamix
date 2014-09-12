@@ -3,14 +3,14 @@
 \alias{contLikMLE}
 \title{contLikMLE}
 \usage{
-contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
+contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
   knownRef = NULL, xi = NULL, prC = 0, nDone = 1, threshT = 50,
-  fst = 0, lambda = 0, pXi = function(x) 1, delta = 10)
+  fst = 0, lambda = 0, pXi = function(x) 1, alpha = 0.05, delta = 10)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
 
-\item{mixData}{Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.}
+\item{samples}{A List with samples which for each samples has locus-list elements with list elements adata and hdata. 'adata' is a qualitative (allele) data vector and 'hdata' is a quantitative (peak heights) data vector.}
 
 \item{popFreq}{A list of allele frequencies for a given population.}
 
@@ -37,7 +37,7 @@ contLikMLE(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
 \item{delta}{Standard deviation of normal distribution when drawing random startpoints. Default is 10.}
 }
 \value{
-ret A list(MLE,Sigma,Sigma2,CI,loglik) with Maximixed likelihood elements for hypothesis (model) given observed evidence.
+ret A list(fit,model,nDone,delta) where fit is Maximixed likelihood elements for given model.
 }
 \description{
 contLikMLE optimizes the likelihood of the STR DNA mixture given some assumed a bayesian model.
@@ -45,29 +45,9 @@ contLikMLE optimizes the likelihood of the STR DNA mixture given some assumed a 
 \details{
 The procedure are doing numerical optimization to approximate the marginal probabilit over noisance parameters. Mixture proportions have flat prior.
 
+The procedure also does a Laplace Approximation of the marginalized likelihood (theta integrated out) and returns the log-marginal likelihood as logmargL in the fit-list.
+
 Function calls procedure in c++ by using the package Armadillo and Boost.
-}
-\examples{
-\dontrun{
-threshT <- 50 #threshold
-load(system.file("mcData.Rdata", package = "gammadnamix"))
-mixData <- data$samples$MC15
-retlist <- Qassignate(mixData,popFreq=data$popFreq,refData=data$refData) #Q-assignation
-popFreq <- retlist$popFreq #get updated popFreq
-refData <- retlist$refData #get updated popFreq
-#Hypothesis:
-nC <- 2 #number of contributors
-condhp <- condhd <- rep(0,length(refData))
-condhp [1] <- 1 #condition on first one in refdata
-nDone <- 3 #require 3 optimizations
-hpD <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=0,threshT=threshT,nDone=nDone )
-hdD <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=0,threshT=threshT,nDone=nDone )
-print(exp(hpD$loglik - hdD$loglik)) #estimated LR=21554.24
-#with stutter, but stuttarratio at most 0.2:
-hpS <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhp,threshT=threshT,nDone=nDone,ximax=0.2)
-hdS <- contLikMLE(nC,mixData,popFreq,refData=refData,condOrder=condhd,threshT=threshT,nDone=nDone,ximax=0.2)
-print(exp(hpS$loglik - hdS$loglik)) #estimated LR=21554.4
-}
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

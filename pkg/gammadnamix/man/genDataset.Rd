@@ -3,8 +3,9 @@
 \alias{genDataset}
 \title{genDataset}
 \usage{
-genDataset(nC, popFreq, mu = 1000, cv = 0.1, sorted = FALSE,
-  threshT = 50, refData = NULL, Mx = NULL)
+genDataset(nC, popFreq, mu = 1000, sigma = 0.1, sorted = FALSE,
+  threshT = 50, refData = NULL, mx = NULL, nrep = 1, stutt = 0,
+  prC = 0, lambda = 0)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -13,7 +14,7 @@ genDataset(nC, popFreq, mu = 1000, cv = 0.1, sorted = FALSE,
 
 \item{mu}{Expected peak heights for a het. single contributor allele}
 
-\item{cv}{Coeffecient of variance of peak heights.}
+\item{sigma}{Coeffecient of variance of peak heights.}
 
 \item{sorted}{Boolean for wheter sorting the contributors with respect to decreasingly mixture proportions.}
 
@@ -21,22 +22,22 @@ genDataset(nC, popFreq, mu = 1000, cv = 0.1, sorted = FALSE,
 
 \item{refData}{A list of given reference profiles given as refData[[i]][[s]]. Default is random from population.}
 
-\item{Mx}{A vector of known mixture proportions. Default is random uniform.}
+\item{mx}{A vector of known mixture proportions. Default is random uniform.}
+
+\item{nrep}{Number of peak height replicates (same contributors) to generate. Default is 1.}
+
+\item{stutt}{A numerical stutter ratio (one ahead). Default is 0.}
+
+\item{prC}{A numerical dropin probability. Default is 0.}
 }
 \value{
-List with elements theta,mixData,refData,nDrop where theta is the true parameters of the model and nDrop number of dropped alleles for each loci.
+List with elements theta,samples,refData where theta is the true parameters of the model. samples is a list with samples which for each samples has locus-list elements with list elements adata and hdata
 }
 \description{
-genDataset samples a random mixture peak heights given as gamma(rho*sum(h_k),tau), with h_k as peak height of k-te contributor.
+Function for generating replicated mixture samples given same contributors and model parameters.
 }
 \details{
-Simple function for generating a random peak height mixture distributed as normal positive truncated.
-}
-\examples{
-\dontrun{
-load(system.file("mcData.Rdata", package = "gammadnamix"))
-mixdata <- genDataset(nC=2,popFreq=data$popFreq,mu=1000,cv=0.1,threshT=50) #generate a random mixture
-}
+genDataset samples random mixture peak heights given as gamma(rho*sum(h_k),tau), with h_k as peak height of k-te contributor.
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

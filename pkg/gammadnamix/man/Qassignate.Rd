@@ -3,10 +3,10 @@
 \alias{Qassignate}
 \title{Qassignate}
 \usage{
-Qassignate(mixData, popFreq, refData = NULL)
+Qassignate(samples, popFreq, refData = NULL)
 }
 \arguments{
-\item{mixData}{Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.}
+\item{samples}{A List with samples which for each samples has locus-list elements with list elements adata and hdata. 'adata' is a qualitative (allele) data vector and 'hdata' is a quantitative (peak heights) data vector.}
 
 \item{popFreq}{A list of allele frequencies for a given population.}
 
@@ -16,7 +16,7 @@ Qassignate(mixData, popFreq, refData = NULL)
 ret A list(popFreq,refData) with Q-assignated alleles.
 }
 \description{
-Q-assignation
+Q-assignation. It also takes care of include new alleles into popFreq by assigning it lowest observed frequnce.
 }
 \details{
 Assignes non-shown alleles as one single allele.

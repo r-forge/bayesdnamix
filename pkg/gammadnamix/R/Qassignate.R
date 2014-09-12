@@ -1,26 +1,41 @@
 #' @title Qassignate
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
-#' @description Q-assignation
+#' @description Q-assignation. It also takes care of include new alleles into popFreq by assigning it lowest observed frequnce.
 #' @details Assignes non-shown alleles as one single allele.
-#' @param mixData Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.
+#' @param samples A List with samples which for each samples has locus-list elements with list elements adata and hdata. 'adata' is a qualitative (allele) data vector and 'hdata' is a quantitative (peak heights) data vector.
 #' @param popFreq A list of allele frequencies for a given population.
 #' @param refData Reference objects with list element [[s]]$adata[[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.
 #' @return ret A list(popFreq,refData) with Q-assignated alleles. 
 #' @export
 
-Qassignate <- function(mixData,popFreq,refData=NULL) {
+Qassignate <- function(samples,popFreq,refData=NULL) {
  popFreq2 <- popFreq
  refData2 <- refData
- for(i in 1:length(popFreq)) { #make Q-assignation for each loci
-  tmp <- popFreq[[i]][names(popFreq[[i]])%in%mixData$adata[[i]]]
-  tmp <- c(tmp,1-sum(tmp))
-  names(tmp)[length(tmp)] <- "99"
-  popFreq2[[i]] <- tmp
+ locs <- names(popFreq)
+ minF <- min(unlist(popFreq)) #lowest observed frequency
+ for(loc in locs) { #make Q-assignation for each loci
+  evid <- unique(unlist( lapply(samples,function(x) x[[loc]]$adata) )) #vectorize alleles for all replicates
+
+  #if new alleles not in popFreq
+  newa <- evid[!evid%in%names(popFreq[[loc]])]   
+  if(length(newa)>0) {
+   tmp <- names(popFreq[[loc]])
+   popFreq[[loc]] <- c(popFreq[[loc]],rep(minF,length(newa)))
+   names(popFreq[[loc]]) <-  c(tmp,newa)
+  }
+  popFreq[[loc]] <- popFreq[[loc]]/sum(popFreq[[loc]]) #normalize
+
+  tmp <- popFreq[[loc]][names(popFreq[[loc]])%in%evid] #find observed alleles
+  if(length(tmp)<length(popFreq[[loc]])) { 
+   tmp <- c(tmp,1-sum(tmp))
+   names(tmp)[length(tmp)] <- "99"
+  }
+  popFreq2[[loc]] <- tmp
   if(!is.null(refData)) { #insert 99 as default allele of missing refs
-   newP <- names(popFreq2[[i]]) 
-   if(!all(unlist(refData[[i]])%in%newP)) { #there was some missing alleles
-    for(k in 1:length(refData[[i]])) {
-     refData2[[i]][[k]][!refData[[i]][[k]]%in%newP] <- "99" #insert missing
+   newP <- names(popFreq2[[loc]]) 
+   if(!all(unlist(refData[[loc]])%in%newP)) { #there was some missing alleles
+    for(k in 1:length(refData[[loc]])) {
+     refData2[[loc]][[k]][!refData[[loc]][[k]]%in%newP] <- "99" #insert missing
     }
    }
   }

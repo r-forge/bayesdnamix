@@ -3,46 +3,17 @@
 \alias{contLikMCMC}
 \title{contLikMCMC}
 \usage{
-contLikMCMC(nC, mixData, popFreq, refData = NULL, condOrder = NULL,
-  knownRef = NULL, xi = NULL, prC = 0, method = 2, nDone = 1,
-  threshT = 50, fst = 0, lambda = 0, musigmamax = c(10000, 1),
-  pXi = function(x) 1, M = 10000, mlefit = NULL, delta = 2,
+contLikMCMC(mlefit, musigmamax = c(10000, 1), M = 10000, delta = 2,
   isPhi = FALSE)
 }
 \arguments{
-\item{nC}{Number of contributors in model.}
+\item{mlefit}{Fitted object using contLikMLE}
 
-\item{mixData}{Evidence object with list elements adata[[i]] and hdata[[i]]. Each element has a loci-list with list-element 'i' storing qualitative data in 'adata' and quantitative data in 'hdata'.}
-
-\item{popFreq}{A list of allele frequencies for a given population.}
-
-\item{refData}{Reference objects with list element [[s]]$adata[[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.}
-
-\item{condOrder}{Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!}
-
-\item{knownRef}{Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.}
-
-\item{xi}{A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.}
-
-\item{prC}{A numeric for allele drop-in probability. Default is 0.}
-
-\item{method}{Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=Metropolis Hastings with "Gelfand and Dey" method).}
-
-\item{nDone}{Required number of attained optimization for random start points. Default is 1.}
-
-\item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
-
-\item{fst}{is the coancestry coeffecient. Default is 0.}
-
-\item{lambda}{Parameter in modeled peak height shifted exponential model. Default is 0.}
+\item{method}{Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=.}
 
 \item{musigmamax}{Upper boundary of rho-tau-parameters. Default (10000,1)}
 
-\item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
-
 \item{M}{Number of samples in the MCMC-sampling.}
-
-\item{mlefit}{Fitted object using contLikMLE}
 
 \item{delta}{A numerical parameter to scale with the covariance function Sigma. Default is 2. Should be higher to obtain lower acception rate.}
 
@@ -60,34 +31,7 @@ The procedure are doing MCMC to approximate the marginal probability over noisan
 If no initial values or covariance matrix has been provided to the function, a call to the MLE function is applied.
 The Metropolis Hastings routine uses a Multivariate Normal distribution with mean 0 and covariance as delta multiplied with the inverse negative hessian with MLE inserted as transistion kernel.
 Function calls procedure in c++ by using the package Armadillo and Boost.
-}
-\examples{
-\dontrun{
-threshT <- 50 #threshold
-load(system.file("mcData.Rdata", package = "gammadnamix"))
-mixData <- data$samples$MC15
-retlist <- Qassignate(mixData,popFreq=data$popFreq,refData=data$refData) #Q-assignation
-popFreq <- retlist$popFreq #get updated popFreq
-refData <- retlist$refData #get updated popFreq
-#Hypothesis:
-nC <- 2 #number of contributors
-condhp <- condhd <- rep(0,length(refData))
-condhp [1] <- 1 #condition on first one in refdata
-M <- 1e2 #number of samples from posterior
-delta = 10  #Step parameter for covariance of the proposal used in the Metropolis Hastings routine
-#without stutter:
-hpD <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhp,xi=0,threshT=threshT,M=M,delta=delta)
-validMCMC(hpD$posttheta)
-hdD <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhd,xi=0,threshT=threshT,M=M,delta=delta)
-validMCMC(hdD$posttheta)
-print(hpD$margL/hdD$margL) #estimated LR
-#with stutter:
-hpS <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhp,threshT=threshT,M=M,delta=delta,ximax=0.2)
-validMCMC(hpS$posttheta)
-hdS <- contLikMCMC(nC,mixData,popFreq,refData=refData,condOrder=condhd,threshT=threshT,M=M,delta=delta,ximax=0.2)
-validMCMC(hdS$posttheta)
-print(hpS$margL/hdS$margL) #estimated LR
-}
+Marginalized likelihood is estimated using Metropolis Hastings with the "Gelfand and Dey" method.
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
@@ -95,13 +39,9 @@ Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 \references{
 Craiu,R.V. and Rosenthal, J.S. (2014). Bayesian Computation Via Markov Chain Monte Carlo. Annu. Rev. Stat. Appl., 1,179-201.
 }
-\keyword{Bayesian}
-\keyword{Hastings,}
-\keyword{Likelihood}
+\keyword{BayesianModels,}
 \keyword{MCMC,}
-\keyword{Marginalized}
-\keyword{Metropolis}
+\keyword{MarginalizedLikelihoodEstimation}
+\keyword{MetropolisHastings,}
 \keyword{continuous,}
-\keyword{estimation}
-\keyword{models,}
 

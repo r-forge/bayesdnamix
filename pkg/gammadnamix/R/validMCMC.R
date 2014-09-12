@@ -2,29 +2,27 @@
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 #' @description Validates aposteriori samples from MCMC method
 #' @details This function takes samples from the MCMC as given in a matrix and shows the aposterior functions.
-#' @param X A(Mxp) matrix with MCMC samples.
+#' @param mcmcobj A object returned by contLikMCMC
 #' @param trace Boolean for whether showing trace of samples.
 #' @param acf Boolean for whether showing autocorrelation function of samples.
-#' @param mlefit Fitted object using contLikMLE
-#' @param isPhi Boolean whether we are working with reparameterizited parameters
 #' @export
-validMCMC <- function(X,trace=TRUE,acf=TRUE,mlefit=NULL,isPhi=FALSE) {
- p <- ncol(X)
+validMCMC <- function(mcmcobj,trace=TRUE,acf=TRUE) {
+ txt <- colnames(mcmcobj$posttheta)
+ p <- length(txt)
  par(mfrow=c(p,1+sum(c(trace,acf)) ),mar = c(1,1,1,1), mgp = c(0,0.2,0))
  for(i in 1:p) {
-  if(!isPhi) {
-   txt <- paste0("theta",i)
+  if( grepl("mx",txt[i]) || "xi"==txt[i]) {
+   dens <- density(mcmcobj$posttheta[,i],from=0,to=1)
+  } else if("mu"==txt[i] || "sigma"==txt[i] ) {
+   dens <- density(mcmcobj$posttheta[,i],from=0)
   } else {
-   txt <- paste0("phi",i)
+   dens <- density(mcmcobj$posttheta[,i])
   }
-  dens <- density(X[,i])
-  plot(dens$x,dens$y,ty="l",main=txt,xlab="",ylab="")
-  if(!is.null(mlefit)) {
-   if(isPhi) lines(dens$x,dnorm(dens$x,mlefit$theta0[i],sqrt(mlefit$Sigma0[i,i])),col=2,lty=2,ylab="",xlab="")
-   if(!isPhi) lines(dens$x,dnorm(dens$x,mlefit$theta1[i],sqrt(mlefit$Sigma1[i,i])),col=2,lty=2,ylab="",xlab="")
-  }
-  if(trace) plot(X[,i],ty="l",ylab="",xlab="")
-  if(acf) acf(X[,i],lag.max=200,ylab="",xlab="")
+  mled <-dnorm(dens$x,mcmcobj$MLE[i],sqrt(mcmcobj$Sigma[i,i])) #density of lazy bayes
+  plot(dens$x,dens$y,ty="l",main=txt[i],xlab="",ylab="",ylim=c(0,max(mled,dens$y)))
+  lines(dens$x,mled,col=2,lty=2,ylab="",xlab="")
+  if(trace) plot(mcmcobj$posttheta[,i],ty="l",ylab="",xlab="")
+  if(acf) acf(mcmcobj$posttheta[,i],lag.max=200,ylab="",xlab="")
  }
  par(mfrow=c(1,1)) 
 }
