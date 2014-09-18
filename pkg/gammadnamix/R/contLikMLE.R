@@ -21,12 +21,13 @@
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
+#' @param alpha Significant level used for confidence interval for parameter estimation. Default is 0.05.
 #' @param delta Standard deviation of normal distribution when drawing random startpoints. Default is 10.
 #' @return ret A list(fit,model,nDone,delta) where fit is Maximixed likelihood elements for given model.
 #' @export
 #' @references Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
 #' @keywords continuous model, Maximum Likelihood Estimation
-contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,alpha=0.05,delta=10){
+contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10,alpha=0.05){
  ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef)
 
  if(is.null(xi)) {
