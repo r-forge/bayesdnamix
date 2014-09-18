@@ -11,14 +11,14 @@ threshT = 150 #detection threshold (default is 50)
 
 #true parameters to generate data from
 xi0=0.1 #true stutter ratio in generated samples
-mu = 500 #amount of dna (on peak height scale)
-sigma=0.15 #coefficient of variance
+mu = 1000 #amount of dna (on peak height scale)
+sigma=0.1 #coefficient of variance
 nrep=2 #number of replicates (with same assumed parameters)
 mx=(nC:1)/sum(1:nC) #mixture propotions for each of the contributors
 
 #load allele-frequncy data:
 load(system.file("mcData.Rdata", package = "gammadnamix"))
-popFreq <- data$popFreq #get object with allele-frequncies
+popFreq <- mcdata$popFreq #get object with allele-frequncies
 
 #Generate samples using popFreq-object and assumed model parameters
 set.seed(1) 
@@ -30,6 +30,8 @@ popFreq <- retlist$popFreq
 refData <- retlist$refData 
 nR <- length(refData[[1]]) #number of references in refData-object
 print(sum(unlist(refData)=="99")) #number of dropout from references
+tabref <- matrix(unlist(refData),ncol=2*nC,byrow=TRUE)
+rownames(tabref) <- names(popFreq)
 
 #Hypothesis: Hp: ref2+1unknown , Hd:2 unknowns
 hpH <- hdH <- rep(0,nR) #NB: this vector must be of size nR!
@@ -38,15 +40,16 @@ hpH[nC] <- 1 #condition ref2 to be placed as contributor 1 in model
 ###################################################
 #Maximum likelihood estimation of parameter models#
 ###################################################
-nDone=5 #Number of random start points in the maximizer(default is 1)
+nDone=3 #Number of random start points in the maximizer(default is 1)
 hdmle <- contLikMLE(nC,samples,popFreq,refData=refData,condOrder=hdH,threshT=threshT,nDone=nDone) 
-print(hdmle$fit)
+print(hdmle$fit$loglik)
 hdmlelogliki <- logLiki(hdmle) #get loglikelihood for each locus under hd
 
 #given hdDmle-object: Do deconvolution:
-dlisthd <- deconvolve(mlefit=hdmle,alpha=0.99,maxlist=1000) #time depends on discrimination of sample
+dlisthd <- deconvolve(mlefit=hdmle,alpha=0.99,maxlist=100) #time depends on discrimination of sample
 #barplot(dlisthd$pG)
-#head(dlisthd$table1)
+print(tabref)
+print(head(dlisthd$table1))
 
 set.seed(1)
 hpmle <- contLikMLE(nC,samples,popFreq,refData=refData,condOrder=hpH,threshT=threshT,nDone=nDone)
