@@ -112,6 +112,6 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
   table1 <- cbind(table1,deconvlist[[loc]])
  }
  table1 <-  cbind(table1,pG)
- colnames(table1) <- c(paste0(c(t(replicate(2,locs))),"_g",1:nC),"posterior")
+ colnames(table1) <- c(paste0(c(t(replicate(nC,locs))),"_g",1:nC),"posterior")
  return(list(table1=table1,rankG=deconvlist,pG=pG))
 } #end function
