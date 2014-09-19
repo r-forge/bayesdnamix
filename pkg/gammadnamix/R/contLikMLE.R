@@ -134,8 +134,12 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  thetaSD <- sqrt(diag(Sigma2))
  thetaCI <- thetahat2 + cbind(qnorm(alpha/2)*thetaSD,0,qnorm(1-alpha/2)*thetaSD)
 
- phinames <- c(paste0("nu",1:(nC-1)),"log(mu)","log(sigma)")
- thetanames <- c(paste0("mx",1:(nC-1)),"mu","sigma")
+ phinames <- c("log(mu)","log(sigma)")
+ thetanames <- c("mu","sigma")
+ if(nC>1) {
+  phinames  <- c(paste0("nu",1:(nC-1)),phinames)
+  thetanames <- c(paste0("mx",1:(nC-1)),thetanames)
+ }
  thetanames2 <- c(paste0("mx",1:nC),"mu","sigma")
  if(np==(nC+2)) {
   phinames <- c(phinames,"logit(xi)")
@@ -143,6 +147,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   thetanames2 <- c(thetanames2,"xi") 
  } 
  colnames(thetaCI) <- c(paste0(alpha/2*100,"%"),"MLE",paste0((1-alpha/2)*100,"%"))
+ rownames(thetaCI) <- thetanames2
  colnames(maxSigma) <- rownames(maxSigma) <- phinames 
  colnames(Sigma) <- rownames(Sigma) <- thetanames
  colnames(Sigma2) <- rownames(Sigma2) <- thetanames2
