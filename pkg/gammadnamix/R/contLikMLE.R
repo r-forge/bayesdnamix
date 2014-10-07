@@ -44,18 +44,23 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   }
  }
 
+ maxITER <- 500 #number of possible times to be INF or not valid optimum before any acceptance
  np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
  maxL <- -Inf #
  nOK <- 0 #number of times for reaching optimum
+ nITER <- 0 #number of times beeing INF
  suppressWarnings({
   while(nOK<nDone) {
-    p0 <- rnorm(np,sd=delta) #generate random start value
-    if(is.infinite(negloglikYphi(p0))) next #skip to next if still INF
-    tryCatch( {
+    p0 <- rnorm(np,sd=delta) #generate random start value on Real
+    likval <- negloglikYphi(p0)  
+	if(is.infinite(likval)) { #if it was infinite
+	 nITER <- nITER + 1	 
+    } else {
+     tryCatch( {
        foo <- nlm(f=negloglikYphi, p=p0,hessian=TRUE)
        Sigma <- solve(foo$hessian)
-       if(any(diag(Sigma)<=0)) next; #not a local optimum
-       if(foo$code==1 && foo$iterations>2) {
+       if(any(diag(Sigma)>0) && foo$code==1 && foo$iterations>2) { #REQUIREMENT FOR BEING ACCEPTED
+    	nITER <- 0 #reset INF if accepted
         likval <- -foo$min
         nOK=nOK+1 #it was accepted as an optimum
         if(likval>maxL) {
@@ -63,8 +68,17 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
          maxPhi <- foo$est #set as topfoo     
          maxSigma <- Sigma 
         }
-       }
-    },error=function(e) e) #end trycatch 
+       } else { #NOT ACCEPTED
+     	 nITER <- nITER + 1 
+	   }
+     },error=function(e) e) #end trycatch 
+    }
+	if(nOK==0 && nITER>maxITER) {
+     nOK <- nDone #finish loop
+     maxL <- -Inf #maximized likelihood
+     maxPhi <- rep(NA,np) #Set as NA
+     maxSigma <- matrix(NA,np,np)#Set as NA
+    }
   } #end while loop
  })
  #transfer back: 

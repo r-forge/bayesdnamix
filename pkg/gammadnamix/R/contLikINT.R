@@ -28,7 +28,7 @@
 #' @keywords continuous, Bayesian models, Marginalized Likelihood estimation
 
 
-contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1,isPhi=FALSE){
+contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1){
  require(cubature) 
  if(length(lower)!=length(upper)) stop("Length of integral limits differs")
  np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters

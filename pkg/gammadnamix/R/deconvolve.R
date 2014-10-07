@@ -15,10 +15,13 @@
 deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
  theta <- mlefit$fit$thetahat #condition on mle parameter
  model <- mlefit$model #take out assumed model with given data
+ locs <- names(model$popFreq)
+ nL <- length(locs)
+ nC <- model$nC
  np <- length(theta)#number of unknown parameters
  loglikYtheta <- function() {   #call c++- function: length(theta)=nC+1
    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-   return(Cval + log(model$pXi(theta[nC+2]))) #weight with prior of tau and 
+   return(Cval + log(model$pXi(theta[ret$nC+2]))) #weight with prior of tau and 
  }
  if(!is.null(model$xi)) {
   theta <- c(theta,model$xi)
@@ -29,17 +32,16 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
  }
 
  #Using information in ret to try out different genotypes:
- locs <- names(model$popFreq)
- nL <- length(locs)
+
  #Step 1) Calculate L(E|g,thetahat) for each marker
  dlist <- list()
  GClist <- list()
  for(loc in locs) {
   samples <- lapply(model$samples,function(x) x[loc])
-  ret <- prepareC(nC=model$nC,samples,popFreq=model$popFreq[loc],refData=model$refData[loc],condOrder=model$condOrder,knownRef=model$knownRef)
+  ret <- prepareC(nC=nC,samples,popFreq=model$popFreq[loc],refData=model$refData[loc],condOrder=model$condOrder,knownRef=model$knownRef)
   uind <- which(ret$condRef==-1) #unknown genotype indices
   nU <- length(uind) #number of unknowns
-  ret$nK <- ret$nC  #number of known is equal number of contributors
+  ret$nK <- nC  #number of known is equal number of contributors
   Gset <- matrix(ret$Gvec,ncol=2) #genotype possibilities
   Glist <- list()
   for(k in 1:nU) {
@@ -71,19 +73,6 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
  rankGlist <- combineRank(dlist,loghdval=mlefit$fit$loglik,alpha=alpha,maxsearch=maxlist)
  pG <- rankGlist$pG
  Gset  <- rankGlist$rankG
-
- #Step (3) Optional: Calculate marginalized posterior for proposed genotypelist (could be timeconsuming!)
- if(0) { #this may change the order and posterior of the deconvolved profiles!
-  low <- rep(0,nC+1)
-  up <- c(rep(0,nC-1),musigmamax)
-  if(is.null(model$xi)) {
-   low <- c(low,0)
-   up <- c(up,1)
-  }
-  #For each best guessed profiles: Run marginalized
-  #step 3a) Run under hd:
-  hdfit <- contLikMarg(model$nC,model$samples,model$popFreq,low,up,model$refData,model$condOrder,model$knownRef,model$xi,model$prC,reltol,model$threshT,model$fst,model$lambda,model$pXi)
- }
 
  #Step 3) Convert rank-list to list with allele-names
  Glist <- getGlist(model$popFreq) #get genotype list with genotypes and corresponding frequencies
