@@ -1,0 +1,1571 @@
+#' @title euroformixTK
+#' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
+#' @description euroformixTK is a GUI wrapper for gammadnamix
+#' @details The function is a graphical layer for the functions in the package gammadnamix. See ?gammadnamix for more information.
+#' @param envirfile A file to a saved environment of a project
+#' @export
+
+#library(roxygen2)
+#setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/")
+#roxygenize("gammadnamix")
+
+#library(gammadnamix); sessionInfo();#euroformix()
+#setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/euroformix0")
+#rm(list=ls())
+#envirfile=NULL
+#source("euroformix.R");#euroformix()
+
+euroformix = function(envirfile=NULL) {
+
+ #size of main window
+ mwH <- 1000
+ mwW <- 1500
+
+ #Required for GUI:
+ require(gWidgetstcltk) #requires only gWidgets.
+
+ #type of gwidgets-kit
+ options(guiToolkit="tcltk")
+
+ #version:
+ version = 1
+
+ #software name:
+ softname <- paste0("Euroformix v",version)
+
+
+ #####################
+ #create environment #
+ #####################
+ if(is.null(envirfile)) {
+  mmTK = new.env() #create new envornment object
+
+  #Toolbar options: can be changed any time by using toolbar
+  assign("optFreq",list(freqsize=0),envir=mmTK) #options when new frequencies are found (size of imported database,minFreq)
+  assign("optMLE",list(nDone=3,delta=10),envir=mmTK) #options when optimizing (nDone,delta)
+  assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
+  assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optDC",list(alphaprob=0.9999,maxlist=1000),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
+  assign("optDB",list(maxDB=10000),envir=mmTK) #options when doing database search (maxDB)
+
+  #initializing environment variables
+  assign("workdir",NULL,envir=mmTK) #assign working directory to mmTK-environment
+  assign("freqfolder",NULL,envir=mmTK) #assign freqfolder to mmTK-environment
+  assign("kits",NULL,envir=mmTK) #assign kitList to mmTK-environment
+  assign("selPopKitName",NULL,envir=mmTK) #selected kit and population for popFreq
+
+  #imported data:
+  assign("popFreq",NULL,envir=mmTK) #assign to mmTK-environment
+  assign("mixData",NULL,envir=mmTK) #assign to mmTK-environment
+  assign("refData",NULL,envir=mmTK) #assign to mmTK-environment
+  assign("dbData",NULL,envir=mmTK) #assign dbData: matrix referenceDatabase to mmTK-environment (encoded)
+
+  #models: stored setups for model specification
+  assign("setEVID",NULL,envir=mmTK) #assign model (evidence weighting)
+  assign("setDB",NULL,envir=mmTK) #assign model (database search)
+  assign("setDC",NULL,envir=mmTK) #assign model (deconvolution)
+  assign("setGEN",NULL,envir=mmTK) #assign model (generation)
+
+  #results: stored results after calculations
+  assign("resDB",NULL,envir=mmTK) #assign database search results (i.e. ranked table of results)
+  assign("resEVID",NULL,envir=mmTK) #assign evidence weighting results (i.e. calculated LR with MLE estimates)
+  assign("resDC",NULL,envir=mmTK) #assign deconvolved result (i.e. ranked table of results)
+  assign("resEVIDINT",NULL,envir=mmTK) #assign evidence weighting results - Based on Integration 
+ } else {
+  load(envirfile) #loading environment
+ }
+
+ ####################################
+ #auxiliary functions and variables:#
+ ####################################
+ prim = c(2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113, 127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263, 269,271,277,281,283,293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421, 431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,563,569,571,577,587,593, 599,601,607,613,617,619,631,641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,757, 761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,941, 947,953,967,971,977,983,991,997,1009,1013,1019,1021,1031,1033,1039,1049,1051,1061,1063,1069,1087,1091,1093, 1097,1103,1109,1117,1123,1129,1151,1153,1163,1171,1181,1187,1193,1201,1213,1217,1223,1229,1231,1237,1249, 1259,1277,1279,1283,1289,1291,1297,1301,1303,1307,1319,1321,1327,1361,1367,1373,1381,1399,1409,1423,1427, 1429,1433,1439,1447,1451,1453,1459,1471,1481,1483,1487,1489,1493,1499,1511,1523,1531,1543,1549) 
+
+ #helpfunction to return minimum frequency (used for new alleles)
+ getminFreq = function() {
+  popFreq <- get("popFreq",envir=mmTK) #get selected popFreq
+  freqsize <- get("optFreq",envir=mmTK)$freqsize #get selected size of frequence-database
+  if(freqsize>0) {
+   return(5/(2*freqsize))
+  } else {
+   return(min(unlist(popFreq))) #minumum observed frequency was used 
+  }
+ }
+
+ #Function to get data from environment
+ #sel used to select a specific datasubset
+ getData = function(type,sel=NULL) {
+   Data <- NULL
+   if(type=="mix") Data <- get("mixData",envir=mmTK) #assign kit to mmTK-environment
+   if(type=="ref") Data <- get("refData",envir=mmTK) #assign kit to mmTK-environment 
+   if(type=="db") Data <- get("dbData",envir=mmTK) #assign kit to mmTK-environment 
+   if(!is.null(sel)) return(Data[sel]) #returns only selected datasubset
+   return(Data)
+ }
+
+ #function for inserting sample/ref/db-names into existing gcheckboxgroup
+ restoreCheckbox = function(type) {
+  subD <- getData(type)
+  if(!is.null(subD)) { return( names(subD))
+  } else { return(numeric()) }
+ }
+
+ #Load kit with allelefreq-info from filefolder:
+ loadKitList = function(freqpath) {
+  freqfiles = list.files(freqpath)
+  kitList <- list()
+  for(i in 1:length(freqfiles)) {
+   filename = paste(freqpath,"/",freqfiles[i],sep="")
+   tab=tableReader(filename)
+   Anames = tab[,1]
+   tab = tab[,-1]
+   freqlist = list()
+   for(j in 1:ncol(tab)) { #for each locus
+     tmp = tab[,j]
+     tmp2 = tmp[!is.na(tmp)]
+     names(tmp2) = Anames[!is.na(tmp)]
+     freqlist[[j]] = tmp2
+   }
+   names(freqlist) = toupper(colnames(tab)) #LOCUS-names are assigned as Upper-case
+   kit = unlist(strsplit(freqfiles[i],"_"))[1]
+   pop = unlist(strsplit(freqfiles[i],"_"))[2]
+   pop = unlist(strsplit(pop,"\\."))[1]
+   kitind = kit==names(kitList) 
+   kitList[[kit]][[pop]] = freqlist
+  }
+  assign("kits",kitList,envir=mmTK) #assign kit to mmTK-environment
+ }
+
+ #Function which takes rownames and adds to first column
+ addRownameTable = function(tab) {
+  tmp <- colnames(tab)
+  tab <- cbind(rownames(tab),tab)
+  colnames(tab) <- c("X",tmp)
+  return(tab)
+ }
+
+ #Robust function for reading tables:
+ tableReader=function(filename) {
+  tab <- read.table(filename,header=TRUE,sep="\t",stringsAsFactors=FALSE)
+  tryCatch( {  if(ncol(tab)==1) tab <- read.table(filename,header=TRUE,sep=",",stringsAsFactors=FALSE) } ,error=function(e) e) 
+  tryCatch( {  if(ncol(tab)==1) tab <- read.table(filename,header=TRUE,sep=";",stringsAsFactors=FALSE) } ,error=function(e) e) 
+  if(ncol(tab)==1) tab <- read.table(filename,header=TRUE,sep=";",stringsAsFactors=FALSE)
+  return(tab) #need dataframe to keep allele-names correct!!
+ }
+
+ #save result table to file:
+ saveTable = function(tab,sep="txt") {
+  tabfile  = gfile(text="Save table",type="save") #csv is correct format!
+  if(!is.na(tabfile)) {
+   if(length(unlist(strsplit(tabfile,"\\.")))==1) tabfile = paste0(tabfile,".",sep)
+   if(sep=="txt" | sep=="tab") write.table(tab,file=tabfile,quote=FALSE,sep="\t",row.names=FALSE) 
+   if(sep=="csv") write.table(tab,file=tabfile,quote=FALSE,sep=",",row.names=FALSE) 
+   print(paste("Table saved in ",tabfile,sep=""))
+  }
+ } #end file
+
+ strsplit2 <- function(x,spl) {
+  if(nchar(x)==0) return("")
+  txt <- x
+  for(j in 1:length(spl)) {
+   txt <- unlist(strsplit(txt,split=spl[j]))
+  }
+  return(txt)
+ }
+
+ #Helpfunctions for converting profiles from list to table.
+ sample_listToTable = function(Y) {
+   sn = names(Y) #Y is a list on form Y[[samplename]][[locusname]]$adata,Y[[samplename]][[locusname]]$hdata
+   aM = 0   #count number of max allele data:
+   hM = 0   #count number of max allele heights:
+   for(ss in sn) { #for each sample
+    aM = max(unlist( lapply(Y[[ss]],function(x) length(x$adata)) ),aM)
+    hM = max(unlist( lapply(Y[[ss]],function(x) length(x$hdata)) ),hM)
+   }
+   #create tables:
+   X=numeric()
+   for(ss in sn) { #for each sample
+    newsample=numeric() #for allele
+    ln = names(Y[[ss]])
+    for(loc in ln) {
+     newrow = Y[[ss]][[loc]]$adata
+     newsample = rbind(newsample, c(newrow,rep("",aM-length(newrow))))
+    }
+    newsample2=numeric() #for heights
+    if(hM>0) {
+     for(loc in ln) {
+      newrow = Y[[ss]][[loc]]$hdata
+      newsample2 = rbind(newsample2, c(newrow,rep("",hM-length(newrow))))
+     }      
+    }
+    X = rbind(X,cbind(ss,ln,newsample,newsample2))
+   }
+   cn = c("SampleName","Marker", paste("Allele",1:aM,sep=""))
+   if(hM>0) cn = c(cn,paste("Height",1:hM,sep=""))
+   colnames(X)  = cn
+   return(X)
+ } #end of functions
+
+ #Helpfunctions for converting profiles from table to list.
+ sample_tableToList = function(X) {
+  cn = colnames(X) #colnames 
+  lind = grep("marker",tolower(cn),fixed=TRUE) #locus col-ind
+  if(length(lind)==0) lind = grep("loc",tolower(cn),fixed=TRUE) #try another name
+  sind = grep("sample",tolower(cn),fixed=TRUE) #sample col-ind
+  if(length(sind)>1)  sind = sind[grep("name",tolower(cn[sind]),fixed=TRUE)] #use only sample name
+  A_ind = grep("allele",tolower(cn),fixed=TRUE) #allele col-ind
+  H_ind = grep("height",tolower(cn),fixed=TRUE) #height col-ind
+  ln = unique(toupper(X[,lind])) #locus names: Convert to upper case
+  sn = unique(X[,sind]) #sample names
+  I = length(ln)
+  Y = list() #insert non-empty characters:
+  for(k in 1:length(sn)) { #for each sample in matrix
+   Y[[sn[k]]] = list() #one list for each sample
+   for(i in 1:I) { #for each locus
+     xind = X[,sind]==sn[k] & toupper(X[,lind])==ln[i] #get index in X for given sample and locus
+     keep <- which(!is.na(X[xind,A_ind]) & X[xind,A_ind]!="")
+     if(length(keep)>0) {
+      if(length(A_ind)>0) Y[[sn[k]]][[ln[i]]]$adata = as.character(X[xind,A_ind][keep])
+      if(length(H_ind)>0) Y[[sn[k]]][[ln[i]]]$hdata = as.numeric(as.character(X[xind,H_ind][keep]))
+     }
+   }
+  }
+  return(Y)
+ }
+
+
+###################################################################
+###########################GUI#####################################
+###################################################################
+
+ #Menu bar file-lists:
+ f_setwd = function(h,...) {
+  dirfile = gfile(text="Select folder",type="selectdir")
+  if(!is.na(dirfile)) {
+   setwd(dirfile)
+   assign("workdir",dirfile,envir=mmTK) #assign working directory
+  }
+ }
+ f_openproj = function(h,...) {
+  projfile = gfile(text="Open project",type="open", filter=list("Project"=list(patterns=list("*.Rdata"))))
+  if(!is.na(projfile)) {
+   dispose(mainwin)
+   euroformix(projfile) #send environment into program
+  }
+ }
+ f_saveproj = function(h,...) {
+  projfile = gfile(text="Save project",type="save")
+  if(!is.na(projfile)) {
+   if(length(unlist(strsplit(projfile,"\\.")))==1) projfile = paste0(projfile,".Rdata")
+   print("Size of stored objects (in MB):") #prints size of each stored object
+   print(sapply(mmTK,object.size)/1e6) #prints size of each stored object
+   save(mmTK,file=projfile) #save environment
+   print(paste("Project saved in ",projfile,sep=""))
+  }
+ }
+ f_quitproj = function(h,...) {
+  ubool <- gconfirm("Do you want to save project?",title="Quit Program",icon="info")
+  if(svalue(ubool)) {
+   savefile <- gfile(text="Save file",type="save")
+   if(length(unlist(strsplit(savefile ,"\\.")))==1) savefile = paste0(savefile ,".Rdata")
+   save(mmTK,file=savefile) 
+   print(paste("Project saved in ",savefile,sep=""))
+  } else { 
+   print("Program terminated without saving")
+  }
+  dispose(mainwin) #remove window!
+ }
+
+ #helpfunction to get value in from user and store
+ setValueUser <- function(what1,what2,txt) {
+   listopt <- get(what1,envir=mmTK) #get object what 1.
+   val <- listopt[[what2]]
+   sw <- gwindow(title="User input",visible=FALSE, width=300,height=50)
+   grid <- glayout(spacing=0,container=sw )
+   grid[1,1] <- glabel(txt, container=grid)
+   grid[1,2] <- gedit(text=val,container=grid,width=15)
+   grid[2,1] <- gbutton("OK", container=grid,handler = function(h, ...) { 
+    listopt[[what2]] <- as.numeric(svalue(grid[1,2])) #insert new value
+    assign(what1,listopt,envir=mmTK) #assign user-value to opt-list
+    dispose(sw)
+   } )
+   grid[2,2] <- gbutton("Cancel", container=grid,handler = function(h, ...) { dispose(sw) } )
+   visible(sw) <- TRUE
+ }
+
+###########GUI WINDOW STARTS#########
+ 
+ ##########
+ #Menu bar#
+ ##########
+ mblst = list( #project saving and so on
+  File=list(  
+   'Set directory'=list(handler=f_setwd),
+   'Open project'=list(handler=f_openproj),
+   'Save project'=list(handler=f_saveproj),
+   'Quit'=list(handler=f_quitproj,icon="close")
+  ),
+  Frequencies=list(
+   'Set size of frequency database'=list(handler=function(h,...) {  
+      setValueUser(what1="optFreq",what2="freqsize",txt="Set size of imported database:") 
+    })
+  ),
+  Optimization=list(
+   'Set number of random startpoints'=list(handler=function(h,...) {  
+      setValueUser(what1="optMLE",what2="nDone",txt="Set number of random startvalues:") 
+    }),
+   'Set variance of randomizer'=list(handler=function(h,...) {  
+      setValueUser(what1="optMLE",what2="delta",txt="Set variance of randomizer:") 
+    })
+  ),
+  MCMC=list(
+   'Set number of samples'=list(handler=function(h,...) {  
+      setValueUser(what1="optMCMC",what2="niter",txt="Set number of sample iterations:") 
+    }),
+   'Set variance of randomizer'=list(handler=function(h,...) {  
+      setValueUser(what1="optMCMC",what2="delta",txt="Set variation of randomizer:") 
+    })
+  ),
+  Integration=list(
+   'Set relative error requirement'=list(handler=function(h,...) {  
+      setValueUser(what1="optINT",what2="reltol",txt="Set relative error:") 
+    }),
+   'Set maximum of mu-parameter'=list(handler=function(h,...) {  
+      setValueUser(what1="optINT",what2="maxmu",txt="Set upper boundary of mu parameter:") 
+    }),
+   'Set maximum of sigma-parameter'=list(handler=function(h,...) {  
+      setValueUser(what1="optINT",what2="maxsigma",txt="Set upper boundary of mu parameter:") 
+    })
+  ),
+  Deconvolution=list(
+   'Set required summed probability'=list(handler=function(h,...) {  
+      setValueUser(what1="optDC",what2="alphaprob",txt="Set required summed posterior genotype-probability of list:") 
+    }),
+   'Set max listsize'=list(handler=function(h,...) {  
+      setValueUser(what1="optDC",what2="maxlist",txt="Set size of maximum elements in deconvoluted list:") 
+    })
+  ),
+  'Database search'=list(
+   'Set maximum view-elements'=list(handler=function(h,...) {  
+      setValueUser(what1="optDB",what2="maxDB",txt="Set max size of view elements from database:") 
+    })
+  )
+ )
+
+##################################################################################################
+########### Program starts #######################################################################
+##################################################################################################
+
+ #change working directory to the one stored in mmTK-environment
+ wd=get("workdir",envir=mmTK) #assign working directory to mmTK-environment
+ if(!is.null(wd)) setwd(wd)
+ 
+ #Main window:
+ spc <- 10
+ mainwin <- gwindow(softname, visible=FALSE, width=mwW,height=mwH)
+ gmenu(mblst,container=mainwin)
+ nb = gnotebook(container=mainwin)
+ tabGEN = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Generate data") #tab1: Generates data(with peak heights) for a given model (plot EPG in addition)
+ tabimport = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Import data") #tab2: (imports all files)
+ tabmodel = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Model specification") #tab3: specify model used in weight-of-evidence (INT/MLE) or in a Database search 
+ tabMLE = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="MLE fit") #results from MLE
+ tabDC = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Deconvolution") #results from a deconvolution
+ tabDB= ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Database search") #results from a database search
+ tabVAL = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Model validation") #modelvalidation from MLE
+ svalue(nb) <- 2 #initial start at second tab
+
+####################################################
+###############Tab 1: Create Data:##################
+####################################################
+
+ tabGENtmp <- glayout(spacing=0,container=tabGEN)
+
+ refreshTabGEN = function(thlist=list(mu=1000,sigma=0.15,xi=0.1,mx=NULL) ) { #can be repeated
+  visible(mainwin) <- FALSE 
+
+  #load/save helpfunctions for generated data
+  f_openprof = function(h,...) {
+    proffile = gfile(text="Open profile",type="open",filter=list("text"=list(patterns=list("*.txt","*.csv","*.tab")),"all"=list(patterns=list("*"))))
+    if(!is.na(proffile)) {
+     Data = tableReader(proffile) #load profile
+     print(Data)
+     setDataToGUI(sample_tableToList(Data)[[1]] ,h$action) #convert from table to list and load into GUI
+    }
+  }
+  f_saveprof = function(h,...) {
+    Data <- list(getDataFromGUI(h$action)) #get data from GUI
+    if(h$action==0) names(Data) <- "generated"
+    if(h$action>0) names(Data) <- paste0("ref",h$action)
+    Data = sample_listToTable(Data) #convert from table to list
+    saveTable(Data,"csv")
+  }
+
+  #helpfunction to set Data to GUI
+  setDataToGUI <- function(Data,type) {
+    dloc <- names(Data) #locus in Data
+    for(i in 1:length(locs)) {
+     dind <- grep(toupper(locs[i]),toupper(dloc)) #get dataindex
+     if(type==0) { #if evidence
+       svalue(tabGENb2[i,1]) <- svalue(tabGENb2[i,2]) <- ""
+       if(length(dind)>0) { #if locus found
+         if(!is.null(Data[[dind]]$adata)) svalue(tabGENb2[i,1]) <- paste0(Data[[dind]]$adata,collapse=",") #insert alleles
+         if(!is.null(Data[[dind]]$hdata)) svalue(tabGENb2[i,2]) <- paste0(Data[[dind]]$hdata,collapse=",") #insert alleles
+       }
+     } else { #if reference
+       svalue(tabGENb3[i,type]) <- ""
+       if( length(dind)>0 && !is.null(Data[[dind]]$adata) ) svalue(tabGENb3[i,type]) <- paste0(Data[[dind]]$adata,collapse=",") #insert
+     }
+   } #end for each locus
+  } #end function
+
+  #helpfunction to get data from GUI
+  getDataFromGUI <- function(type) {
+    outloc <- locs #store locs
+    Data <- list()
+    for(i in 1:length(locs)) {
+     outloc[i] <- svalue(tabGENb1[i,1]) #get new loc-names
+     if(type==0) { #store evidence
+      Data[[outloc[i]]] <- list( adata=unlist(strsplit(svalue(tabGENb2[i,1]),",")) , hdata=as.numeric(unlist(strsplit(svalue(tabGENb2[i,2]),","))) )
+     } else { #store reference
+      Data[[outloc[i]]] <- list( adata=unlist(strsplit(svalue(tabGENb3[i,type]),",")) )
+     }    
+    } #end for each locus
+    return(Data)
+  }
+
+  #layout: 
+  tabGENa = glayout(spacing=0,container=(tabGENtmp[1,1] <-gframe("Parameters",container=tabGENtmp))) 
+  tabGENb = glayout(spacing=0,container=(tabGENtmp[2,1] <-gframe("Edit",container=tabGENtmp))) 
+  tabGENc = glayout(spacing=3,container=(tabGENtmp[3,1] <-gframe("Import/Export profile",container=tabGENtmp)))  
+  tabGENd = glayout(spacing=3,container=(tabGENtmp[4,1] <-gframe("Further action",container=tabGENtmp))) 
+
+  #number of contributors
+  set <- get("setGEN",envir=mmTK) #get stored setup
+  param <- set$param
+  nC <- set$model$nC_hd #number of contributors
+ 
+  #default values
+  if(is.null(thlist$mx)) thlist$mx <- round((nC:1)/sum(nC:1),3) #default value
+
+
+  #user input:
+  tabGENa[1,1] <- glabel("mu (amount of dna)",container=tabGENa)
+  tabGENa[1,2] <- gedit(thlist$mu,container=tabGENa,width=10)
+  tabGENa[2,1] <- glabel("sigma (coeffecient of variation)",container=tabGENa)
+  tabGENa[2,2] <- gedit(thlist$sigma,container=tabGENa,width=10)
+  tabGENa[3,1] <- glabel("xi (stutter ratio)",container=tabGENa)
+  tabGENa[3,2] <- gedit(thlist$xi,container=tabGENa,width=10)
+  for(k in 1:nC) { #for each contributors
+   tabGENa[k+3,1] <- glabel( paste0("mx",k," (mix-proportion contr. ",k,")") ,container=tabGENa)
+   tabGENa[k+3,2] <- gedit(thlist$mx[k],container=tabGENa,width=10)
+  }
+
+  #Generate:
+  simdata <- genDataset(nC, popFreq=set$popFreq, mu=thlist$mu, sigma=thlist$sigma, sorted=FALSE,threshT=param$threshT, refData=set$refData, mx=thlist$mx/sum(thlist$mx),nrep=1, stutt = thlist$xi, prC=param$prC, lambda=param$lambda)
+
+  #insert data in GUI
+  mixData <- simdata$samples[[1]]
+  refData <- simdata$refData
+  locs <- names(mixData) #get locus names
+
+  #show Loci
+  tabGENb1 <-  glayout(spacing=0,container=(tabGENb[1,1] <-gframe("Loci",container=tabGENb))) 
+  for(i in 1:length(locs))  tabGENb1[i,1] = gedit(locs[i],container=tabGENb1,width=nchar(locs[i])+3)
+
+  #show allele,heights
+  tabGENb2 <-  glayout(spacing=0,container=(tabGENb[1,2] <-gframe("Evidence (allele,heights)",container=tabGENb))) 
+  for(i in 1:length(locs)) {
+   adata <- mixData[[locs[i]]]$adata
+   hdata <- round(mixData[[locs[i]]]$hdata)
+   tabGENb2[i,1] = gedit(paste0(adata,collapse=","),container=tabGENb2,width=sum(nchar(adata)) + length(adata))
+   tabGENb2[i,2] = gedit(paste0(hdata,collapse=","),container=tabGENb2,width=sum(nchar(hdata)) + length(hdata))
+  }
+
+  #show references:
+  tabGENb3 <-  glayout(spacing=0,container=(tabGENb[1,3] <-gframe("Reference(s)",container=tabGENb))) 
+  for(k in 1:nC) {
+   for(i in 1:length(locs)) {
+    adata <- refData[[locs[i]]][[k]]
+    tabGENb3[i,k] = gedit(paste0(adata,collapse=","),container=tabGENb3,width=sum(nchar(adata)) + length(adata))
+   }
+  }
+
+  #storage buttons:
+  tabGENc[1,1] <- gbutton(text="Store evidence",container=tabGENc,handler=f_saveprof,action=0)
+  for(k in 1:nC) tabGENc[1,1+k] <- gbutton(text=paste0("Store ref",k),container=tabGENc,handler=f_saveprof,action=k)
+  tabGENc[2,1] <- gbutton(text="Load evidence",container=tabGENc,handler=f_openprof,action=0)
+  for(k in 1:nC) tabGENc[2,1+k] <- gbutton(text=paste0("Load ref",k),container=tabGENc,handler=f_openprof,action=k)
+
+  #further action
+  tabGENd[1,1] <- gbutton(text="Generate again",container=tabGENd,handler=function(h,...) { 
+   mx <- rep(0,nC)
+   for(k in 1:nC)  mx[k] <- as.numeric(svalue(tabGENa[3+k,2])) 
+   refreshTabGEN(list(mu=as.numeric(svalue(tabGENa[1,2])),sigma=as.numeric(svalue(tabGENa[2,2])),xi=as.numeric(svalue(tabGENa[3,2])),mx=mx/sum(mx)) )
+   })
+
+  tabGENd[2,1] <- gbutton(text="Plot EPG",container=tabGENd,handler=function(h,...) {
+   kit <- get("selPopKitName",envir=mmTK)[1] #get
+   if(is.na(kit)) return()
+   Data <- getDataFromGUI(0) #get data from GUI
+   plotEPG(Data,kitname=kit,sname="edited") #plot epg's
+   focus(mainwin)
+  })
+
+  visible(mainwin) <- TRUE #INCREASE SPEED
+  focus(mainwin)
+ } #end refreshTabGE
+
+####################################################
+###############Tab 2: Import Data:##################
+####################################################
+
+ #When program starts, import assumed model for EVID.
+
+
+ #a) button for loading kits from directory:
+ f_loadkd = function(h,...) { loadKitList(freqpath=get("freqfolder",envir=mmTK)); }
+
+ #b) load/save profiles/database: Supports any filetype
+ f_importprof = function(h,...) {
+  type=h$action #get type of profile
+#  proffile = gfile(text=paste("Open ",type,"-file",sep=""),type="open",filter=list("text"=list(patterns=list("*.txt","*.csv","*.tab"))))
+  proffile = gfile(text=paste("Open ",type,"-file",sep=""),type="open",filter=list("text"=list(patterns=list("*.txt","*.csv","*.tab")),"all"=list(patterns=list("*"))))
+  if(!is.na(proffile)) {
+   Data = tableReader(proffile) #load profile
+   print("Raw fil import:")
+   print(Data[1:min(nrow(Data),100),]) #print raw-input data
+  ###################
+  ##DATABASE IMPORT##
+  ###################
+   if(type=="db") { #importing database file
+    popFreq <- get("popFreq",envir=mmTK) 
+    if(is.null(popFreq)) {
+     gmessage("Population frequencies needs to be imported for database search",title="Error")
+    } else {
+     minFreq <- getminFreq()
+     #saving MEMORY by convert database here!
+     #Data <- dbToGenoTable(Data) #convert database table to genotype matrix
+
+     #Assumption: No reference has same samplename. All samplenames are rowed sequentially
+     cn = colnames(Data) #colnames 
+     lind = grep("marker",tolower(cn),fixed=TRUE) #locus col-ind
+     sind = grep("sample",tolower(cn),fixed=TRUE) #sample col-ind
+     aind = grep("allele",tolower(cn),fixed=TRUE) #allele col-ind
+     aind <- aind[1:2] #assume only 2 possible alles in reference profiles
+     locsDB <- unique(Data[,lind]) #unique markers in DB
+     locsPop <- toupper(names(popFreq)) #markers in population
+     sn <- unique(Data[,sind]) #unique samples in DB
+     newData <- numeric() #encoded reference table
+     dbDatalocs <- numeric() #locus in newData
+     for(loc in locsDB) { #for each marker in DB:
+      locind <- grep(toupper(loc),toupper(names(popFreq)),fixed=TRUE) #get position in popFreq
+      if(length(locind)==0) next #if locus not existing in popFreq the locus in not imported
+      newCol <- rep(NA,length(sn)) #new column in newData
+      subA <- Data[Data[,lind]==loc,aind] #extract allele data with matching marker
+      subS <- Data[Data[,lind]==loc,sind] #extract sample names with matching marker
+      isHom <- which(subA[,2]=="" | is.na(subA[,2])) #if homozygote assignation:
+      if(length(isHom)>0) subA[isHom,2] <- subA[isHom,1] #copy first allele
+      okSind <- which(sn%in%subS) #samples to consider for particular marker
+      if(length(okSind)==0) next #if no samples exists
+      newCol[okSind] <- 1 #init existing as 1. NA for missing allele-info
+      doneEncode <- matrix(FALSE,ncol=2,nrow=length(okSind)) #matrix checking which we are finished with encoding a genotype
+      Afreqs <- names(popFreq[[locind]]) #get allele-names. Update for each column
+      for(k in 1:length(aind)) { #for each allele-column
+       for(j in 1:length(Afreqs)) { #for each unique allele in popFreq:
+        okAind <- which(subA[,k]==Afreqs[j]) #find matching alleles in subA[okSind]
+        if(length(okAind)==0) next
+        doneEncode[okAind,k] = TRUE #check that is finished
+        newCol[okSind][okAind] <- newCol[okSind][okAind]*prim[j] #multiply with primenumber
+       } #end for each allele j
+
+       #THREAT NEW ALLELES,MISSTYPOS ETC:
+       if(any(!doneEncode[,k])) { #if any not encoded
+        newA <- unique(subA[!doneEncode[,k],k]) #get new alleles
+        newA <- newA[!is.na(newA)] #important to remove NA's
+        if(length(newA)==0) next
+        tmp <- popFreq[[locind]]
+        popFreq[[locind]] <- c(tmp, rep(minFreq,length(newA)))
+        names(popFreq[[locind]]) <- c(names(tmp),newA) #add unique
+        print(paste0("In locus ",loc,": Allele(s) ",newA," was inserted with min. frequency ",prettyNum(minFreq)))
+        for(j in 1:length(newA)) { #for each unique allele in popFreq:
+         okAind <- which(subA[,k]==newA[j]) #find matching alleles in subA[okSind]
+         if(length(okAind)==0) next
+         newCol[okSind][okAind] <- newCol[okSind][okAind] * prim[ which(names(popFreq[[locind]])==newA[j]) ] #multiply with EXTENDED primenumber
+        } #end for each allele j
+       } #end if not encoded 
+      } #end for each column k
+      dbDatalocs <- c(dbDatalocs,toupper(names(popFreq)[locind])) #all locus
+      newData <- cbind(newData,newCol) #add column
+     } #end for each locus loc
+   
+     #RESCALE popFreq?
+     for(i in 1:length(popFreq)) {
+      popFreq[[i]] <- popFreq[[i]]/sum(popFreq[[i]])
+     }
+     print("Frequencies was normalized")
+     colnames(newData) <- dbDatalocs
+     rownames(newData) <- sn #insert sample names
+     print(paste0("Database successfully imported with ",nrow(newData)," samples."))
+
+     tmp <- unlist(strsplit(proffile,"/",fixed=TRUE)) #just label the file
+     fname <- tmp[length(tmp)] #get filename
+     fname <- unlist(strsplit(fname,"\\."))[1]
+
+     dbData <- get("dbData",envir=mmTK) #get already existing databases
+     if(is.null(dbData)) dbData <- list() #create list-object
+     dbData[[fname]] <- newData #add database to list
+
+     assign("dbData",dbData,envir=mmTK) #store matrix in environment for later use
+     assign("popFreq",popFreq,envir=mmTK) #assign updated popFreq
+     tabimportB[2,3][] <- names(dbData)
+    } #end if popFreq exist
+   } else { 
+    Data = sample_tableToList(Data) #convert from table to list 
+    #get already stored data:
+    if(type=="mix") Data2 <- getData("mix") #get data from mmTK-environment
+    if(type=="ref") Data2 <- getData("ref") #get data from mmTK-environment
+
+    if(is.null(Data2)) { #if no previous already there
+     Data2 <- Data
+    } else {
+     for(k in 1:length(Data)) { #for each profile
+      Data2[[names(Data)[k]]] <- Data[[k]] #insert dataframe
+     }
+    }
+    if(type=="mix")  assign("mixData",Data2,envir=mmTK) #assign data to mmTK-environment
+    if(type=="ref")  assign("refData",Data2,envir=mmTK) #assign data to mmTK-environment
+    if(type=="mix")  tabimportB[2,1][] <- names(Data2)
+    if(type=="ref")  tabimportB[2,2][] <- names(Data2)
+   }
+  }
+ }
+
+ #c) 
+ #prints evidence, references, EPG, databases and population frequencies
+ f_viewdata = function(h,...) {
+  evidD <- getData("mix") #get selected data
+  mixSel  <- numeric()
+  if(!is.null(evidD)) mixSel <- svalue(tabimportB[2,1])  #get selected mixtures
+
+  if(h$action=="freq") { #prints EPG
+   popFreq <- get("popFreq",envir=mmTK) #get frequencies
+   if(is.null(popFreq)) {
+    tkmessageBox(message="Please import and select population frequencies!")
+    return
+   } else {
+    locs <- names(popFreq)
+    nL <- length(locs)
+    unAchr <- unique(unlist(sapply( popFreq,names) )) #get character alleles
+    ord <- order(as.numeric(unAchr)) 
+    unAchr <- unAchr[ord]  #make increasing order
+    outD <- unAchr
+
+    matsi <- matrix(NA,nrow=nL,ncol=length(mixSel))  #vector with summed alleles for each marker
+    rownames(matsi) <- locs
+    colnames(matsi) <- mixSel
+    for(i in 1:nL) {
+     freqs <- popFreq[[i]] #get frequencies
+     newRow <- rep(NA,length(unAchr))
+     for(j in 1:length(freqs)) {
+      rowind <- which(unAchr==names(freqs[j] ))
+      newRow[rowind] <- freqs[j]
+     }
+     outD <- cbind(outD,newRow)
+     for(msel in mixSel) {
+      adata <- evidD[[msel]][[locs[i]]]$adata #selected samples
+      if(length(adata)>0) matsi[i,which(msel==mixSel)] <- sum(freqs[names(freqs)%in%adata])
+     } #end for each samples
+    } #end for each locus
+
+    #plot table with frequncies
+    colnames(outD) = c("Allele",locs) 
+    dbwin <- gwindow("Population frequencies", visible=FALSE,height=mwH)
+    gtable(outD ,container=dbwin) #create table
+    visible(dbwin) <- TRUE
+
+    #Calculate random man probability of matching for each samples
+    for(msel in mixSel) { 
+     cind <- which(msel==mixSel)
+     print(paste0("Calculating exact MAC random man distribution for sample ",msel,". This could take a while..."))
+     si <- matsi[!is.na(matsi[,cind]),cind]
+     macdist <- exactMACdistr(si,2*length(si)-4) #allow down to 4 missmatches
+     cumprob <- rev(cumsum(rev(macdist)))
+     ymax <- max(cumprob)
+     delta <- 0.03
+     if(msel!=mixSel[1]) dev.new() #create new plot for next EPG
+     barplot(cumprob,main="Random man probability having number of allele matches>=k",xlab="k number of allele matches",space=0,ylim=c(0,ymax+ymax*2*delta))
+     text(1:length(cumprob)-0.5,cumprob+ymax*delta,labels=signif(cumprob,2))
+     mtext(paste0("Sample: ",msel))
+    }
+   } #end if popFreq
+  } #end freq
+
+  if(h$action=="mix") { #prints EPG
+     kitname <- svalue(tabimportA[3,1]) #get kit name. Must be same name as in generateEPG
+     for(msel in mixSel) {
+      subD <- evidD[[msel]] #selected samples
+      print("------------------------------------")
+      print(paste("Samplename: ",msel,sep=""))
+      print(subD)
+      if(which(msel==mixSel)>1) dev.new() #create new plot for next EPG
+      plotEPG(Data=subD,kitname,sname=msel) #plot epg's
+     } 
+   focus(mainwin)
+  }
+
+  if(h$action=="ref") { #print tables only
+     refD <- getData("ref")
+     refSel <- numeric()
+     if(!is.null(refD))  refSel <- svalue(tabimportB[2,2])  #get selected references
+     nR <- length(refSel) #number of selected references
+
+     #first: Print references:
+     for(rsel in refSel) {
+      print("------------------------------------")
+      print(paste("Referencename: ",rsel,sep=""))
+      tab <- matrix(unlist(refD[[rsel]]),ncol=2,byrow=TRUE)
+      ref <- paste0(tab[,1],"/",tab[,2])
+      names(ref) <- names(refD[[rsel]])
+      print(ref)
+     }
+   
+     #second: Print #matches to selected samples
+     for(msel in mixSel) { #for each selected 
+      print("------------------------------------")
+      print(paste0("Number of matching alleles with samplename ",msel,":"))
+      subD <- evidD[[msel]] #selected samples
+      locs <- names(subD)
+      tab <- matrix(NA,ncol=nR,nrow=length(locs))
+      rownames(tab) <- locs
+      colnames(tab) <- refSel 
+      for(loc in  locs) { #for each locus
+        for(rsel in refSel) {
+          refA <- refD[[rsel]][[loc]]$adata
+          if(!is.null(refA)) tab[which(loc==locs),which(rsel==refSel)] <- sum(refA%in%subD[[loc]]$adata)
+        }
+      } 
+      print(t(tab))
+     } #end for each mix    
+   } #end if references
+
+   if(h$action=="db") {  #view imported databases
+    popFreq <- get("popFreq",envir=mmTK)
+    if(length(tabimportB[2,3][])==0) return();
+    dbSel <- svalue(tabimportB[2,3])  #get selected database
+    for(dsel in dbSel) { #for each selected databases
+     subD <- getData("db",dsel)[[dsel]] #get selected data
+     dblocs <- toupper(colnames(subD)) #get database locs
+     outD <- rownames(subD) #will be character
+     macD <- matrix(0,nrow=length(outD),ncol=length(mixSel)) #matching allele counter for each reference
+     nlocs <- rep(0,length(outD))
+     for(i in 1:length(dblocs)) { #for each locus in db     
+      Ainfo <- names(unlist(popFreq[[dblocs[i]]])) #extract allele-info
+      #translate to genotypes
+      Pinfo <- prim[1:length(Ainfo)]
+      G = t(as.matrix(expand.grid(rep(list(Ainfo,Ainfo )))))
+      GP = t(as.matrix(expand.grid(rep(list(Pinfo,Pinfo )))))
+      keep = GP[2,]>=GP[1,] #unique genotypes
+      G0 <- G[,keep]  #store genotypes
+
+      G <- paste0(G0[1,],paste0("/",G0[2,]))
+      GP <- GP[,keep]  #store genotypes
+      GP <- GP[1,]*GP[2,]
+      newRow <- rep(NA,nrow(subD))  
+      tmpmac <- matrix(0,nrow=length(GP),ncol=length(mixSel)) #genotype match for each samples
+      for(j in 1:length(GP)) { #for each genotype
+       #Always: Find corresponding genotype name by looking up stored primenumbers (same order as in popFreq!)
+       rowind <- which(subD[,i]==GP[j]) #samples with this genotype
+       if(length(rowind)==0) next
+       newRow[rowind] <- G[j]
+       #Optional (if mixtures selected): Count matching alleles:
+       hasloc <- FALSE #total number locus checked over evidence
+       for(msel in mixSel) { #for each selected mixture
+        evid0 <- evidD[[msel]][[dblocs[i]]]$adata
+        if(!is.null(evid0)) hasloc <- TRUE
+        tmpmac[j,which(msel==mixSel)] <- sum(G0[,j]%in%evid0)
+       } 
+       if(ncol(macD)>0) { #if compared with evidence
+        macD[rowind,] = macD[rowind,] + tmpmac[j,] #add match counter 
+        nlocs[rowind] <- nlocs[rowind] + as.integer(hasloc)
+       } #end if evidence had locus
+      } #end for each genotype
+      outD <- cbind(outD,newRow) #extend
+     } #end for each locus
+     colnames(outD) <- c("Reference",dblocs)
+     nmax <- min(nrow(outD), get("optDB",envir=mmTK)$maxDB) #max limit of number in showing dropdown
+     if(nrow(outD)>nmax ) print(paste0("Database contained more than ",nmax," samples. Showing first ",nmax," samples only!"))
+
+
+
+     #if selected Mixtures: show ranked matches in database-reference:
+     if(ncol(macD)>0) { #
+      ord <- order(rowSums(macD),decreasing=TRUE)
+      outD2 <- cbind(outD[ord,1],macD[ord,],nlocs)
+      colnames(outD2) <- c("Reference",mixSel,"nLocs") 
+      dbwin2 <- gwindow(paste0("Number of sample matching alleles in references in database ",dsel), visible=FALSE,height=mwH)
+      gtable(outD2[1:nmax,],container=dbwin2) #create table
+      visible(dbwin2) <- TRUE
+     }
+     dbwin <- gwindow(paste0("References in imported database ",dsel), visible=FALSE,height=mwH)
+     gtable(outD[1:nmax,],container=dbwin) #create table
+     visible(dbwin) <- TRUE        
+
+    } #end for each databases
+   } #end if db -case
+ }  #end viewdata
+
+ ###############
+ #start layout:#
+ ###############
+ tabimportA = glayout(spacing=0,container=gframe("Population frequencies",container=tabimport)) #kit and population selecter
+ tabimportB = glayout(spacing=5,container=gframe("Evidence, Reference, Database",container=tabimport)) #evidence,ref dataframe
+ tabimportC = glayout(spacing=20,container=gframe("Interpretations",container=tabimport)) #Tasks button
+
+ #Choose box and import button
+ tabimportA[1,1] = gbutton(text="1) Select directory",container=tabimportA,handler=
+  function(h,...) {
+   dirfile = gfile(text="Select folder",type="selectdir")
+   if(!is.na(dirfile)) assign("freqfolder",dirfile,envir=mmTK) #assign freqfolder
+  }
+ )
+ tabimportA[1,2] = gbutton(text="2) Import from directory",container=tabimportA,handler=
+  function(h,...) {
+   loadKitList(freqpath=get("freqfolder",envir=mmTK))
+   kitList <- get("kits",envir=mmTK)
+   tabimportA[3,1][] <- names(kitList)
+  }
+ ) 
+ tabimportA[2,1] <- glabel(text="Select kit:",container=tabimportA)
+ tabimportA[2,2] <- glabel(text="Select population:",container=tabimportA)
+
+ tabimportA[3,1] <- gcombobox(items="", width=100, selected =0 , editable = FALSE, container = tabimportA, handler=
+    function(h,...) {
+     if(!is.null(get("dbData",envir=mmTK))) {
+      print("You can not change selected kit after loading a database!") 
+     } else {
+      kitList <- get("kits",envir=mmTK)
+      if(!is.null(kitList)) tabimportA[3,2][] <- names(kitList[[svalue(tabimportA[3,1])]])
+     }
+    })
+ #population-selection
+ tabimportA[3,2] <- gcombobox(items="", width=100, selected = 0 , editable = FALSE , container = tabimportA, handler=
+    function(h,...) {
+     if(!is.null(get("dbData",envir=mmTK))) {
+      print("You can not change selected population after loading a database!") 
+     } else {
+      kitList <- get("kits",envir=mmTK)
+      if(!is.null(kitList)) {
+       popList <- kitList[[svalue(tabimportA[3,1])]][[svalue(tabimportA[3,2])]] #get selected frequencies
+       assign("popFreq",popList,envir=mmTK) #assign popFreq get("popFreq",envir=mmTK)
+       popkitname <- c(svalue(tabimportA[3,1]),svalue(tabimportA[3,2])) #store selected kit and popnames
+       assign("selPopKitName",popkitname,envir=mmTK) 
+      }
+     }
+    })
+#previous stored kit/pop-names:
+ popkitname <- get("selPopKitName",envir=mmTK) 
+ if(!is.null(popkitname)) {
+  tabimportA[3,1][] <- popkitname[1]
+  tabimportA[3,2][] <- popkitname[2]
+ }
+ tabimportA[2,3] <-  gbutton(text="View frequencies",container=tabimportA,handler=f_viewdata,action="freq")  #view popFreq-data
+
+ #Choose box and import button
+ tabimportB[1,1] = gbutton(text="Import evidence",container=tabimportB,handler=f_importprof,action="mix")
+ tabimportB[2,1] = gcheckboxgroup(items="", container = tabimportB)
+ tabimportB[2,1][] = restoreCheckbox("mix")
+
+ #Choose box and import button
+ tabimportB[1,2] = gbutton(text="Import reference",container=tabimportB,handler=f_importprof,action="ref")
+ tabimportB[2,2] = gcheckboxgroup(items="", container = tabimportB)
+ tabimportB[2,2][] = restoreCheckbox("ref")
+
+ #Choose box and import button
+ tabimportB[1,3] = gbutton(text="Import database",container=tabimportB,handler=f_importprof,action="db")
+ tabimportB[2,3] = gcheckboxgroup(items="", container = tabimportB)
+ tabimportB[2,3][] = restoreCheckbox("db")
+
+ #view data:
+ tabimportB[3,1] = gbutton(text="View evidence",container=tabimportB,handler=f_viewdata,action="mix")
+ tabimportB[3,2] = gbutton(text="View references",container=tabimportB,handler=f_viewdata,action="ref")
+ tabimportB[3,3] = gbutton(text="View database",container=tabimportB,handler=f_viewdata,action="db")
+
+ #helpfunction used to extract selected importdata-elements to further model-setup
+ selectDataToModel <- function(h,....) {
+   #All: popFreq must be imported!
+   #GEN: No other requirement
+   #EVID: must have both mixture and reference profiles
+   #DB: Database search require both mixture and database, reference profiles is optional
+   #DC: Deconvolution requires only mixtures. Reference profiles is optional
+   popFreq <- get("popFreq",envir=mmTK)
+   mixSel <- refSel <- dbSel <- numeric()
+   if(length(tabimportB[2,1][])>0) mixSel <- svalue(tabimportB[2,1])  #get selected mixtures
+   if(length(tabimportB[2,2][])>0) refSel <- svalue(tabimportB[2,2])  #get selected references
+   if(length(tabimportB[2,3][])>0) dbSel <- svalue(tabimportB[2,3])  #get selected databases
+
+   if(is.null(popFreq)) {
+    gmessage("No frequencies was specified!\n Please import table with population frequencies.")
+   } else if(h$action!="GEN" && length(mixSel)==0) {
+    gmessage(message="Please import and select mixture-profile!")
+   } else if(h$action=="EVID" && length(refSel)==0) {
+    gmessage(message="Please import and select reference-profiles for weight of evidence!")
+   } else if(h$action=="DB" && length(dbSel)==0) {
+    gmessage(message="Please import and select reference-database for database search!")
+   } else {
+#    delete(tabmodeltmp,tabmodel)  
+#    dispose(tabmodel)  
+    refreshTabmodel(mixSel,refSel,dbSel,h$action) #refresh table with selected data
+    svalue(nb) <- 3 #change tab of notebook
+   }
+ }
+
+ #Button-choices further:
+ tabimportC[1,1] = gbutton(text="Generate sample",container=tabimportC,handler=selectDataToModel,action="GEN")
+ tabimportC[1,2] = gbutton(text="Deconvolution",container=tabimportC,handler=selectDataToModel,action="DC")
+ tabimportC[1,3] = gbutton(text="LR calculation",container=tabimportC,handler=selectDataToModel,action="EVID")
+ tabimportC[1,4] = gbutton(text="Database search",container=tabimportC,handler=selectDataToModel,action="DB")
+
+
+####################################################################################################################
+#######################################Tab 3: Model setup:##########################################################
+#####################################################################################################################
+
+tabmodeltmp <- glayout(spacing=30,container=tabmodel)
+
+  refreshTabmodel = function(mixSel,refSel,dbSel,type) { 
+   #type={"GEN","EVID","DB","DC"}
+   visible(mainwin) <- FALSE
+
+   popFreq <- get("popFreq",envir=mmTK)
+   locs <- names(popFreq)  #get names of loci for imported population frequencies. used as default in list
+   mixD = getData("mix")
+   refD = getData("ref") 
+   nM = length(mixSel) #number of mix-profiles
+   nR = length(refSel) #number of ref-profiles
+
+   tabmodelA = glayout(spacing=0,container=(tabmodeltmp[1,1] <-gframe("Model specification",container=tabmodeltmp))) 
+   tabmodelB = glayout(spacing=0,container=(tabmodeltmp[1,2] <-gframe("Data selection",container=tabmodeltmp))) 
+   tabmodelD = glayout(spacing=0,container=(tabmodeltmp[2,2] <-gframe("Calculations",container=tabmodeltmp)))  
+
+   #Hypothesis selection: subframe of A
+   txt <- "Contributor(s) under Hp:"
+   if(type=="DB") txt <- paste0(txt, "\n(DB-reference already included)")
+   if(type!="GEN") { #if not generating samples
+    tabmodelA1 = glayout(spacing=0,container=(tabmodelA[1,1] <-gframe("Evidence(s)",container=tabmodelA))) 
+    if(type!="DC") tabmodelA2 = glayout(spacing=0,container=(tabmodelA[2,1] <-gframe(txt,container=tabmodelA))) 
+   } 
+   tabmodelA3 = glayout(spacing=0,container=(tabmodelA[3,1] <-gframe("Contributor(s) under Hd:",container=tabmodelA)))
+   tabmodelA4 = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Parameters",container=tabmodelA))) 
+
+   if(type=="DB") { #add database-names if included:
+    tabmodelA5 = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Database(s) to search",container=tabmodelA))) 
+    for(dsel in dbSel) tabmodelA5[which(dsel==dbSel),1] =  glabel(text=dsel,container=tabmodelA5)
+   }
+   if(type!="GEN") { #don't show evidence if GEN
+    for(msel in mixSel) {
+     tabmodelA1[which(msel==mixSel),1] <- gcheckbox(text=msel,container=tabmodelA1,checked=TRUE)
+     enabled(tabmodelA1[which(msel==mixSel),1]) <- FALSE
+    }
+   }
+   for(rsel in refSel) {
+    if(!type%in%c("DC","GEN")) tabmodelA2[which(rsel==refSel),1]  <- gcheckbox(text=rsel,container=tabmodelA2,checked=TRUE)
+    tabmodelA3[which(rsel==refSel),1]  <- gcheckbox(text=rsel,container=tabmodelA3,checked=TRUE)
+   }
+   #specify number of unknowns
+   if(!type%in%c("DC","GEN")) {
+    tabmodelA2[nR+1,1] <- glabel(text="#unknowns (Hp): ",container=tabmodelA2)
+    tabmodelA2[nR+1,2] <- gedit(text="1",container=tabmodelA2,width=4)
+   }
+   tabmodelA3[nR+1,1] <- glabel(text="#unknowns (Hd): ",container=tabmodelA3)
+   tabmodelA3[nR+1,2] <- gedit(text="2",container=tabmodelA3,width=4)
+
+   #Model parameters:
+   if(type!="GEN") tabmodelA4[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA4,checked=TRUE,horisontal=TRUE) #checked only if not generating
+   tabmodelA4[2,1] <- glabel(text="Detection threshold: ",container=tabmodelA4)
+   tabmodelA4[2,2] <- gedit(text="150",container=tabmodelA4,width=4)
+   tabmodelA4[3,1] <- glabel(text="Stutter ratio: ",container=tabmodelA4)
+   tabmodelA4[3,2] <- gedit(text="",container=tabmodelA4,width=4)
+   tabmodelA4[4,1] <- glabel(text="Probability of Dropin: ",container=tabmodelA4)
+   tabmodelA4[4,2] <- gedit(text="0",container=tabmodelA4,width=4)
+   tabmodelA4[5,1] <- glabel(text="fst-correction: ",container=tabmodelA4)
+   tabmodelA4[5,2] <- gedit(text="0",container=tabmodelA4,width=4)
+   tabmodelA4[6,1] <- glabel(text="Dropin peak height \n hyperparam (lambda):",container=tabmodelA4)
+   tabmodelA4[6,2] <- gedit(text="0",container=tabmodelA4,width=4)
+   tabmodelA4[7,1] <- glabel(text="Stutter prior function: ",container=tabmodelA4)
+   tabmodelA4[8,1] <- gedit(text="function(x){ 1 }",container=tabmodelA4,width=20)
+
+   #Data selection
+   tabmodelB[1,1] <- glabel(text="Loci:",container=tabmodelB)
+   for(loc in locs) { #insert locus names from popFreq
+    tabmodelB[1+which(loc==locs),1] <- loc  #insert loc-name
+   }
+   for(msel in mixSel) { #for each selected mixture
+    tabmodelB[1,1 + which(msel==mixSel)] <- glabel(text=msel,container=tabmodelB) #get selected mixturenames
+    for(loc in locs) { #for each locus
+     exist <- !is.null(mixD[[msel]][[loc]]$adata) && !is.null(mixD[[msel]][[loc]]$hdata) #check if exist alleles AND heights!
+     tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)]  <- gcheckbox(text="",container=tabmodelB,checked=exist)
+     if(!exist) enabled(tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)]) <- FALSE #deactivate non-existing locus
+    }
+   }  
+   for(rsel in refSel) { #for each selected reference
+    tabmodelB[1,1 + nM + which(rsel==refSel)] <- glabel(text=rsel,container=tabmodelB) #name of reference
+    for(loc in locs) { #for each locus
+     exist <- !is.null(refD[[rsel]][[loc]]$adata) #check if allele exists
+     tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]  <- gcheckbox(text="",container=tabmodelB,checked=exist)
+     if(!exist) enabled(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) <- FALSE #deactivate non-existing locus
+    }
+   }
+
+   #helpfunction which takes GUI settings and stores them in "set'type'"
+   storeSettings <- function() {
+      sellocs <- numeric() #Selected loci (which all mixtures, references has)
+      for(loc in locs) { #for each locus in popFreq
+       isOK <- TRUE
+       for(msel in mixSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)])  #check if locus checked for samples
+       for(rsel in refSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) #check if locus checked for references
+       if(isOK) sellocs <- c(sellocs,loc) #locus can be evaluated
+      }
+
+      if(length(sellocs)==0) { #don't do anything if no loci will be evaluated
+       gmessage(message="No loci are evaluated! Be sure that all selected data have valid data in their loci.",title="No loci found!",icon="error")
+       return()
+      }
+      popFreq <- popFreq[sellocs] #consider only relevant loci in popFreq
+      print(c("Locs to be evaluated:",paste0(sellocs,collapse=",")))
+
+      #Insert missing alleles to the popFreq-object:
+      minFreq <- getminFreq() #get frequency used 
+      for(loc in sellocs) {
+       tmp <- popFreq[[loc]] #get allele-names in popFreq
+       newA <- numeric()
+       for(ss in mixSel) {
+        adata <- mixD[[ss]][[loc]]$adata
+        newA <- c(newA, adata[!adata%in%names(tmp)])
+       }
+       for(rr in refSel) {
+        adata <- refD[[rr]][[loc]]$adata
+        newA <- c(newA, adata[!adata%in%names(tmp)])
+       }
+       newA <- unique(newA)
+       if(length(newA)>0) { #if new allele found
+        popFreq[[loc]] <- c(tmp, rep(minFreq,length(newA)))
+        popFreq[[loc]] <- popFreq[[loc]]/sum(popFreq[[loc]]) #normalize
+        names(popFreq[[loc]]) <- c(names(tmp),newA) #add unique
+        print(paste0("In locus ",loc,": Allele(s) ",paste0(newA,collapse=",")," was inserted with min. frequency ",prettyNum(minFreq)))
+       }
+      } #end for each loci
+
+      #prepare data for function in gammadnamix! Data-object must have correct format!
+      #go through selected data from GUI:
+      samples <- list()
+      refData <- NULL
+      if(nR>0) refData <- list()
+      for(loc in sellocs) { #for each locus in popFreq
+       for(msel in mixSel) samples[[msel]][[loc]] <- mixD[[msel]][[loc]] #insert samples
+       if(nR>0) refData[[loc]] <- list()
+       for(rsel in refSel) refData[[loc]][[rsel]] <- refD[[rsel]][[loc]]$adata #insert references
+      }   
+
+      #get specified preposition 
+      condOrder_hp <- condOrder_hd <- rep(0,nR)
+      if(type=="DC") condOrder_hp <- NULL
+      for(rsel in refSel) { #for each reference under hp and hd
+        if(!type%in%c("DC","GEN")) {
+         valhp <- as.integer(svalue(tabmodelA2[which(rsel==refSel),1])) 
+         condOrder_hp[which(rsel==refSel)] <- valhp +  valhp*max(condOrder_hp)
+        }
+        valhd <- as.integer(svalue(tabmodelA3[which(rsel==refSel),1])) 
+        condOrder_hd[which(rsel==refSel)] <- valhd + valhd*max(condOrder_hd)
+      }
+     
+      #number of contributors in model:
+      nC_hp <- NULL
+      if(!type%in%c("DC","GEN")) nC_hp <-  as.integer(svalue(tabmodelA2[nR+1,2])) + sum(condOrder_hp>0)
+      nC_hd <-  as.integer(svalue(tabmodelA3[nR+1,2])) + sum(condOrder_hd>0)
+
+      #get model parameters:
+      if(type!="GEN") { #only if not generating
+       if(svalue(tabmodelA4[1,1])) { #if Q-assignation
+        ret <- Qassignate(samples, popFreq, refData) #call function in gammadnamix
+        popFreq <- ret$popFreq
+        refData <- ret$refData
+       }
+      }
+      threshT <- as.numeric(svalue(tabmodelA4[2,2]))
+      xi <- svalue(tabmodelA4[3,2]) #stutter ratio
+      if(xi=="") {
+       xi <- NULL #assume unknown stutter ratio
+      } else {
+       if(xi < 0 | xi>1) gmessage(message="Stutter ratio must be specified in interval [0,1] ",title="Wrong input",icon="error")
+      }
+      prC <-  as.numeric(svalue(tabmodelA4[4,2])) #dropin probability
+      if(prC < 0 | prC >1) gmessage(message="Dropin-probability must be specified in interval [0,1] ",title="Wrong input",icon="error")
+      fst <- as.numeric(svalue(tabmodelA4[5,2]))
+      if(fst < 0 | fst >1) gmessage(message="fst-correction must be specified in interval [0,1] ",title="Wrong input",icon="error")
+      lambda <-   as.numeric(svalue(tabmodelA4[6,2])) #lambda is hyperparameter to dropin-peak height model
+      if(lambda < 0 ) gmessage(message="Dropin-peak height hyperparameter must be strictly positive",title="Wrong input",icon="error")
+      pXi <- svalue(tabmodelA4[8,1]) #prior function for stutter
+   
+      #get specified preposition 
+      knownref_hp <- knownref_hd <- NULL #known non-contributors under Hp always NULL (since they exist under condOrder)
+      if(fst>0 && type=="EVID") { #only for Evidence
+       knownref_hd <- which(condOrder_hp>0 & condOrder_hd==0) #those references conditioned under hp but not hd
+       if(length(knownref_hd)==0) knownref_hd <- NULL
+      }
+
+      #get input to list: note: "fit_hp" and "fit_hd" are list-object from fitted model
+      model <- list(nC_hp=nC_hp,nC_hd=nC_hd,condOrder_hp=condOrder_hp,condOrder_hd=condOrder_hd,knownref_hp=knownref_hp,knownref_hd=knownref_hd) #proposition
+      param <- list(xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi) 
+      set <- list(samples=samples,refData=refData,popFreq=popFreq,model=model,param=param)     
+      if(type=="DB") set$dbSel <- dbSel #store name of selected databases
+      assign(paste0("set",type),set,envir=mmTK) #store setup for relevant type
+   } #end store settings from GUI to environment
+
+   #Calculation button:  
+   if(type=="GEN") {
+    tabmodelD[1,1] = gbutton(text="Generate sample",container=tabmodelD,handler= function(h,...) { 
+     storeSettings() #store settings
+     refreshTabGEN() #generate a dataset based on stored settings
+     svalue(nb) <- 1 #go to data generation-window
+    })
+   } else {
+    tabmodelD[1,1] = gbutton(text="Maximum Likelihood Estimation",container=tabmodelD,handler=
+	function(h,...) {
+      storeSettings() #store settings
+      refreshTabMLE(type) #refresh MLE fit tab (i.e. it fits the specified model)
+      svalue(nb) <- 4 #go to mle-fit window (for all cases) when finished
+    }) #end cont. calculation button
+    if(type%in%c("EVID","DB")) tabmodelD[2,1] = gbutton(text="Marginalized LR",container=tabmodelD,handler=
+	function(h,...) {
+      storeSettings() #store model-settings
+      doINT(type) #Integrate either for EVID or DB search
+    }) #end cont. calculation button
+
+   } #end type-cases
+   visible(mainwin) <- TRUE
+   focus(mainwin)
+  } #end refresh setup tab-frame
+
+
+    ########################################################
+    ##INTEGRATION (can be done anywhere after model setup)##
+    ########################################################
+    doINT <- function(type,sig=4) { #Used either with EVID or DB
+     #sig = number of decimals
+     optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
+     if(type=="EVID")  set <- get("setEVID",envir=mmTK)
+     if(type=="DB") {
+       gmessage(message="Database search using integration will soon be implemented.",title="Implementation",icon="info")
+       return()
+     } #set<- get("setDB",envir=mmTK)
+     par <- set$param
+     mod <- set$model
+     print(paste0("Calculating integrals with relative error ",optint$reltol))
+     print("This may take a while...")
+     getboundary = function(nC) {
+      lower <- rep(0,nC+2)
+      upper <- rep(1,nC+2)
+      upper[nC] <- optint$maxmu
+      upper[nC+1] <- optint$maxsigma
+      if(!is.null(par$xi)) { #must remove stutter ratio
+       lower <- lower[-nC+2]
+       upper <- lower[-nC+2]
+      }
+      return(bound=list(lower=lower,upper=upper))
+     }
+     bhp <- getboundary(mod$nC_hp) #get boundaries under hp
+     bhd <- getboundary(mod$nC_hd) #get boundaries under hd
+
+     #integrate:
+     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreq, bhd$lower, bhd$upper, set$refData, mod$condOrder_hd, mod$knownRef_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda)#, par$pXi) 
+     print("Calculation under Hd done...")
+
+     if(type=="EVID") { #case of EVID
+      int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreq, bhp$lower, bhp$upper, set$refData, mod$condOrder_hp, mod$knownRef_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda)#, par$pXi) 
+      LR <- int_hp$margL/int_hd$margL
+      dev <- range(c(int_hp$deviation/int_hd$deviation,int_hp$deviation/rev(int_hd$deviation))) #get deviation interval of LR
+      res <- list(LR=LR,dev=dev)
+      assign("resEVIDINT",res,envir=mmTK) #assign deconvolved result to environment
+      #Print a GUI message:
+      gmessage(message=paste0("The LR was calculated as \n",round(LR,sig)," [",round(dev[1],sig)," , ",round(dev[2],sig),"]"),title="Marginalized LR",icon="info")
+     } 
+     if(type=="DB") { #Case of DB-search
+      #DB Search script will come here
+     }
+    }
+
+##########################################################################################
+############################Tab 4: MLE estimation:########################################
+##########################################################################################
+#HERE: WE DO BASICLY MLE-FITTING HERE: 
+#BUT DECONVOLUTION-function AND DATABASE SEARCHING is implemented here (saves memory usage)!
+
+tabMLEtmp <- glayout(spacing=30,container=tabMLE)
+
+  f_savetableEVID = function(h,...) { #function for storing LR
+   resEVID <- get("resEVID",envir=mmTK) #get EVID calculations when GUI starts
+   if(is.null(resEVID)) {
+    tkmessageBox(message="There is no Weight-of-Evidence results available!")
+   } else {
+    tab <- c(resEVID$LRi,resEVID$LRmle,resEVID$LRlap)
+    tab <- cbind(c(names(resEVID$LRi),"JointMLE","JointLaplace"),tab,log10(tab))
+    colnames(tab) <- c("Marker","LR","log10LR")
+    saveTable(tab, "txt") 
+   }
+  }
+
+  f_savetableALL = function(h,...) { #function for storing MLE estimates of fitted models
+   set <- get(paste0("set",h$action),envir=mmTK) #get all setup-object 
+
+   printMLE <- function(mlefit,hyp,des=3,colps="-") {
+    mleCI <- mlefit$fit$thetaCI
+    LR <- exp(mlefit$fit$loglik)   
+    txt0 <- paste0("-------Maximum Likelihood Estimates under ",hyp,"---------------------\nConfidence Interval:\n")
+    txt1 <- paste0(c("param",colnames(mleCI)),collapse=colps)
+    for(i in 1:nrow(mleCI)) txt1 <- paste0(txt1,"\n",paste0( c(rownames(mleCI)[i],round(mleCI[i,],des)),collapse=colps) )
+    txt2 <- "\n\n"
+    txt2 <- paste0(txt2, "log10Lik=",log10(LR))
+    txt2 <- paste0(txt2, "\nLik=",LR,"\n\n")
+    txt <- paste0(txt0,txt1,txt2)
+    return(txt)
+   }
+   txt <- ""
+   if(!is.null(set$mlefit_hd)) txt <- paste0(txt,printMLE(set$mlefit_hd,"Hd"))
+   if(!is.null(set$mlefit_hp)) txt <- paste0(txt,printMLE(set$mlefit_hp,"Hp"))
+   saveTable(txt, "txt") 
+  } #end savetableALL
+
+  refreshTabMLE = function(type) { 
+    #type={"EVID","DB","DC"}
+
+    #get method parameters from menu:
+    sig=4 #significance level of MLE print
+    alphaCI <- 0.05 #used in confidence interval:
+
+    #optimizing options
+    mleopt<- get("optMLE",envir=mmTK) #options when optimizing (nDone,delta)
+    nDone <- mleopt$nDone #number of random start
+    delta <- mleopt$delta #variance in randomizer
+    if(delta < 0 ) gmessage(message="Variance parameter of randomizer must be strictly positive. Change this in toolbar menu!",title="Wrong input",icon="error")
+    if(nDone!=round(nDone)) gmessage(message="Number of random startpoints must be a whole number. Change this in toolbar menu!",title="Wrong input",icon="error")
+    if(type!="START") {
+     print(paste0(nDone," random startpoints with variation ",delta," are applied in the optimizer.")) 
+     print("This could take a while...")
+    }
+
+    #helpfunctions
+    tableMLE <- function(fit,tabmleX) { #helpfunction used to show MLE fit 
+     tabmleX1 = glayout(spacing=0,container=(tabmleX[1,1] <-gframe("Confidence Interval of parameters:",container=tabmleX))) 
+     tabmleX2 = glayout(spacing=0,container=(tabmleX[2,1] <-gframe("Maximum Likelihood value",container=tabmleX))) 
+     tab <- addRownameTable(signif(fit$thetaCI,sig))
+     colnames(tab) <- c("param","qq2.5","mode","qq97.5")
+     tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=250,height=nrow(tab)*26)#,noRowsVisible=TRUE) #add to frame
+     tabmleX2[1,1] =  glabel(text="log10lik=",container=tabmleX2)
+     tabmleX2[1,2] =  glabel(text=signif(log10(exp(fit$loglik)),sig),container=tabmleX2)
+     tabmleX2[2,1] =  glabel(text="Lik=",container=tabmleX2)
+     tabmleX2[2,2] =  glabel(text=signif(exp(fit$loglik),sig),container=tabmleX2)
+     tabmleX2[3,1] =  glabel(text="Laplace P(E)=",container=tabmleX2)
+     tabmleX2[3,2] =  glabel(text=signif(exp(fit$logmargL),sig),container=tabmleX2)
+    }
+  
+    #################
+    ##DECONVOLUTION##
+    #################
+    doDC <- function(mleobj) { #helpfunction ran when call deconvolution
+      dcopt <- get("optDC",envir=mmTK) #options when Deconvolution
+      DCtable <- deconvolve(mleobj,dcopt$alphaprob,dcopt$maxlist)$table1 #be sure of having ri
+      rownames(DCtable) <- 1:nrow(DCtable)
+      DCtable<-addRownameTable(DCtable)
+      colnames(DCtable)[1] <- "rank"
+      assign("resDC",DCtable,envir=mmTK) #assign deconvolved result to environment
+      refreshTabDC() #update table with deconvolved results
+      svalue(nb) <- 5 #go to deconvolution results window (for all cases) when finished     
+    }
+    ###################
+    ##MCMC-SIMULATION##
+    ###################
+    doMCMC <- function(mlefit) { #helpfunction ran when call deconvolution
+#      mlefit <- get("setDC",envir=mmTK)$mlefit_hd
+      #options from advanced tools
+      optlist <- get("optMCMC",envir=mmTK)
+      if(any(is.na(mlefit$fit$phiSigma))) return();
+      print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
+      print("Note: You can change default number of iterations in toolbar menu.")
+      mcmcfit <- contLikMCMC(mlefit,optlist$niter,optlist$delta)
+      print(paste0("Sampling acceptance ratio=",round(mcmcfit$accrat,2),". This should be around 0.2"))
+      validMCMC(mcmcfit,acf=FALSE) #don't plot acf
+    }
+
+    ####################
+    ##CONT DB-SEARCHING#
+    ####################
+    doDB <- function(mleobj) { #helpfunction ran when call database search
+      set <- get("setDB",envir=mmTK) #get setup for DB
+      popFreq <- get("popFreq",envir=mmTK) #get original saved popfreq (used to detect allele-names in database)
+      popFreqQ <- set$popFreq #get popFreq saved by setup
+      locs_hd <- names(popFreqQ) #get locus analysed under hd
+      mixSel <- names(set$samples) #get name of selected mixtures
+      model <- set$model #take out model specifications
+      param <- set$param #take out param specifications
+      refData <- set$refData #take out selected references         
+      logLi_hd <- logLiki(mleobj) #get log-probabilities for each locus
+
+      DBtab <- numeric()  #used to store table when searched
+      for(dsel in set$dbSel) { #for each selected databases
+       subD <- getData("db",dsel)[[dsel]] #get selected database
+       dblocs <- toupper(colnames(subD)) #get database locs
+       indD <- rownames(subD) #get individual names in database
+       macD <- rep(0,length(indD)) #matching allele counter for each reference
+       LRD <- rep(1,length(indD)) #matching allele counter for each reference
+       nlocsMAC <- rep(0,length(indD))
+       nlocsLR <- rep(0,length(indD)) #number of loci may differ for some individuals
+
+       #convert allele-names of elements in database to one in popFreq
+       for(i in 1:length(dblocs)) { #for each locus in db     
+        Ainfo <- names(unlist(popFreq[[dblocs[i]]])) #extract allele-info of frequncies
+ 
+        #translate to genotypes
+        Pinfo <- prim[1:length(Ainfo)]
+        G = t(as.matrix(expand.grid(rep(list(Ainfo,Ainfo )))))
+        GP = t(as.matrix(expand.grid(rep(list(Pinfo,Pinfo )))))
+        keep = GP[2,]>=GP[1,] #unique genotypes
+        G0 <- G[,keep]  #store genotypes
+
+        #Rename missing alleles in popFreqQ to "99":
+        G0[!G0%in%names(popFreqQ[[dblocs[i]]])] <- "99"
+
+        G <- paste0(G0[1,],paste0("/",G0[2,]))
+        GP <- GP[,keep]  #store genotypes
+        GP <- GP[1,]*GP[2,]
+        newRow <- rep(NA,length(indD))  
+        for(j in 1:length(GP)) { #for each genotype
+          #Always: Find corresponding genotype name by looking up stored primenumbers (same order as in popFreq!)
+          rowind <- which(subD[,i]==GP[j]) #samples with this genotype
+          if(length(rowind)==0) next
+          newRow[rowind] <- G[j]
+         
+          #Get MAC of references:
+          tmpmac <- 0
+          hasloc <- rep(FALSE,length(mixSel)) #used to count number of traversing loci
+          #Count matching alleles over all mixtures:
+          for(msel in mixSel) { #for each selected mixture
+           evid0 <- set$samples[[msel]][[dblocs[i]]]$adata
+           if(!is.null(evid0)) hasloc[which(msel==mixSel)] <- TRUE
+           tmpmac <- tmpmac + sum(G0[,j]%in%evid0)
+          } 
+          if(any(is.na(tmpmac))) stop("")
+          macD[rowind] = macD[rowind] + tmpmac #add match counter 
+          nlocsMAC[rowind] <- nlocsMAC[rowind] + sum(hasloc)
+        } #end for each genotype
+        subD[,i] <- newRow #force insertion of genotype-names
+       } #end for each locus
+
+       #calculate LR for each reference in table: (any gain of make only uniques?)
+       #unsubD <- unique( subD ) #get unique values. Not in use
+       for(rind in 1:length(indD)) { #for each individual in database
+         Dind <- subD[rind,] #take out individual
+         dblocs2 <- dblocs[!is.na(Dind)] #take out loci which the reference in database have
+         locevalind <- locs_hd%in%dblocs2
+         loceval <- locs_hd[locevalind] #locus to evaluate
+         nlocsLR[rind] <-  length(loceval) #number of loci used in evaluation
+         logLi_hdeval <- logLi_hd[locevalind] #take out relevant values
+
+         #setup for hp:
+         #insert Dind to refData         
+         if(is.null(refData)) { #
+          refData2 <- list()
+          condOrder_hp <- 1 #put conditional-index to model 
+         } else { 
+          condOrder_hp <- c(model$condOrder_hp,max(model$condOrder_hp)+1) #put conditional-index to model 
+          refData2 <- refData[loceval] #take out only relevant loci to analyse
+         }
+         for(loc in loceval) refData2[[loc]]$ref99 <- unlist(strsplit(Dind[ which(loc==dblocs) ], "/"))  #insert data into a new ref
+         samples <- lapply( set$samples, function(x) x[loceval] ) #take only relevant mixture data:
+         mlefit_hp <- contLikMLE(model$nC_hp+1,samples,popFreqQ[loceval],refData2,condOrder_hp,model$knownRef_hp,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta)
+         if(param$fst>0) { #must calculate Hd once again (assume Rj is known)
+          nR <- length(condOrder_hp)
+          condOrder_hp[nR] <- 0 #unrestrict db-ref
+          mlefit_hdj <- contLikMLE(model$nC_hd+1,samples,popFreqQ[loceval],refData2,condOrder_hp,nR,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta)
+          LRD[rind] <- exp(mlefit_hp$fit$loglik - mlefit_hdj$fit$loglik) #insert calculated LR adjusted by fst-correction
+          print(LRD[rind])
+         } else {
+          LRD[rind] <- exp(mlefit_hp$fit$loglik - sum(logLi_hdeval)) #insert calculated LR:
+         }  
+         if(rind%%50==0) print(paste0(round(rind/length(indD)*100),"% finished"))
+       }
+       print(paste0(100,"% finished for database ",dsel))
+
+      DBtab <- rbind(DBtab , cbind(indD,LRD,macD,nlocsLR,nlocsMAC) ) #add to DBtab
+     } #end for each databases
+     colnames(DBtab) <- c("Referencename","cont LR","MAC","nLocs LR","nLocs MAC")
+     assign("resDB",DBtab ,envir=mmTK) #assign deconvolved result to environment
+     refreshTabDB("LR") #LR is order to sort with
+     svalue(nb) <- 6 #go to database search results window when finished     
+
+    } #end doDB
+
+    if(type=="START") { #loads already calculated results if program starts
+     set <- get("setEVID",envir=mmTK) #get setup for EVID
+     mlefit_hd <- set$mlefit_hd
+     mlefit_hp <- set$mlefit_hp
+     if(is.null(mlefit_hd)) return(); #LR has not been calculated, return out of function!
+    } else { #otherwise, function was called to make new calculations
+     if(type=="EVID") set <- get("setEVID",envir=mmTK) #get setup for EVID
+     if(type=="DB") set <- get("setDB",envir=mmTK) #get setup for DB
+     if(type=="DC") set <- get("setDC",envir=mmTK) #get setup for DC
+
+     #take out relevant parameters from stored list
+     model <- set$model
+     param <- set$param     
+
+     #fit under hd: (does it for all methods)
+     mlefit_hd <- contLikMLE(model$nC_hd,set$samples,set$popFreq,set$refData,model$condOrder_hd,model$knownRef_hd,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta,alpha=alphaCI)
+     if(!is.null(set$mlefit_hd) && set$mlefit_hd$fit$loglik>mlefit_hd$fit$loglik )  mlefit_hd <- set$mlefit_hd #the old model was better
+
+     #fit under hp: (only for evidence)
+     if(type=="EVID") {
+      mlefit_hp <- contLikMLE(model$nC_hp,set$samples,set$popFreq,set$refData,model$condOrder_hp,model$knownRef_hp,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta,alpha=alphaCI)
+      if(!is.null(set$mlefit_hp) && set$mlefit_hp$fit$loglik>mlefit_hp$fit$loglik )  mlefit_hp <- set$mlefit_hp #the old model was better
+     } else {
+      mlefit_hp <- NULL #not used otherwise
+     }
+
+     #store MLE result:
+     #store best mle-values once again
+     set$mlefit_hp=mlefit_hp #store fitted mle-fit
+     set$mlefit_hd=mlefit_hd #store fitted mle-fit
+     if(type=="EVID") assign("setEVID",set,envir=mmTK) #store setup for EVID
+     if(type=="DB") assign("setDB",set,envir=mmTK) #store setup for DB
+     if(type=="DC") assign("setDC",set,envir=mmTK) #store setup for DC
+    }
+
+    #GUI:
+    tabmleA = glayout(spacing=0,container=(tabMLEtmp[1,1] <- gframe("Maximum Likelihood Estimates under Hd",container=tabMLEtmp))) 
+    tableMLE(mlefit_hd$fit,tabmleA)
+    tabmleA3 = glayout(spacing=0,container=(tabmleA[3,1] <-gframe("Further Action",container=tabmleA))) 
+    tabmleA3[1,1] <- gbutton(text="MCMC simulation",container=tabmleA3,handler=function(h,...) { doMCMC(mlefit_hd) } )
+    tabmleA3[2,1] <- gbutton(text="Deconvolution",container=tabmleA3,handler=function(h,...) { doDC(mlefit_hd) }  )
+    tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { } )
+
+    if(type=="EVID") { #used only for weight-of-evidence
+     tabmleB = glayout(spacing=0,container=(tabMLEtmp[1,2] <-gframe("Maximum Likelihood Estimates under Hp",container=tabMLEtmp))) 
+     tableMLE(mlefit_hp$fit,tabmleB)
+     tabmleB3 = glayout(spacing=0,container=(tabmleB[3,1] <-gframe("Further Action",container=tabmleB))) 
+     tabmleB3[1,1] <- gbutton(text="MCMC simulation",container=tabmleB3,handler=function(h,...) { doMCMC(mlefit_hp) } )
+     tabmleB3[2,1] <- gbutton(text="Deconvolution",container=tabmleB3,handler=function(h,...) {  doDC(mlefit_hp) }  )
+     tabmleB3[3,1] <- gbutton(text="Model validation",container=tabmleB3,handler=function(h,...) { } )
+    }
+
+    #We show weight-of-evidence
+    tabmleD = glayout(spacing=0,container=(tabMLEtmp[2,1] <-gframe("Further evaluation",container=tabMLEtmp))) 
+    tabmleD[1,1] <- gbutton(text="Optimize model more",container=tabmleD,handler=function(h,...) { refreshTabMLE(type)  } )
+    if(type=="EVID") {
+     LRmle <- exp(mlefit_hp$fit$loglik - mlefit_hd$fit$loglik)
+     LRlap <- exp(mlefit_hp$fit$logmargL - mlefit_hd$fit$logmargL)
+     LRi <- exp(logLiki(mlefit_hp)-logLiki(mlefit_hd))
+     resEVID <- list(LRmle=LRmle,LRlap=LRlap,LRi=LRi) 
+     assign("resEVID",resEVID,envir=mmTK) #store EVID calculations
+    } 
+    if(type=="START") {
+     resEVID <- get("resEVID",envir=mmTK) #get EVID calculations when GUI starts
+     if(!is.null(resEVID)) { #put variables in environment
+       LRmle <- resEVID$LRmle
+       LRlap <- resEVID$LRlap
+       LRi <- resEVID$LRi
+     }
+    } #end if start
+    if(type=="EVID" || type=="START") {
+     tabmleC = glayout(spacing=0,container=(tabMLEtmp[1,3] <-gframe("Weight-of-evidence",container=tabMLEtmp))) 
+     tabmleC1 = glayout(spacing=0,container=(tabmleC[1,1] <-gframe("Maximum likelihood based:",container=tabmleC))) 
+     tabmleC1[1,1] =  glabel(text="LR=",container=tabmleC1)
+     tabmleC1[1,2] =  glabel(text=LRmle,container=tabmleC1)
+     tabmleC1[2,1] =  glabel(text="log10LR=",container=tabmleC1)
+     tabmleC1[2,2] =  glabel(text=log10(LRmle),container=tabmleC1)
+     tabmleC3 = glayout(spacing=0,container=(tabmleC[2,1] <-gframe("LR for each loci",container=tabmleC))) 
+     for(i in 1:length(LRi)) {
+      tabmleC3[i,1] =  glabel(text=names(LRi)[i],container=tabmleC3)
+      tabmleC3[i,2] =  glabel(text=LRi[i],container=tabmleC3)
+     }
+     tabmleC2 = glayout(spacing=0,container=(tabmleC[3,1] <-gframe("Laplace approximation based:",container=tabmleC))) 
+     tabmleC2[1,1] =  glabel(text="LR=",container=tabmleC2)
+     tabmleC2[1,2] =  glabel(text=LRlap,container=tabmleC2)
+     tabmleC2[2,1] =  glabel(text="log10LR=",container=tabmleC2)
+     tabmleC2[2,2] =  glabel(text=log10(LRlap),container=tabmleC2)
+     tabmleD[2,1] <- gbutton(text="Marginalized LR",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
+    } #end if EVID or START
+    if(type=="DB") tabmleD[2,1] <- gbutton(text="Database search",container=tabmleD,handler=function(h,...) { doDB(mlefit_hd)} )
+    tabmleE = glayout(spacing=0,container=(tabMLEtmp[2,2] <-gframe("Save results to file",container=tabMLEtmp))) 
+    tabmleE[1,1] <- gbutton(text="All results",container=tabmleE,handler=f_savetableALL,action=type)
+    if(type=="EVID") tabmleE[2,1] <- gbutton(text="Only LR results",container=tabmleE,handler=f_savetableEVID)
+
+    focus(mainwin) #focus window after calculations are done
+  } #end refresh tab-frame of MLE-fit
+
+  refreshTabMLE(type="START") #Show already calculted evidence-results when program starts
+
+
+##############################################################
+###############Tab 5: Deconvolution results:##################
+##############################################################
+ tabDCtmp <- glayout(spacing=30,container=tabDC)
+
+ f_savetableDC = function(h,...) {
+   DCtable <- get("resDC",envir=mmTK) #get deconvolved result 
+   if(is.null(DCtable)) {
+    tkmessageBox(message="There is no deconvolution results available!")
+   } else {
+    saveTable(DCtable, "txt") #save 
+   }
+ }
+ refreshTabDC = function() {
+   DCtable <- get("resDC",envir=mmTK) #get deconvolved result 
+   if(!is.null(DCtable)) {
+    tabDCa = glayout(spacing=1,container=(tabDCtmp[1,1] <-glayout(spacing=0,container=tabDCtmp)),expand=TRUE) #table layout
+    tabDCb = glayout(spacing=1,container=(tabDCtmp[2,1] <-glayout(spacing=0,container=tabDCtmp)),expand=TRUE) #table layout
+    tabDCa[1,1] <- gtable(DCtable,container=tabDCa,height=mwH*0.5,width=mwW,height=mwH-2*mwH/3,do.autoscroll=TRUE,noRowsVisible=TRUE) #add to frame
+    tabDCb[2,1] <- gbutton(text="Save table",container=tabDCb,handler=f_savetableDC)  
+   }
+ }
+ refreshTabDC() #open results when program starts
+
+
+##############################################################
+###############Tab 6: Database search:########################
+##############################################################
+
+ tabDBtmp <- glayout(spacing=30,container=tabDB) #grid-layout
+
+ f_savetableDB = function(h,...) {
+   DBsearch <-get("resDB",envir=mmTK) #load results from environment
+   if(is.null(DBsearch)) {
+    tkmessageBox(message="There is no database search results available.")
+    return()
+   }
+   sep="txt"
+   tabfile = gfile(text="Save table",type="save")
+   if(!is.na(tabfile)) {
+    if(length(unlist(strsplit(tabfile,"\\.")))==1) tabfile = paste0(tabfile,".",sep)
+    if(h$action=="LR") ord <- order(as.numeric(DBsearch[,2]),decreasing=TRUE) 
+    if(h$action=="MAC") ord <- order(as.numeric(DBsearch[,3]),decreasing=TRUE) 
+    write.table(DBsearch[ord,],file=tabfile,quote=FALSE,sep="\t",row.names=FALSE) #load environment
+    print(paste("Full ranked table saved in ",tabfile,sep=""))
+   }
+  }
+
+ refreshTabDB = function(rank) {
+   DBtable <- get("resDB",envir=mmTK) #get deconvolved result 
+   if(!is.null(DBtable)) {
+    if(rank=="LR") rankind <- 2
+    if(rank=="MAC") rankind <- 3
+    ord <- order(as.numeric(DBtable[,rankind]),decreasing=TRUE) #need to convert to numeric!
+    tabDBa = glayout(spacing=1,container=(tabDBtmp[1,1] <-glayout(spacing=0,container=tabDBtmp)),expand=TRUE) #table layout
+    tabDBb = glayout(spacing=1,container=(tabDBtmp[2,1] <-glayout(spacing=0,container=tabDBtmp)),expand=TRUE) #table layout
+    tabDBa[1,1] <- gtable(DBtable[ord[1:min(get("optDB",envir=mmTK)$maxDB,length(ord))],] ,container=tabDBa,width=mwW,height=mwH*0.5,do.autoscroll=TRUE,noRowsVisible=TRUE) #add to frame
+    tabDBb[2,1] <- gbutton(text="Save table",container=tabDBb,handler=f_savetableDB,action=rank)  
+   }
+ }
+ refreshTabDB("LR") #when program starts
+ visible(mainwin) <- TRUE
+ focus(mainwin)
+
+} #end funcions
+

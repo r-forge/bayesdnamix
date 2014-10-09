@@ -3,7 +3,7 @@
 \alias{combineRank}
 \title{combineRank}
 \usage{
-combineRank(dlist, loghdval = -Inf, alpha = 0.95, maxsearch = 1000)
+combineRank(dlist, loghdval = Inf, alpha = 0.99, maxsearch = 1000)
 }
 \arguments{
 \item{dlist}{A list with vector elements of decreased sorted values.}

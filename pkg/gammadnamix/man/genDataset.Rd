@@ -38,6 +38,7 @@ Function for generating replicated mixture samples given same contributors and m
 }
 \details{
 genDataset samples random mixture peak heights given as gamma(rho*sum(h_k),tau), with h_k as peak height of k-te contributor.
+genData conditions on alleles given by refData. Empty references are generated with population frequencies.
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

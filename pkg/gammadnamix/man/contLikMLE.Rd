@@ -5,7 +5,7 @@
 \usage{
 contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
   knownRef = NULL, xi = NULL, prC = 0, nDone = 1, threshT = 50,
-  fst = 0, lambda = 0, pXi = function(x) 1, alpha = 0.05, delta = 10)
+  fst = 0, lambda = 0, pXi = function(x) 1, delta = 10, alpha = 0.05)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -33,6 +33,8 @@ contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
 \item{lambda}{Parameter in modeled peak height shifted exponential model. Default is 0.}
 
 \item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
+
+\item{alpha}{Significant level used for confidence interval for parameter estimation. Default is 0.05.}
 
 \item{delta}{Standard deviation of normal distribution when drawing random startpoints. Default is 10.}
 }

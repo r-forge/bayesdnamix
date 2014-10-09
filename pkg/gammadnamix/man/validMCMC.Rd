@@ -3,10 +3,10 @@
 \alias{validMCMC}
 \title{validMCMC}
 \usage{
-validMCMC(mcmcobj, trace = TRUE, acf = TRUE)
+validMCMC(mcmcfit, trace = TRUE, acf = TRUE)
 }
 \arguments{
-\item{mcmcobj}{A object returned by contLikMCMC}
+\item{mcmcfit}{A object returned by contLikMCMC}
 
 \item{trace}{Boolean for whether showing trace of samples.}
 

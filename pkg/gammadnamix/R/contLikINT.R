@@ -21,7 +21,6 @@
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
-#' @param isPhi Boolean whether we are working with reparameterizated parameters
 #' @return ret A list(margL,deviation,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, deviation is the confidence-interval of margL, nEvals is number of evaluations.
 #' @export 
 #' @references Hahn,T. (2005). CUBA - a library for multidimensional numerical integration. Computer Physics Communications, 168(2),78-95.
@@ -35,41 +34,23 @@ contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL
  if(length(lower)!=np) stop("Length of integral limits differs from number of unknown parameters specified")
  ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef)
 
- if(isPhi) {
-  if(is.null(xi)) {
-    likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
-     loglik <- Cval + log(pXi(theta[nC+2])) #weight with prior of tau and 
-     return(exp(loglik)) #weight with prior of tau and stutter.
-    }
-  } else {  
-    likYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
-     theta <- c(theta2,xi) #stutter-parameter added as known
-     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
-     return(exp(Cval))
-    }
-  }
- } else {
-  if(is.null(xi)) {
-    likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-     loglik <- Cval + log(pXi(theta[nC+2])) #weight with prior of tau and 
-     return(exp(loglik)) #weight with prior of tau and stutter.
-    }
-  } else {  
-    likYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
-     theta <- c(theta2,xi) #stutter-parameter added as known
-     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-     return(exp(Cval))
-    }
-  }
+ if(is.null(xi)) {
+   likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
+    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
+    loglik <- Cval + log(pXi(theta[nC+2])) #weight with prior of tau and 
+    return(exp(loglik)) #weight with prior of tau and stutter.
+   }
+ } else {  
+   likYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
+    theta <- c(theta2,xi) #stutter-parameter added as known
+    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
+    return(exp(Cval))
+   }
  }
  np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
  nU <- nC-ret$nK #number of unknowns
- if(!isPhi) {
-  bisectMx <- (nC==2 && nU==2) #if exact 2 unknown contributors in the hypothesis
-  if(bisectMx) lower[1] <- 0.5 #restrict outcome of mixture proportions
- }
+ bisectMx <- (nC==2 && nU==2) #if exact 2 unknown contributors in the hypothesis
+ if(bisectMx) lower[1] <- 0.5 #restrict outcome of mixture proportions
  foo <- adaptIntegrate(likYtheta, lowerLimit = lower , upperLimit = upper , tol = reltol)
  val <- foo$integral
  dev <- val + c(-1,1)*foo$error

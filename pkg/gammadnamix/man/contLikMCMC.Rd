@@ -3,21 +3,14 @@
 \alias{contLikMCMC}
 \title{contLikMCMC}
 \usage{
-contLikMCMC(mlefit, musigmamax = c(10000, 1), M = 10000, delta = 2,
-  isPhi = FALSE)
+contLikMCMC(mlefit, niter = 10000, delta = 2)
 }
 \arguments{
 \item{mlefit}{Fitted object using contLikMLE}
 
-\item{method}{Selected MCMC-routine for calculate marginal Likelihood (1=Importance sampling with normal approximation, 2=.}
-
-\item{musigmamax}{Upper boundary of rho-tau-parameters. Default (10000,1)}
-
-\item{M}{Number of samples in the MCMC-sampling.}
+\item{niter}{Number of samples in the MCMC-sampling.}
 
 \item{delta}{A numerical parameter to scale with the covariance function Sigma. Default is 2. Should be higher to obtain lower acception rate.}
-
-\item{isPhi}{Boolean whether we are working with reparameterizated parameters}
 }
 \value{
 ret A list (margL,posttheta,postlogL,logpX,accrat) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, posttheta is the posterior samples from a MC routine, postlogL is sampled log-likelihood values, accrat is ratio of accepted samples.

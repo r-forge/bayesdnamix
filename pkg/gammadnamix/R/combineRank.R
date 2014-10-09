@@ -12,7 +12,7 @@
 #' @return ret A list(rankG,pG) where rankG is the ranked genotypes with corresponding probabilities in pG.
 #' @export
 #' @keywords optimalisation
-combineRank <- function(dlist,loghdval=-Inf,alpha=0.95,maxsearch=1000) {
+combineRank <- function(dlist,loghdval=Inf,alpha=0.99,maxsearch=1000) {
  nD <- sapply(dlist,length)
  nL <- length(dlist)
  dmat <- matrix(-Inf,ncol=nL,nrow=max(nD))
@@ -31,8 +31,11 @@ combineRank <- function(dlist,loghdval=-Inf,alpha=0.95,maxsearch=1000) {
  while(cc<=maxsearch) {
   step <- rep(1,nL)
   deadend <- nD<(Rankmat[cc-1,] + step) #check if we have reached the dead end for some nodes (they are excluded as possible paths)
+  if(all(deadend)) break; #stop if no more paths to go!
+
   nextpaths <-  matrix(rep(Rankmat[cc-1,],nL),nrow=nL,byrow=TRUE) + diag(step) #see forward paths
   nextpaths <- nextpaths[!deadend,] #remove dead ends
+  if(sum(!deadend)==1)  nextpaths <- t(nextpaths) #make matrix again
 
   #Store new possible tracks with values to map: (but check if nextpaths is not already in trackmap)
   for(k in 1:nrow(nextpaths)) {

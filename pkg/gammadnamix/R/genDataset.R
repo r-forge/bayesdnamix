@@ -2,6 +2,7 @@
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 #' @description Function for generating replicated mixture samples given same contributors and model parameters.
 #' @details genDataset samples random mixture peak heights given as gamma(rho*sum(h_k),tau), with h_k as peak height of k-te contributor.
+#' genData conditions on alleles given by refData. Empty references are generated with population frequencies.
 #' @param nC Number of contributors in model.
 #' @param popFreq A list of allele frequencies for a given population.
 #' @param mu Expected peak heights for a het. single contributor allele
@@ -46,22 +47,22 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
    mixData <- list()
    nDropout <- nDropin <- nStutter <- rep(NA,nL) #counts dropout/dropin/stutters
 
-   for(i in 1:nL) {
-    if( length(refData) < i) { #if no refData given
-     refData[[i]] <- list()
-     mixA = numeric()
-     for(s in 1:nC) {
-      Asim <- refData[[i]][[s]] <-  sample(names(popFreq[[i]]),size=2,prob=popFreq[[i]],replace=TRUE)
+ 
+   for(loc in locs) {
+    if( is.null(refData[[loc]])) refData[[loc]] <- list()     
+    nR <- length(refData[[loc]])
+    mixA <- unlist(refData[[loc]]) #vectorize
+    if(nR<nC) { #sample more alleles if missing
+     ran <- (nR+1):nC #new range
+     for(s in ran) {
+      Asim <- refData[[loc]][[s]] <-  sample(names(popFreq[[loc]]),size=2,prob=popFreq[[loc]],replace=TRUE)
       mixA = c(mixA,Asim) #keep not droped
      }
-     names(refData[[i]]) <- paste0("ref",1:length(refData[[i]]))
-    } else {
-     if(length(refData[[i]])!=nC) stop("Number of references in refData not equal nC!")
-     mixA <- unlist(refData[[i]]) #vectorize
-    } 
+     names(refData[[loc]])[ran] <- paste0("genref",ran)
+    }
     mixH = c(t(replicate(2,mx)))
     agg=aggregate(mixH,by=list(mixA),sum) #aggregate contributions
-    mixH <- rgamma(length(agg$x),shape=rho*agg$x,scale=tau) #shape/scale given
+    mixH <- round(rgamma(length(agg$x),shape=rho*agg$x,scale=tau)) #shape/scale given. Must be an integer!
     mixA <- agg$Group
     if(stutt>0) { #include stutter
      mixA2 <- c(agg$Group,(as.numeric(agg$Group)-1)) #stutter positions
@@ -70,12 +71,12 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
      mixA <- agg2$Group
      mixH <- agg2$x
     }
-    if(prC>0) { #dropin done last
     pos <- ceiling(log(1e-16)/log(prC))
-    prCvec <- c(1-prC/(1-prC),prC^(1:pos))
-    nDI <- sample(0:pos,size=1,prob=prCvec,replace=TRUE) #number of dropin
-    if(nDI>0) {
-      DIA <- sample(names(popFreq[[i]]),size=nDI,prob=popFreq[[i]],replace=TRUE) #random from population
+    if(length(pos)>1) { #dropin done last
+     prCvec <- c(1-prC/(1-prC),prC^(1:pos))
+     nDI <- sample(0:pos,size=1,prob=prCvec,replace=TRUE) #number of dropin
+     if(nDI>0) {
+      DIA <- sample(names(popFreq[[loc]]),size=nDI,prob=popFreq[[loc]],replace=TRUE) #random from population
       if(lambda<=0) stop("Lambda was not specified greater than zero")
       DIH <- rexp(nDI,rate=lambda) + threshT #peak height of same alleles are accumulated
       mixH2 <- c(mixH,DIH)
@@ -83,17 +84,17 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
       agg2=aggregate(mixH2,by=list(mixA2),sum) #aggregate dropped in alleles
       mixA <- agg2$Group
       mixH <- agg2$x
+     }
     }
-   }
-   dropped <- mixH<threshT 
-   mixData[[i]] <- list(adata=mixA[!dropped],hdata=mixH[!dropped])
-  } #end each locus
-  names(mixData) <- locs
-  samples[[r]] <- mixData
- }
- names(samples) <- paste0("sample",1:nrep)
- names(refData) <- locs
- return(list(theta=list(mx=mx,rho=rho,tau=tau),samples=samples,refData=refData))
+    dropped <- mixH<threshT 
+    mixData[[loc]] <- list(adata=mixA[!dropped],hdata=mixH[!dropped])
+   } #end each locus
+   names(mixData) <- locs
+   samples[[r]] <- mixData
+  } #end for each rep
+  names(samples) <- paste0("sample",1:nrep)
+  names(refData) <- locs
+  return(list(theta=list(mx=mx,rho=rho,tau=tau),samples=samples,refData=refData))
 }
 
 
