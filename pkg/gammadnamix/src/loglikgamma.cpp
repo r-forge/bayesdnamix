@@ -81,11 +81,11 @@ class recurseClassStutterRep { //recurse-class for each loci
   Col<uword> psiDO; //row-indice of Y,X in calculation: dropped-out alleles (finds where Y=0 AND Z>0)
   Col<uword> psiDI; //row-indice of Y,X in calculation: dropped-in alleles (finds where Y>0 AND mu=0)
   Col<uword> psiYmu; //row-indice of Y,X in calculation: non-dropped out alleles (finds where Y>0 AND mu>0)
-  Col<uword> psiBP; //indices relevant to stutter (bp>0)
-  Col<uword> psiRtoS; //row-indice of Y,X in calculation: indices beeing Stutter to
-  Col<uword> psiRfromS; //row-indice of Y,X in calculation: indices beeing Stutter from
+  Col<uword> psiSind; //indices relevant to stutter (bp>0)
+  Col<uword> psiS; //row-indice of Y,X in calculation: indices of allele beeing stuttered
+  Col<uword> psiRtoS; //row-indice of Y,X in calculation: indices of allele stuttering from
   Col<uword> psitmp; //temporary variable
-
+  
    //additional declrarations:
   int s; //index to replicates (must be of type unsigned integer
   Col<uword> *ds;
@@ -132,15 +132,16 @@ class recurseClassStutterRep { //recurse-class for each loci
     if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
      if(xi>0) { //incorporate stutter ratio
       psiR = find(*Zi>0); //Indices for contributing alleles. checks those non-zero
-      psitmp = Abpind->elem(psiR); //take out bp of contributing alleles.
-      psiBP = find(psitmp>0); //indices relevant to stutter
-      if(psiBP.n_elem>0) {
-       psiRtoS = psitmp.elem(psiBP)-1; //find indices which may be stuttered to. Adjust index (starting from 0)
-       psiRfromS = psiR.elem(psiBP); //find indices which may be stuttered from
+      psitmp = Abpind->elem(psiR); //gives index (starts from 1) of stuttered-alleles from contributing alleles.
+      psiSind = find(psitmp>0); //indices to those beeing possible stuttered
+      if(psiSind.n_elem>0) {
+       psiS = psitmp.elem(psiSind)-1; //find indices of stuttered alleles. Adjust index (starting from 0)
+       psiRtoS = psiR.elem(psiSind); //find indices of corresponding stuttering alleles
+
        //fix stutter-contributor-X:
        Xijtmp = *Xij;
        Xijtmp.zeros();
-       Xijtmp.rows(psiRtoS) = Xij->rows(psiRfromS); //insert relevant stutter-contributors
+       Xijtmp.rows(psiS) = Xij->rows(psiRtoS); //insert relevant stutter-contributors
        mui = ( (1-xi)*((*Xij)*(*mvec)) + xi*(Xijtmp*(*mvec))  ); //mean peak height of model (contributed means only)
       } else { //if none in stutter-position
        mui = ( (1-xi)*((*Xij)*(*mvec)) ); //mean peak height of model (contributed means only)
@@ -584,6 +585,7 @@ void loglikgammaC(double *logPE, double *theta, int *np,int *nC, int *nK, int *n
      break;  //stop and return
     }
   } //end for each loci i:
+
   delete condMatrix;
  } else { //end calculations
      *logPE = log(0); //return -Inf 

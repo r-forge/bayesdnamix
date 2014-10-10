@@ -9,16 +9,16 @@
  getGlist <- function(popFreq) {
   locs <- names(popFreq)
   Glist <- list()
-  for (i in 1:length(locs)) {
-   G = t(as.matrix(expand.grid(rep(list(as.numeric(names(popFreq[[i]])),as.numeric(names(popFreq[[i]])))))))
+  for (loc in locs) {
+   G = t(as.matrix(expand.grid(rep(list(as.numeric(names(popFreq[[loc]])),as.numeric(names(popFreq[[loc]])))))))
    keep = G[2, ] >= G[1, ]
    G <- G[, keep]
    G <- matrix(as.character(G), nrow = 2)
-   tmpP = t(as.matrix(expand.grid(rep(list(as.numeric(popFreq[[i]]),as.numeric(popFreq[[i]]))))))
+   tmpP = t(as.matrix(expand.grid(rep(list(as.numeric(popFreq[[loc]]),as.numeric(popFreq[[loc]]))))))
    Gprob = exp(colSums(log(tmpP[, keep])))
    ishet = G[1, ] != G[2, ]
    Gprob[ishet] = 2 * Gprob[ishet]
-   Glist[[locs[i]]] <- list(G = t(G), Gprob = Gprob)
+   Glist[[loc]] <- list(G = t(G), Gprob = Gprob)
   }
   return(Glist)
  }

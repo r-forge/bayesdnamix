@@ -62,7 +62,7 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
     }
     mixH = c(t(replicate(2,mx)))
     agg=aggregate(mixH,by=list(mixA),sum) #aggregate contributions
-    mixH <- round(rgamma(length(agg$x),shape=rho*agg$x,scale=tau)) #shape/scale given. Must be an integer!
+    mixH <- rgamma(length(agg$x),shape=rho*agg$x,scale=tau) #shape/scale given. Must be an integer!
     mixA <- agg$Group
     if(stutt>0) { #include stutter
      mixA2 <- c(agg$Group,(as.numeric(agg$Group)-1)) #stutter positions
@@ -87,7 +87,7 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
      }
     }
     dropped <- mixH<threshT 
-    mixData[[loc]] <- list(adata=mixA[!dropped],hdata=mixH[!dropped])
+    mixData[[loc]] <- list(adata=mixA[!dropped],hdata=round(mixH[!dropped]))
    } #end each locus
    names(mixData) <- locs
    samples[[r]] <- mixData

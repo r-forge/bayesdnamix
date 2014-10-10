@@ -25,7 +25,7 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  locs <- unique(unlist(locs)) #get unique markernames
  if(nL!=length(locs)) stop("Different markers was specified in the replicates")
  names(popFreq) <- toupper(names(popFreq)) #toupper case!
- locs <- locs[locs%in%names(popFreq)] #take intercept with 
+ locs <- locs[locs%in%names(popFreq)] #take intercept with locus in evidence and population-freq
  #print( paste0("Evaluated loci: ", paste0(locs,collapse=",") ) )
 
  if(is.null(condOrder)) {
@@ -44,19 +44,21 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
 
  #Fix references: Assign condition to condM-matrix
  Glist <- getGlist(popFreq) #get population genotype information
+ Gset <- lapply(Glist,function(x) return(x$G))#get genotype possibilities
+ Gprob <- lapply(Glist,function(x) return(x$Gprob)) #get corresponding genotype probabilities
+
  condM <- matrix(-1,nrow=nL,ncol=nC) #default is no references (=-1)
  #assign references to condM-matrix by values of Glist
  if(!is.null(refData) && !is.null(condOrder) && any(condOrder>0)) {
   names(refData) <- toupper(names(refData)) #toupper case!
-  for(i in 1:nL) {
-   subRef <- refData[[locs[i]]] #take out relevant reference
-   if(length(subRef)==0)  stop(paste('Missing locus (',locs[i],') in refData.',sep=''))
-   Gset <- Glist[[locs[i]]]$G #genotype combinations
+  for(loc in locs) {
+   subRef <- refData[[loc]] #take out relevant reference
+   if(length(subRef)==0)  stop(paste('Missing locus (',loc,') in refData.',sep=''))
    for(k in 1:length(subRef)) { #for each reference
     if(condOrder[k]>0) {
-     Gind1 <- subRef[[k]][1]==Gset[,1] & subRef[[k]][2]==Gset[,2]
-     Gind2 <- subRef[[k]][2]==Gset[,1] & subRef[[k]][1]==Gset[,2]
-     condM[i,condOrder[k]] = which(Gind1 | Gind2) - 1 #subtract with one since we work from 0-indice
+     Gind1 <- subRef[[k]][1]==Gset[[loc]][,1] & subRef[[k]][2]==Gset[[loc]][,2]
+     Gind2 <- subRef[[k]][2]==Gset[[loc]][,1] & subRef[[k]][1]==Gset[[loc]][,2]
+     condM[which(loc==locs),condOrder[k]] = which(Gind1 | Gind2) - 1 #subtract with one since we work from 0-indice
     }
    }
   }
@@ -84,6 +86,7 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
   mkvec <- c(mkvec,tmp) 
  }
 
+ popFreq2 <- popFreq #new version with decoded alleles
  #decode allele-names to index names + Stutter-preparation
  allAbpind <- as.numeric()
  for(loc in locs) { #for each marker
@@ -91,13 +94,13 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
    #find corresponding index of 1-ahead pb-twin
    numAnames <- as.numeric(anames) #convert from string to numbers
    BPind <- rep(0,length(numAnames)) #init 0 if allele doesn't have any bp-twin
-   for(j in 1:length(numAnames)) {
+   for(j in 1:length(numAnames)) { #for each alleles
     bpind <- which((numAnames[j]-1)==numAnames) #store index of what allele it stutters to
     if(length(bpind)>0) BPind[j] <- bpind #assign index-placement
    }
    allAbpind <- c(allAbpind,BPind)
    anames2 <- 0:(length(popFreq[[loc]])-1) #new names
-   names(popFreq[[loc]]) <- anames2 #update names in popFreq
+   names(popFreq2[[loc]]) <- anames2 #update names in popFreq
    #go through each observed alleles in samples and update names
    for(s in 1:nS) { #for each sample
     obsA <- samples[[s]][[loc]]$adata  #observed alllees
@@ -107,9 +110,13 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
    } #end for each samples
  } #end for each marker
  #fix genotypes:
- Glist <- getGlist(popFreq) #get population genotype information
- Gprob <- lapply(Glist,function(x) return(x$Gprob))
- Gset <- lapply(Glist,function(x) return(x$G))
+
+ #Encode allel-names in Gset: NB: BE CAREFUL!
+ for(loc in locs) { #for each marker
+  oldnames<-names(popFreq[[loc]])
+  newnames<-names(popFreq2[[loc]])
+  for(old in oldnames) Gset[[loc]][old==Gset[[loc]]] <- newnames[which(old==oldnames)] #change values
+ }
 
  #take into account for replicates here!
  #count and vectorize alleles in mixtures here:
