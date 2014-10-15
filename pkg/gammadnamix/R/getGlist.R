@@ -15,7 +15,9 @@
    G <- G[, keep]
    G <- matrix(as.character(G), nrow = 2)
    tmpP = t(as.matrix(expand.grid(rep(list(as.numeric(popFreq[[loc]]),as.numeric(popFreq[[loc]]))))))
-   Gprob = exp(colSums(log(tmpP[, keep])))
+   tmpP <- tmpP[, keep]
+   if(is.null(dim(tmpP))) tmpP <- cbind(tmpP)
+   Gprob = exp(colSums(log(tmpP)))
    ishet = G[1, ] != G[2, ]
    Gprob[ishet] = 2 * Gprob[ishet]
    Glist[[loc]] <- list(G = t(G), Gprob = Gprob)

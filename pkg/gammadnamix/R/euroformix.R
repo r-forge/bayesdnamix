@@ -9,7 +9,7 @@
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/")
 #roxygenize("gammadnamix")
 
-#library(gammadnamix); sessionInfo();#euroformix()
+#library(gammadnamix); sessionInfo();euroformix()
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/euroformix0")
 #rm(list=ls())
 #envirfile=NULL
@@ -46,7 +46,9 @@ euroformix = function(envirfile=NULL) {
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
   assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=1000),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
-  assign("optDB",list(maxDB=10000),envir=mmTK) #options when doing database search (maxDB)
+  assign("optDB",list(maxDB=10000),envir=mmTK) #options when doing LRmix
+  assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05,ntippets=1e6),envir=mmTK) #options when doing database search (maxDB)
+
 
   #initializing environment variables
   assign("workdir",NULL,envir=mmTK) #assign working directory to mmTK-environment
@@ -71,6 +73,7 @@ euroformix = function(envirfile=NULL) {
   assign("resEVID",NULL,envir=mmTK) #assign evidence weighting results (i.e. calculated LR with MLE estimates)
   assign("resDC",NULL,envir=mmTK) #assign deconvolved result (i.e. ranked table of results)
   assign("resEVIDINT",NULL,envir=mmTK) #assign evidence weighting results - Based on Integration 
+  assign("resEVIDLRMIX",NULL,envir=mmTK) #assign evidence weighting results - Based on LRmix
  } else {
   load(envirfile) #loading environment
  }
@@ -348,6 +351,23 @@ euroformix = function(envirfile=NULL) {
    'Set maximum view-elements'=list(handler=function(h,...) {  
       setValueUser(what1="optDB",what2="maxDB",txt="Set max size of view elements from database:") 
     })
+  ),
+  'Qual LR'=list(
+   'Set upper range for sensitivity'=list(handler=function(h,...) {  
+      setValueUser(what1="optLRMIX",what2="range",txt="Set upper limit of dropout in sensitivity analysis:") 
+    }),
+   'Set nticks for sensitivity'=list(handler=function(h,...) {  
+      setValueUser(what1="optLRMIX",what2="nticks",txt="Set number of ticks in sensitivity analysis:") 
+    }),
+   'Set required samples in dropout distr.'=list(handler=function(h,...) {  
+      setValueUser(what1="optLRMIX",what2="nsample",txt="Set required number number of samples in dropout distribution:") 
+    }),
+   'Set significance level in dropout distr.'=list(handler=function(h,...) {  
+      setValueUser(what1="optLRMIX",what2="alpha",txt="Set significance level (quantiles) in dropout distribution:") 
+    }),
+   'Set number of tippets'=list(handler=function(h,...) {  
+      setValueUser(what1="optLRMIX",what2="ntippets",txt="Set number of tippet samples in tippet plot:") 
+    })
   )
  )
 
@@ -371,7 +391,9 @@ euroformix = function(envirfile=NULL) {
  tabDC = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Deconvolution") #results from a deconvolution
  tabDB= ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Database search") #results from a database search
  tabVAL = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Model validation") #modelvalidation from MLE
+ tabLRMIX <- ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Qual. LR") #LRmix
  svalue(nb) <- 2 #initial start at second tab
+
 
 ####################################################
 ###############Tab 1: Create Data:##################
@@ -1024,13 +1046,13 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
        for(rsel in refSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) #check if locus checked for references
        if(isOK) sellocs <- c(sellocs,loc) #locus can be evaluated
       }
-
       if(length(sellocs)==0) { #don't do anything if no loci will be evaluated
        gmessage(message="No loci are evaluated! Be sure that all selected data have valid data in their loci.",title="No loci found!",icon="error")
        return()
       }
       popFreq <- popFreq[sellocs] #consider only relevant loci in popFreq
       print(c("Locs to be evaluated:",paste0(sellocs,collapse=",")))
+
 
       #Insert missing alleles to the popFreq-object:
       minFreq <- getminFreq() #get frequency used 
@@ -1054,16 +1076,27 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
        }
       } #end for each loci
 
+      #get threshold value:
+      threshT <- as.numeric(svalue(tabmodelA4[2,2]))
+
       #prepare data for function in gammadnamix! Data-object must have correct format!
       #go through selected data from GUI:
       samples <- list()
       refData <- NULL
       if(nR>0) refData <- list()
-      for(loc in sellocs) { #for each locus in popFreq
-       for(msel in mixSel) samples[[msel]][[loc]] <- mixD[[msel]][[loc]] #insert samples
+      for(loc in sellocs) { #for each selected locus in popFreq
+       for(msel in mixSel) { #for each mixture samples
+         subD <- mixD[[msel]][[loc]] #get selected data
+         if(!is.null(subD$hdata)) {
+          keep <- subD$hdata>=threshT #allele to keep (above threshold)
+          subD$hdata <- subD$hdata[keep]
+          subD$adata <- subD$adata[keep]
+          samples[[msel]][[loc]] <- subD #insert samples
+         }
+       }
        if(nR>0) refData[[loc]] <- list()
        for(rsel in refSel) refData[[loc]][[rsel]] <- refD[[rsel]][[loc]]$adata #insert references
-      }   
+      } #end for each locus
 
       #get specified preposition 
       condOrder_hp <- condOrder_hd <- rep(0,nR)
@@ -1083,14 +1116,13 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
       nC_hd <-  as.integer(svalue(tabmodelA3[nR+1,2])) + sum(condOrder_hd>0)
 
       #get model parameters:
-      if(type!="GEN") { #only if not generating
-       if(svalue(tabmodelA4[1,1])) { #if Q-assignation
-        ret <- Qassignate(samples, popFreq, refData) #call function in gammadnamix
-        popFreq <- ret$popFreq
-        refData <- ret$refData
-       }
+      popFreqQ <- popFreq
+      refDataQ <- refData
+      if(svalue(tabmodelA4[1,1])) { #if Q-assignation
+       ret <- Qassignate(samples, popFreq, refData) #call function in gammadnamix
+       popFreqQ <- ret$popFreq
+       refDataQ <- ret$refData
       }
-      threshT <- as.numeric(svalue(tabmodelA4[2,2]))
       xi <- svalue(tabmodelA4[3,2]) #stutter ratio
       if(xi=="") {
        xi <- NULL #assume unknown stutter ratio
@@ -1107,7 +1139,7 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
    
       #get specified preposition 
       knownref_hp <- knownref_hd <- NULL #known non-contributors under Hp always NULL (since they exist under condOrder)
-      if(fst>0 && type=="EVID") { #only for Evidence
+      if(type=="EVID") { #only for Evidence
        knownref_hd <- which(condOrder_hp>0 & condOrder_hd==0) #those references conditioned under hp but not hd
        if(length(knownref_hd)==0) knownref_hd <- NULL
       }
@@ -1115,7 +1147,7 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
       #get input to list: note: "fit_hp" and "fit_hd" are list-object from fitted model
       model <- list(nC_hp=nC_hp,nC_hd=nC_hd,condOrder_hp=condOrder_hp,condOrder_hd=condOrder_hd,knownref_hp=knownref_hp,knownref_hd=knownref_hd) #proposition
       param <- list(xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi) 
-      set <- list(samples=samples,refData=refData,popFreq=popFreq,model=model,param=param)     
+      set <- list(samples=samples,refData=refData,popFreq=popFreq,model=model,param=param,refDataQ=refDataQ,popFreqQ=popFreqQ)     
       if(type=="DB") set$dbSel <- dbSel #store name of selected databases
       assign(paste0("set",type),set,envir=mmTK) #store setup for relevant type
    } #end store settings from GUI to environment
@@ -1139,12 +1171,16 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
       storeSettings() #store model-settings
       doINT(type) #Integrate either for EVID or DB search
     }) #end cont. calculation button
-
+    if(type=="EVID") tabmodelD[3,1] = gbutton(text="Qualitative LR",container=tabmodelD,handler=
+	function(h,...) {
+      storeSettings() #store model-settings
+      refreshTabLRMIX() #refresh LRmix calculation tab (i.e. it fits the specified model)
+      svalue(nb) <- 8 #go to mle-fit window (for all cases) when finished
+    }) #end cont. calculation button
    } #end type-cases
    visible(mainwin) <- TRUE
    focus(mainwin)
   } #end refresh setup tab-frame
-
 
     ########################################################
     ##INTEGRATION (can be done anywhere after model setup)##
@@ -1154,7 +1190,7 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
      optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
      if(type=="EVID")  set <- get("setEVID",envir=mmTK)
      if(type=="DB") {
-       gmessage(message="Database search using integration will soon be implemented.",title="Implementation",icon="info")
+       gmessage(message="Database search using integration is not be implemented.",title="Implementation",icon="info")
        return()
      } #set<- get("setDB",envir=mmTK)
      par <- set$param
@@ -1176,11 +1212,11 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
      bhd <- getboundary(mod$nC_hd) #get boundaries under hd
 
      #integrate:
-     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreq, bhd$lower, bhd$upper, set$refData, mod$condOrder_hd, mod$knownRef_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda)#, par$pXi) 
+     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownRef_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda)#, par$pXi) 
      print("Calculation under Hd done...")
 
      if(type=="EVID") { #case of EVID
-      int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreq, bhp$lower, bhp$upper, set$refData, mod$condOrder_hp, mod$knownRef_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda)#, par$pXi) 
+      int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownRef_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda)#, par$pXi) 
       LR <- int_hp$margL/int_hd$margL
       dev <- range(c(int_hp$deviation/int_hd$deviation,int_hp$deviation/rev(int_hd$deviation))) #get deviation interval of LR
       res <- list(LR=LR,dev=dev)
@@ -1301,12 +1337,12 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     doDB <- function(mleobj) { #helpfunction ran when call database search
       set <- get("setDB",envir=mmTK) #get setup for DB
       popFreq <- get("popFreq",envir=mmTK) #get original saved popfreq (used to detect allele-names in database)
-      popFreqQ <- set$popFreq #get popFreq saved by setup
+      popFreqQ <- set$popFreqQ #get popFreq saved by setup
       locs_hd <- names(popFreqQ) #get locus analysed under hd
       mixSel <- names(set$samples) #get name of selected mixtures
       model <- set$model #take out model specifications
       param <- set$param #take out param specifications
-      refData <- set$refData #take out selected references         
+      refData <- set$refDataQ #take out selected references         
       logLi_hd <- logLiki(mleobj) #get log-probabilities for each locus
 
       DBtab <- numeric()  #used to store table when searched
@@ -1418,12 +1454,12 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      param <- set$param     
 
      #fit under hd: (does it for all methods)
-     mlefit_hd <- contLikMLE(model$nC_hd,set$samples,set$popFreq,set$refData,model$condOrder_hd,model$knownRef_hd,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta,alpha=alphaCI)
+     mlefit_hd <- contLikMLE(model$nC_hd,set$samples,set$popFreqQ,set$refDataQ,model$condOrder_hd,model$knownRef_hd,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta,alpha=alphaCI)
      if(!is.null(set$mlefit_hd) && set$mlefit_hd$fit$loglik>mlefit_hd$fit$loglik )  mlefit_hd <- set$mlefit_hd #the old model was better
 
      #fit under hp: (only for evidence)
      if(type=="EVID") {
-      mlefit_hp <- contLikMLE(model$nC_hp,set$samples,set$popFreq,set$refData,model$condOrder_hp,model$knownRef_hp,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta,alpha=alphaCI)
+      mlefit_hp <- contLikMLE(model$nC_hp,set$samples,set$popFreqQ,set$refDataQ,model$condOrder_hp,model$knownRef_hp,param$xi,param$prC,nDone,param$threshT,param$fst,param$lambda,delta=delta,alpha=alphaCI)
       if(!is.null(set$mlefit_hp) && set$mlefit_hp$fit$loglik>mlefit_hp$fit$loglik )  mlefit_hp <- set$mlefit_hp #the old model was better
      } else {
       mlefit_hp <- NULL #not used otherwise
@@ -1566,6 +1602,252 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
  refreshTabDB("LR") #when program starts
  visible(mainwin) <- TRUE
  focus(mainwin)
+
+
+###############################################################
+###############Tab 7: Model validation:########################
+###############################################################
+
+
+
+###############################################################
+###############Tab 8: LRmix module:############################
+###############################################################
+ #uses only qualitative information
+
+ tabLRMIXtmp <- glayout(spacing=30,container=tabLRMIX)
+
+ f_savetableEVIDLRMIX = function(h,...) { #function for storing LR
+   LRi <- get("resEVIDLRMIX",envir=mmTK) #get EVID calculations when GUI starts
+   if(is.null(LRi)) {
+    tkmessageBox(message="There was no Weight-of-Evidence results available!")
+   } else {
+    tab <- c(LRi,prod(LRi))
+    tab <- cbind(c(names(LRi),"Joint"),tab,log10(tab))
+    colnames(tab) <- c("Locus","LR","log10LR")
+    saveTable(tab, "txt") 
+   }
+  }
+
+ refreshTabLRMIX = function() {
+  require(forensim)
+ 
+  #helpfunction to make GUI-table with LR calculations
+  tableLR = function(LRi) { 
+   sig <- 5 #number of signif to show
+   tabLRmixB1[1,1] = glabel(text="Locus",container=tabLRmixB1)
+   tabLRmixB1[1,2] = glabel(text="LR",container=tabLRmixB1)
+   tabLRmixB1[1,3] = glabel(text="log10LR",container=tabLRmixB1)
+
+   for(loc in locs) {
+    i = which(loc==locs)
+    tabLRmixB1[i+1,1] = glabel(text=loc,container=tabLRmixB1)
+    tabLRmixB1[i+1,2] = glabel(text=signif(LRi[i],sig),container=tabLRmixB1)
+    tabLRmixB1[i+1,3] = glabel(text=signif(log10(LRi[i]),sig),container=tabLRmixB1)
+   }
+
+   #show jointly:
+   tabLRmixB2[1,1] = glabel(text="LR",container=tabLRmixB2)
+   tabLRmixB2[2,1] = glabel(text="log10LR",container=tabLRmixB2)
+   tabLRmixB2[1,2] = glabel(text=prod(LRi),container=tabLRmixB2)
+   tabLRmixB2[2,2] = glabel(text=sum(log10(LRi)),container=tabLRmixB2)
+  }
+
+  #helpfunction for calculating LR for each given dropout pD (takes a numeric)
+  doLR = function(pD) {
+    pDhp <- rep(pD,model$nC_hp)
+    pDhd <- rep(pD,model$nC_hd)
+    hpvec <- hdvec <- rep(1,length(locs))
+    for(loc in locs) {
+      hpvec[which(loc==locs)] <- likEvid( Evidlist[[loc]],T=refList_hp[[loc]]$Ri,V=refList_hp[[loc]]$Ki,x=model$nC_hp-refList_hp[[loc]]$nR,theta=param$fst, prDHet=pDhp, prDHom=pDhp^2, prC=param$prC, freq=set$popFreqQ[[loc]])
+      hdvec[which(loc==locs)] <- likEvid( Evidlist[[loc]],T=refList_hd[[loc]]$Ri,V=refList_hd[[loc]]$Ki,x=model$nC_hd-refList_hd[[loc]]$nR,theta=param$fst, prDHet=pDhd, prDHom=pDhd^2, prC=param$prC, freq=set$popFreqQ[[loc]])
+    }
+    LRi <- hpvec/hdvec
+    names(LRi) <- locs
+    return(LRi)
+  }
+
+ #helpfunction to get conditional refs under a hypothesis
+  getConds <- function(condOrder,knownref) {
+    cond <- which(condOrder>0) #ind of conditional refs (they are increasingly sorted)
+    Ri <- Ki <- NULL
+    for(rr in cond ) Ri <- c(Ri,set$refDataQ[[loc]][[rr]])
+    for(rr in knownref) Ki <- c(Ki,set$refDataQ[[loc]][[rr]])
+    return(list(Ri=Ri,Ki=Ki,nR=length(cond) ))
+  }
+
+  #take out relevant parameters from stored list
+  set <- get("setEVID",envir=mmTK) #get setup for EVID
+  model <- set$model
+  param <- set$param     
+
+  #Data:
+  locs <- names(set$popFreqQ) #get analysing loci
+  nS <- length(set$samples) #number of samples
+ 
+  #Prepare Evidence and refs under each hypothesis:
+  Evidlist <- list()
+  refList_hp <- list()
+  refList_hd <- list()
+  for(loc in locs) {
+    Ei <- NULL #get evidence
+    for(ss in 1:nS) {
+     if(ss>1) Ei <- c(Ei,0) #seperate with 0  
+     adata <- set$samples[[ss]][[loc]]$adata
+     if(length(adata)==0) adata=0 #is empty
+     Ei <- c(Ei,adata)
+    } 
+    Evidlist[[loc]] <- Ei
+    refList_hp[[loc]] <- getConds(model$condOrder_hp,model$knownref_hp) #under hp
+    refList_hd[[loc]] <- getConds(model$condOrder_hd,model$knownref_hd) #under hd
+  }
+
+
+  #GUI:
+  tabLRmixA = glayout(spacing=0,container=(tabLRMIXtmp[1,1] <-gframe("Analysis of qualitative LR",container=tabLRMIXtmp))) 
+  tabLRmixB = glayout(spacing=0,container=(tabLRMIXtmp[1,2] <-gframe("Weight-of-Evidence",container=tabLRMIXtmp))) 
+
+  tabLRmixA1 = glayout(spacing=0,container=(tabLRmixA[1,1] <-gframe("Preanalysis",container=tabLRmixA)))  
+  tabLRmixA2 = glayout(spacing=0,container=(tabLRmixA[2,1] <-gframe("Calculation",container=tabLRmixA))) 
+  tabLRmixA3 = glayout(spacing=0,container=(tabLRmixA[3,1] <-gframe("Postanalysis",container=tabLRmixA))) 
+
+  tabLRmixB1 = glayout(spacing=0,container=(tabLRmixB[1,1] <-gframe("Loci",container=tabLRmixB)))  
+  tabLRmixB2 = glayout(spacing=0,container=(tabLRmixB[2,1] <-gframe("Jointly",container=tabLRmixB)))  
+
+
+  #Preanalysis (sensistivity and dropout plots)
+  tabLRmixA1[1,1] <- gbutton(text="Sensitivity",container=tabLRmixA1,handler=function(x) {
+    #get range from options under toolbar:
+    optLRMIX <- get("optLRMIX",envir=mmTK) #options when integrating (reltol and boundaries)
+    range <- optLRMIX$range
+    nTicks <- optLRMIX$nticks
+    if( range<0 | range>1) {
+     gmessage(message="The range must be given between 0 and 1",title="Wrong input",icon="error")
+     return()
+    }
+    if( nTicks<0 | round(nTicks)!=nTicks ) {
+     gmessage(message="The number of ticks must be a positive integer",title="Wrong input",icon="error")
+     return()
+    }
+    pDvec <- seq(1e-6,range,l=nTicks) #set very small dropout probability
+    LRivec <- Vectorize(doLR) (pDvec) #return LR(pD,loc)
+    logLR <- colSums(log10(LRivec)) #joint LR
+    plot(pDvec ,logLR ,xlab="Pr(Dropout)",ylab="log_10(LR)",main="Sensitivity plot")
+    lines(spline(pDvec ,logLR,n=100))
+   })
+  tabLRmixA1[2,1] <- gbutton(text="Conservative LR",container=tabLRmixA1,handler=function(x) {
+    optLRMIX <- get("optLRMIX",envir=mmTK) 
+    nsample <- optLRMIX$nsample
+    alpha <- optLRMIX$alpha
+    if( alpha <0 | alpha >1) {
+     gmessage(message="The significance level must be given between 0 and 1",title="Wrong input",icon="error")
+     return()
+    }
+    if( nsample<0 | round(nsample)!=nsample) {
+     gmessage(message="The number of required samples must be an positive integer",title="Wrong input",icon="error")
+     return()
+    }
+    totA <-  sapply(  set$samples, function(x) sum(sapply(x,function(y) length(y$adata)) ) ) #number of alleles for each samples
+    refHp <- refHd <- NULL
+    if( any(model$condOrder_hp>0) ) refHp <- lapply(set$refData ,function(x) x[model$condOrder_hp]) #must have the original refData!
+    if( any(model$condOrder_hd>0) ) refHd <- lapply(set$refData ,function(x) x[model$condOrder_hd]) #must have the original refData!
+
+    for(ss in 1:nS) { #for each sample (do dropout calculation)
+     DOdist <- simDOdistr(totA=totA[ss],nC=model$nC_hp,popFreq=set$popFreq,refData=refHp,minS=nsample,prC=param$prC)
+     qqhp <- quantile(DOdist ,c(alpha,1-alpha)) #get quantiles
+     DOdist <- simDOdistr(totA=totA[ss],nC=model$nC_hd,popFreq=set$popFreq,refData=refHd,minS=nsample,prC=param$prC)
+     qqhd <- quantile(DOdist ,c(alpha,1-alpha)) #get quantiles
+     if(ss==1) consDO <- rbind(qqhp,qqhd)
+     if(ss>1) {
+      if(qqhp[1]<consDO[1,1]) consDO[1,1] <- qqhp[1]
+      if(qqhp[2]>consDO[1,2]) consDO[1,2] <- qqhp[2]
+      if(qqhd[1]<consDO[2,1]) consDO[2,1] <- qqhd[1]
+      if(qqhd[2]>consDO[2,2]) consDO[2,2] <- qqhd[2]
+     }
+    }
+    consDO <- round(consDO,2) #round with 2 dec
+    print(consDO) #print out
+
+    #calculate corresponding LR's
+    consLRi <- Vectorize(doLR) (c(consDO))
+    conslog10LR <- colSums(log10(consLRi)) #get joint log10LR
+    selInd <- which.min(conslog10LR) #select reporting LR (which gives min LR)
+    selDO <- consDO[selInd] #take out selected dropout
+    LRi <- consLRi[,selInd] #take out selected LR-values
+    svalue(tabLRmixA2[1,2]) <- selDO  #update selected dropout
+    assign("resEVIDLRMIX",LRi,envir=mmTK) #assign evidence weighting results - Based on LRmix
+    tableLR(LRi) #update table with calculated LR
+  })
+  #Calculation
+  tabLRmixA2[1,1] <-  glabel(text="Dropout prob:",container=tabLRmixA2)
+  tabLRmixA2[1,2] <-  gedit(text="0.05",container=tabLRmixA2,width=8) #this is updated after dropout distr is ran
+  tabLRmixA2[2,1] <-  gbutton(text="Calculate LR",container=tabLRmixA2,handler=function(x) {
+    pD <- as.numeric(svalue(tabLRmixA2[1,2]))
+    if( pD<0 | pD>1) {
+     gmessage(message="The dropout probability must be given between 0 and 1",title="Wrong input",icon="error")
+     return()
+    }
+    LRi <- doLR(pD) 
+    assign("resEVIDLRMIX",LRi,envir=mmTK) #assign evidence weighting results - Based on LRmix
+    tableLR(LRi) #update table with calculated LR
+  }) 
+  tabLRmixA2[2,2] <-  gbutton(text="Save table",container=tabLRmixA2,handler=f_savetableEVIDLRMIX)
+
+  #Tippet-analysis frame:
+  tippets <- model$knownref_hd #known non-contributors under Hd
+  if(!is.null(tippets)) {
+   tN <- names(set$refData[[1]][tippets]) #tippet name
+   tabLRmixA3[1,1] <- glabel( "Select reference to tippet:",container=tabLRmixA3)
+   tabLRmixA3[2,1] <- gcombobox( items=tN ,container=tabLRmixA3)
+   tabLRmixA3[3,1] <- gbutton(text="Do Tippet",container=tabLRmixA3,handler=function(x) {
+
+     #calculate LR for all genotypes in original popFreq.
+     pD <- as.numeric(svalue(tabLRmixA2[1,2])) #take dropout-value as given in GUI
+     tipref <- svalue(tabLRmixA3[2,1]) #get reference to tippet
+     Glist <- getGlist(set$popFreqQ) #get random man-Glist 
+
+     print("Precalculating for tippet plot...")
+     #calculate LRs directly here: 
+     tipsel <- which(tN==tipref) #tippet to select
+     tipind <- model$knownref_hd[tipsel] #get tip-ind in refData
+     modtipind <- model$condOrder_hp[tipind] #get position in system of tippet
+     pDhp <- rep(pD,model$nC_hp)
+     pDhd <- rep(pD,model$nC_hd)
+     for(loc in locs) { #Calcualte for each locus:
+       nG <- length(Glist[[loc]]$Gprob) #number of genotypes
+       Glist[[loc]]$LR <- rep(NA,nG) #init space for LR
+       refhptmp <- refList_hp[[loc]]$Ri  #take out contributing replicates under Hp
+       nrefhdtmp <- refList_hd[[loc]]$Ki  #take out non-contributing replicates under Hd
+       for(j in 1:nG) { #for each genotypes
+        refhptmp[ 2*modtipind -c(1,0) ] <- Glist[[loc]]$G[j,] #insert genotype to reference
+        nrefhdtmp[ 2*tipsel-c(1,0) ] <- Glist[[loc]]$G[j,] #insert genotype to reference
+        hp0 <- likEvid( Evidlist[[loc]],T=refhptmp,V=refList_hp[[loc]]$Ki,x=model$nC_hp-refList_hp[[loc]]$nR,theta=param$fst, prDHet=pDhp, prDHom=pDhp^2, prC=param$prC, freq=set$popFreqQ[[loc]])
+        hd0 <- likEvid( Evidlist[[loc]],T=refList_hd[[loc]]$Ri,V=nrefhdtmp,x=model$nC_hd-refList_hd[[loc]]$nR,theta=param$fst, prDHet=pDhd, prDHom=pDhd^2, prC=param$prC, freq=set$popFreqQ[[loc]])
+        Glist[[loc]]$LR[j] <- hp0/hd0 #store LR
+       }
+     } #end for each locus
+     print("Simulating tippet plot...")
+     ntippet <- get("optLRMIX",envir=mmTK)$ntippets #get number of tippets to simulate
+     RMLR <- rep(0,ntippet) #vector of tippets
+     for(loc in locs) {
+      RMLR <- RMLR + sample(log10(Glist[[loc]]$LR),ntippet,replace=TRUE,prob=Glist[[loc]]$Gprob)
+     }
+     minmax = range(RMLR[!is.infinite(RMLR)])
+     quantiles<-quantile(RMLR,c(0.01,0.05,0.5,0.95,0.99))
+     print(quantiles)
+     lr0 <- NULL #log10 LR
+     LRi <- get("resEVIDLRMIX",envir=mmTK) #get EVID calculations when GUI starts
+     if(!is.null(LRi))  lr0 <- sum(log10(LRi))
+     mtxt = paste0("Tippet calculation with ",ntippet," samples.")
+     plot(ecdf(RMLR),xlim=c(minmax[1],max(minmax[2],lr0)) , main=mtxt,xlab="log10(LR)")
+     if(!is.null(lr0)) {
+      points(lr0,1,pch=10,col="blue")
+      lines(rep(lr0,2),c(1,0),lty=1,col="blue",lwd=0.5)
+      print(paste0("Discriminatory metric (log10(LR) - q99) = ",lr0 - quantiles[length(quantiles)] ))
+     }
+   }) #end TIPPET BUTTON
+  } #end if not tippet possible
+ } #end refresh funtion
 
 } #end funcions
 
