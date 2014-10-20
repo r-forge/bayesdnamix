@@ -2,7 +2,7 @@
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 #' @description MCMC Allele dropout distribution sampler based on total number of alleles in an evidence.
 #' @export
-#' @details simDOdistr samples from the drop-out distribution based on total number of alleles in evidence under a specified prepositions.
+#' @details simDOdistr samples from the drop-out distribution based on total number of alleles in evidence under a specified prepositions. It returns if no samples was accepted in first iteration
 #' @param totA Total number of allele-observations in evidence.
 #' @param nC Number of contributors to assume in the preposition.
 #' @param popFreq Population frequencies listed for each loci popFreq[[locname]]
@@ -213,6 +213,7 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
   } #end for:iind #each loci
 
   cPrD_dist <- c(cPrD_dist,prDvec[tmpcount==totA])
+  if(length(cPrD_dist)==0) return(cPrD_dist) #return if no samples was found in first iteration
   if(length(cPrD_dist)>=minS) done = TRUE
  } #end while
  return( cPrD_dist )
