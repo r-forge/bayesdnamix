@@ -21,7 +21,7 @@ logLiki <- function(mlefit){
   logLi <- numeric()
   loglikYtheta <- function() {   #call c++- function: length(theta)=nC+1
     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-    return(Cval + log(model$pXi(theta[nC+2]))) #weight with prior of tau and 
+    return(Cval + log(model$pXi(theta[ret$nC+2]))) #weight with prior of tau and 
   }
   if(!is.null(model$xi)) {
    theta <- c(theta,model$xi)

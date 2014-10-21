@@ -407,12 +407,12 @@ euroformix = function(envirfile=NULL) {
  if(!is.null(wd)) setwd(wd)
  
  #Main window:
- spc <- 10
+ spc <- 20
  mainwin <- gwindow(softname, visible=FALSE, width=mwW,height=mwH)
  gmenu(mblst,container=mainwin)
  nb = gnotebook(container=mainwin)
  tabGEN = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Generate data") #tab1: Generates data(with peak heights) for a given model (plot EPG in addition)
- tabimport = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Import data") #tab2: (imports all files)
+ tabimport = ggroup(horizontal=FALSE,expand=TRUE,spacing=40,container=nb,label="Import data") #tab2: (imports all files)
  tabmodel = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Model specification") #tab3: specify model used in weight-of-evidence (INT/MLE) or in a Database search 
  tabMLE = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="MLE fit") #results from MLE
  tabDC = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Deconvolution") #results from a deconvolution
@@ -866,18 +866,20 @@ euroformix = function(envirfile=NULL) {
  ###############
  #start layout:#
  ###############
- tabimportA = glayout(spacing=0,container=gframe("Population frequencies",container=tabimport)) #kit and population selecter
- tabimportB = glayout(spacing=5,container=gframe("Evidence, Reference, Database",container=tabimport)) #evidence,ref dataframe
- tabimportC = glayout(spacing=20,container=gframe("Interpretations",container=tabimport)) #Tasks button
+ tabimportA = glayout(spacing=5,container=gframe("Step 1) Import and select Population frequencies",container=tabimport)) #kit and population selecter
+ tabimportA2 = glabel("",container=tabimport) #evidence,ref dataframe
+ tabimportB = glayout(spacing=5,container=gframe("Step 2) Import and select Evidence, Reference, Database",container=tabimport)) #evidence,ref dataframe
+ tabimportB2 = glabel("",container=tabimport) #evidence,ref dataframe
+ tabimportC = glayout(spacing=20,container=gframe("Step 3) Select Interpretation",container=tabimport)) #Tasks button
 
  #Choose box and import button
- tabimportA[1,1] = gbutton(text="1) Select directory",container=tabimportA,handler=
+ tabimportA[1,1] = gbutton(text="1) Select directory\n(with frequency files)",container=tabimportA,handler=
   function(h,...) {
    dirfile = gfile(text="Select folder",type="selectdir")
    if(!is.na(dirfile)) assign("freqfolder",dirfile,envir=mmTK) #assign freqfolder
   }
  )
- tabimportA[1,2] = gbutton(text="2) Import from directory",container=tabimportA,handler=
+ tabimportA[1,2] = gbutton(text="2) Import from directory\n(with frequency files)",container=tabimportA,handler=
   function(h,...) {
    loadKitList(freqpath=get("freqfolder",envir=mmTK))
    kitList <- get("kits",envir=mmTK)
@@ -971,7 +973,7 @@ euroformix = function(envirfile=NULL) {
  #Button-choices further:
  tabimportC[1,1] = gbutton(text="Generate sample",container=tabimportC,handler=selectDataToModel,action="GEN")
  tabimportC[1,2] = gbutton(text="Deconvolution",container=tabimportC,handler=selectDataToModel,action="DC")
- tabimportC[1,3] = gbutton(text="LR calculation",container=tabimportC,handler=selectDataToModel,action="EVID")
+ tabimportC[1,3] = gbutton(text="Weight-of-Evidence",container=tabimportC,handler=selectDataToModel,action="EVID")
  tabimportC[1,4] = gbutton(text="Database search",container=tabimportC,handler=selectDataToModel,action="DB")
 
 
@@ -979,7 +981,7 @@ euroformix = function(envirfile=NULL) {
 #######################################Tab 3: Model setup:##########################################################
 #####################################################################################################################
 
-tabmodeltmp <- glayout(spacing=30,container=tabmodel)
+tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
 
 
   #helpfunction to get boundary from Toolbar:
@@ -1020,7 +1022,7 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
        res <- list(LR=LR,dev=dev)
        assign("resEVIDINT",res,envir=mmTK) #assign deconvolved result to environment
        #Print a GUI message:
-       gmessage(message=paste0("The LR was calculated as \n",round(LR,sig)," [",round(dev[1],sig)," , ",round(dev[2],sig),"]"),title="Marginalized LR",icon="info")
+       gmessage(message=paste0("The LR was calculated as \n",round(LR,sig)," [",round(dev[1],sig)," , ",round(dev[2],sig),"]"),title="Continuous LR (Integrated Likelihood based)",icon="info")
      } 
      if(type=="DB") { #Case of DB-search
        doDB("INT") #do database search with integration
@@ -1041,10 +1043,10 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
    nM = length(mixSel) #number of mix-profiles
    nR = length(refSel) #number of ref-profiles
 
-   tabmodelA = glayout(spacing=0,container=(tabmodeltmp[1,1] <-gframe("Model specification",container=tabmodeltmp))) 
+   tabmodelA = glayout(spacing=5,container=(tabmodeltmp[1,1] <-gframe("Model specification",container=tabmodeltmp))) 
    tabmodelB = glayout(spacing=0,container=(tabmodeltmp[1,2] <-gframe("Data selection",container=tabmodeltmp))) 
    tabmodelC = glayout(spacing=0,container=(tabmodeltmp[2,1] <-gframe("Show selected data",container=tabmodeltmp)))  
-   tabmodelD = glayout(spacing=0,container=(tabmodeltmp[2,2] <-gframe("Calculations",container=tabmodeltmp)))  
+   tabmodelD = glayout(spacing=5,container=(tabmodeltmp[2,2] <-gframe("Calculations",container=tabmodeltmp)))  
 
    #Hypothesis selection: subframe of A
    txt <- "Contributor(s) under Hp:"
@@ -1054,8 +1056,8 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
     if(type!="DC") tabmodelA2 = glayout(spacing=0,container=(tabmodelA[2,1] <-gframe(txt,container=tabmodelA))) 
    } 
    tabmodelA3 = glayout(spacing=0,container=(tabmodelA[3,1] <-gframe("Contributor(s) under Hd:",container=tabmodelA)))
-   tabmodelA4a = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Continuous Parameters",container=tabmodelA))) 
-   if(type=="EVID") tabmodelA4b = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Qualitative Parameters",container=tabmodelA))) 
+   tabmodelA4a = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Continuous Model Parameters",container=tabmodelA))) 
+   if(type=="EVID") tabmodelA4b = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Qualitative Model Parameters",container=tabmodelA))) 
    tabmodelA5 = glayout(spacing=0,container=(tabmodelA[6,1] <-gframe("Advanced Parameters",container=tabmodelA))) 
 
    if(type=="DB") { #add database-names if included:
@@ -1301,18 +1303,18 @@ tabmodeltmp <- glayout(spacing=30,container=tabmodel)
      svalue(nb) <- 1 #go to data generation-window
     })
    } else {
-    tabmodelD[1,1] = gbutton(text="Maximum Likelihood Estimation",container=tabmodelD,handler=
+    tabmodelD[1,1] = gbutton(text="Continuous LR\n(Maximum Likelihood based)",container=tabmodelD,handler=
 	function(h,...) {
       storeSettings("CONT") #store settings
       refreshTabMLE(type) #refresh MLE fit tab (i.e. it fits the specified model)
       svalue(nb) <- 4 #go to mle-fit window (for all cases) when finished
     }) #end cont. calculation button
-    if(type%in%c("EVID","DB")) tabmodelD[2,1] = gbutton(text="Marginalized LR",container=tabmodelD,handler=
+    if(type%in%c("EVID","DB")) tabmodelD[2,1] = gbutton(text="Continuous LR \n(Integrated Likelihood based)",container=tabmodelD,handler=
 	function(h,...) {
       storeSettings("CONT") #store model-settings
       doINT(type) #Integrate either for EVID or DB search
     }) #end cont. calculation button
-    if(type=="EVID") tabmodelD[3,1] = gbutton(text="Qualitative LR",container=tabmodelD,handler=
+    if(type=="EVID") tabmodelD[3,1] = gbutton(text="Qualitative LR\n(semi-continuous)",container=tabmodelD,handler=
 	function(h,...) {
       storeSettings("QUAL") #store model-settings (use other input)
       refreshTabLRMIX() #refresh LRmix calculation tab (i.e. it fits the specified model)
@@ -1530,8 +1532,10 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
    if(is.null(resEVID)) {
     tkmessageBox(message="There is no Weight-of-Evidence results available!")
    } else {
-    tab <- c(resEVID$LRi,resEVID$LRmle,resEVID$LRlap)
-    tab <- cbind(c(names(resEVID$LRi),"JointMLE","JointLaplace"),tab,log10(tab))
+    #tab <- c(resEVID$LRi,resEVID$LRmle,resEVID$LRlap)
+    #tab <- cbind(c(names(resEVID$LRi),"JointMLE","JointLaplace"),tab,log10(tab))
+    tab <- c(resEVID$LRi,resEVID$LRmle)
+    tab <- cbind(c(names(resEVID$LRi),"JointMLE"),tab,log10(tab))
     colnames(tab) <- c("Marker","LR","log10LR")
     saveTable(tab, "txt") 
    }
@@ -1609,8 +1613,8 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      tabmleX2[1,2] =  glabel(text=signif(log10(exp(fit$loglik)),sig),container=tabmleX2)
      tabmleX2[2,1] =  glabel(text="Lik=",container=tabmleX2)
      tabmleX2[2,2] =  glabel(text=signif(exp(fit$loglik),sig),container=tabmleX2)
-     tabmleX2[3,1] =  glabel(text="Laplace P(E)=",container=tabmleX2)
-     tabmleX2[3,2] =  glabel(text=signif(exp(fit$logmargL),sig),container=tabmleX2)
+#     tabmleX2[3,1] =  glabel(text="Laplace P(E)=",container=tabmleX2)
+#     tabmleX2[3,2] =  glabel(text=signif(exp(fit$logmargL),sig),container=tabmleX2)
     }
 
     if(type=="START") { #loads already calculated results if program starts
@@ -1666,7 +1670,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     }
 
     #We show weight-of-evidence
-    tabmleD = glayout(spacing=0,container=(tabMLEtmp[2,1] <-gframe("Further evaluation",container=tabMLEtmp))) 
+    tabmleD = glayout(spacing=5,container=(tabMLEtmp[2,1] <-gframe("Further evaluation",container=tabMLEtmp))) 
     tabmleD[1,1] <- gbutton(text="Optimize model more",container=tabmleD,handler=function(h,...) { refreshTabMLE(type)  } )
     if(type=="EVID") {
      LRmle <- exp(mlefit_hp$fit$loglik - mlefit_hd$fit$loglik)
@@ -1695,12 +1699,12 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
       tabmleC3[i,1] =  glabel(text=names(LRi)[i],container=tabmleC3)
       tabmleC3[i,2] =  glabel(text=LRi[i],container=tabmleC3)
      }
-     tabmleC2 = glayout(spacing=0,container=(tabmleC[3,1] <-gframe("Laplace approximation based:",container=tabmleC))) 
-     tabmleC2[1,1] =  glabel(text="LR=",container=tabmleC2)
-     tabmleC2[1,2] =  glabel(text=LRlap,container=tabmleC2)
-     tabmleC2[2,1] =  glabel(text="log10LR=",container=tabmleC2)
-     tabmleC2[2,2] =  glabel(text=log10(LRlap),container=tabmleC2)
-     tabmleD[2,1] <- gbutton(text="Marginalized LR",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
+#     tabmleC2 = glayout(spacing=0,container=(tabmleC[3,1] <-gframe("Laplace approximation based:",container=tabmleC))) 
+#     tabmleC2[1,1] =  glabel(text="LR=",container=tabmleC2)
+#     tabmleC2[1,2] =  glabel(text=LRlap,container=tabmleC2)
+#     tabmleC2[2,1] =  glabel(text="log10LR=",container=tabmleC2)
+#     tabmleC2[2,2] =  glabel(text=log10(LRlap),container=tabmleC2)
+     tabmleD[2,1] <- gbutton(text="Continuous LR\n(Integrated Likelihood based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
     } #end if EVID or START
     if(type=="DB") tabmleD[2,1] <- gbutton(text="Database search",container=tabmleD,handler=function(h,...) { doDB("MLE")} )
     tabmleE = glayout(spacing=0,container=(tabMLEtmp[2,2] <-gframe("Save results to file",container=tabMLEtmp))) 
