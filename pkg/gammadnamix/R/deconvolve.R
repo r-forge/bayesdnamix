@@ -41,6 +41,7 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
   ret <- prepareC(nC=nC,samples,popFreq=model$popFreq[loc],refData=model$refData[loc],condOrder=model$condOrder,knownRef=model$knownRef)
   uind <- which(ret$condRef==-1) #unknown genotype indices
   nU <- length(uind) #number of unknowns
+  if(nU==0) stop("There was no unknown genotype profiles to estimate. The evaluation will not be done!")
   ret$nK <- nC  #number of known is equal number of contributors
   Gset <- matrix(ret$Gvec,ncol=2) #genotype possibilities
   Glist <- list()
@@ -49,7 +50,6 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
   }
   combGind <- expand.grid(Glist) #get all combinations
   combGind <- as.matrix(combGind,nrow=nrow(combGind))
-
   dvec <- rep(NA,nrow(combGind))
   #calculate for each genotypes:
   for(gind in 1:nrow(combGind)) { #for each possible genotypes:
@@ -62,6 +62,7 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
   dvec <- dvec[isOK]
   rank <- order(dvec,decreasing=TRUE)
   dlist[[loc]] <- dvec[rank] 
+
   if(is.null(dim(combGind))) { #threat the case of one unknown
    GClist[[loc]] <- as.matrix(combGind[rank]) 
   } else {

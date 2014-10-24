@@ -13,7 +13,7 @@
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/euroformix0")
 #rm(list=ls())
 #envirfile=NULL
-#source("euroformix.R");#euroformix()
+#source("euroformix.R");euroformix()
 
 euroformix = function(envirfile=NULL) {
 
@@ -31,7 +31,7 @@ euroformix = function(envirfile=NULL) {
  version = 1
 
  #software name:
- softname <- paste0("Euroformix v",version)
+ softname <- paste0("EuroFormix v",version)
 
 
  #####################
@@ -42,7 +42,7 @@ euroformix = function(envirfile=NULL) {
 
   #Toolbar options: can be changed any time by using toolbar
   assign("optFreq",list(freqsize=0),envir=mmTK) #options when new frequencies are found (size of imported database,minFreq)
-  assign("optMLE",list(nDone=3,delta=10),envir=mmTK) #options when optimizing (nDone,delta)
+  assign("optMLE",list(nDone=3,delta=10,dec=4),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
   assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=1000),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
@@ -493,7 +493,7 @@ euroformix = function(envirfile=NULL) {
   nC <- set$model$nC_hd #number of contributors
  
   #default values
-  if(is.null(thlist$mx)) thlist$mx <- round((nC:1)/sum(nC:1),3) #default value
+  if(is.null(thlist$mx)) thlist$mx <- format((nC:1)/sum(nC:1),3) #default value
 
 
   #user input:
@@ -615,6 +615,7 @@ euroformix = function(envirfile=NULL) {
       if(length(isHom)>0) subA[isHom,2] <- subA[isHom,1] #copy first allele
       okSind <- which(sn%in%subS) #samples to consider for particular marker
       if(length(okSind)==0) next #if no samples exists
+      print(paste0("Import data from locus: ",loc)) 
       newCol[okSind] <- 1 #init existing as 1. NA for missing allele-info
       doneEncode <- matrix(FALSE,ncol=2,nrow=length(okSind)) #matrix checking which we are finished with encoding a genotype
       Afreqs <- names(popFreq[[locind]]) #get allele-names. Update for each column
@@ -641,6 +642,7 @@ euroformix = function(envirfile=NULL) {
          newCol[okSind][okAind] <- newCol[okSind][okAind] * prim[ which(names(popFreq[[locind]])==newA[j]) ] #multiply with EXTENDED primenumber
         } #end for each allele j
        } #end if not encoded 
+       Afreqs <- names(popFreq[[locind]]) #get allele-names again!
       } #end for each column k
       dbDatalocs <- c(dbDatalocs,toupper(names(popFreq)[locind])) #all locus
       newData <- cbind(newData,newCol) #add column
@@ -742,7 +744,7 @@ euroformix = function(envirfile=NULL) {
      delta <- 0.03
      if(msel!=mixSel[1]) dev.new() #create new plot for next EPG
      barplot(cumprob,main="Random man probability having number of allele matches>=k",xlab="k number of allele matches",space=0,ylim=c(0,ymax+ymax*2*delta))
-     text(1:length(cumprob)-0.5,cumprob+ymax*delta,labels=signif(cumprob,2))
+     text(1:length(cumprob)-0.5,cumprob+ymax*delta,labels=format(cumprob,digits=2))
      mtext(paste0("Sample: ",msel))
     }
    } #end if popFreq
@@ -1000,7 +1002,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
 
 
   ##EVID INTEGRATION (can be done anywhere after model setup)##
-  doINT <- function(type,sig=4) { #Used either with EVID or DB
+  doINT <- function(type) { #Used either with EVID or DB
      #sig = number of decimals
      optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
      if(type=="EVID") {
@@ -1022,7 +1024,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
        res <- list(LR=LR,dev=dev)
        assign("resEVIDINT",res,envir=mmTK) #assign deconvolved result to environment
        #Print a GUI message:
-       gmessage(message=paste0("The LR was calculated as \n",round(LR,sig)," [",round(dev[1],sig)," , ",round(dev[2],sig),"]"),title="Continuous LR (Integrated Likelihood based)",icon="info")
+       gmessage(message=paste0("The LR (integrated Likelihood based)\nwas calculated as \n",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]"),title="Continuous LR (Integrated Likelihood based)",icon="info")
      } 
      if(type=="DB") { #Case of DB-search
        doDB("INT") #do database search with integration
@@ -1100,7 +1102,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    tabmodelA5[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA5,checked=TRUE,horisontal=TRUE) #checked only if not generating
    tabmodelA5[2,1] <- glabel(text="Detection threshold: ",container=tabmodelA5)
    tabmodelA5[2,2] <- gedit(text="150",container=tabmodelA5,width=4)
-   tabmodelA5[3,1] <- glabel(text="Stutter ratio: ",container=tabmodelA5)
+   tabmodelA5[3,1] <- glabel(text="Stutter ratio (xi): ",container=tabmodelA5)
    tabmodelA5[3,2] <- gedit(text="",container=tabmodelA5,width=4)
    tabmodelA5[4,1] <- glabel(text="Dropin peak height \n hyperparam (lambda):",container=tabmodelA5)
    tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=4)
@@ -1202,7 +1204,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
       if(xi=="") {
        xi <- NULL #assume unknown stutter ratio
       } else {
-       checkProb(xi,"Stutter ratio")
+       checkProb(xi,"Stutter ratio (xi)")
       }
 
       #prepare data for function in gammadnamix! Data-object must have correct format!
@@ -1535,7 +1537,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     #tab <- c(resEVID$LRi,resEVID$LRmle,resEVID$LRlap)
     #tab <- cbind(c(names(resEVID$LRi),"JointMLE","JointLaplace"),tab,log10(tab))
     tab <- c(resEVID$LRi,resEVID$LRmle)
-    tab <- cbind(c(names(resEVID$LRi),"JointMLE"),tab,log10(tab))
+    tab <- cbind(c(names(resEVID$LRi),"JointMLE"),format(tab,digits=4),format(log10(tab),digits=4))
     colnames(tab) <- c("Marker","LR","log10LR")
     saveTable(tab, "txt") 
    }
@@ -1544,21 +1546,21 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
   f_savetableALL = function(h,...) { #function for storing MLE estimates of fitted models
    set <- get(paste0("set",h$action),envir=mmTK) #get all setup-object 
 
-   printMLE <- function(mlefit,hyp,des=3,colps="-") {
-    mleCI <- mlefit$fit$thetaCI
-    LR <- exp(mlefit$fit$loglik)   
-    txt0 <- paste0("-------Maximum Likelihood Estimates under ",hyp,"---------------------\nConfidence Interval:\n")
-    txt1 <- paste0(c("param",colnames(mleCI)),collapse=colps)
-    for(i in 1:nrow(mleCI)) txt1 <- paste0(txt1,"\n",paste0( c(rownames(mleCI)[i],round(mleCI[i,],des)),collapse=colps) )
+   printMLE <- function(mlefit,hyp,sig=4,colps="-") {
+    mle <- cbind(mlefit$thetahat2,sqrt(diag(mlefit$thetaSigma2))) #standard deviation
+    log10LR <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
+    txt0 <- paste0("-------Estimates under ",hyp,"---------\n\n")
+    txt1 <- paste0(c("param","MLE","Std.Err."),collapse=colps)
+    for(i in 1:nrow(mle)) txt1 <- paste0(txt1,"\n",paste0( c(rownames(mle)[i],format(mle[i,],digits=sig)),collapse=colps) )
     txt2 <- "\n\n"
-    txt2 <- paste0(txt2, "log10Lik=",log10(LR))
-    txt2 <- paste0(txt2, "\nLik=",LR,"\n\n")
+    txt2 <- paste0(txt2, "log10Lik=",format(log10LR,digits=sig))
+    txt2 <- paste0(txt2, "\nLik=",format(10^log10LR,digits=sig),"\n\n")
     txt <- paste0(txt0,txt1,txt2)
     return(txt)
    }
    txt <- ""
-   if(!is.null(set$mlefit_hd)) txt <- paste0(txt,printMLE(set$mlefit_hd,"Hd"))
-   if(!is.null(set$mlefit_hp)) txt <- paste0(txt,printMLE(set$mlefit_hp,"Hp"))
+   if(!is.null(set$mlefit_hd)) txt <- paste0(txt,printMLE(set$mlefit_hd$fit,"Hd"))
+   if(!is.null(set$mlefit_hp)) txt <- paste0(txt,printMLE(set$mlefit_hp$fit,"Hp"))
    saveTable(txt, "txt") 
   } #end savetableALL
 
@@ -1588,12 +1590,11 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
 
   refreshTabMLE = function(type) { 
     #type={"EVID","DB","DC"}
-    #get method parameters from menu:
-    sig=4 #significance level of MLE print
-    alphaCI <- 0.05 #used in confidence interval:
-
+   
     #optimizing options
     opt<- get("optMLE",envir=mmTK) #options when optimizing (nDone,delta)
+    dec <- opt$dec #number of significant desimals to have in MLE print
+
     checkPositive(opt$delta,"Variance parameter of randomizer")
     checkPosInteger(opt$nDone,"Number of random startpoints")
 
@@ -1603,18 +1604,20 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     }
 
     #helpfunction used to show MLE fit 
-    tableMLE <- function(fit,tabmleX) {
-     tabmleX1 = glayout(spacing=0,container=(tabmleX[1,1] <-gframe("Confidence Interval of parameters:",container=tabmleX))) 
+    tableMLE <- function(mlefit,tabmleX) {
+     tabmleX1 = glayout(spacing=0,container=(tabmleX[1,1] <-gframe("Parameter estimates:",container=tabmleX))) 
      tabmleX2 = glayout(spacing=0,container=(tabmleX[2,1] <-gframe("Maximum Likelihood value",container=tabmleX))) 
-     tab <- addRownameTable(signif(fit$thetaCI,sig))
-     colnames(tab) <- c("param","qq2.5","mode","qq97.5")
-     tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=250,height=nrow(tab)*26)#,noRowsVisible=TRUE) #add to frame
+     mle <- cbind(mlefit$thetahat2,sqrt(diag(mlefit$thetaSigma2)))
+     log10LR <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
+     tab <- cbind(rownames(mle),format(mle,digits=dec))
+     colnames(tab) <- c("param","MLE","Std.Err.")
+     tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=200,height=nrow(tab)*26)#,noRowsVisible=TRUE) #add to frame
      tabmleX2[1,1] =  glabel(text="log10lik=",container=tabmleX2)
-     tabmleX2[1,2] =  glabel(text=signif(log10(exp(fit$loglik)),sig),container=tabmleX2)
+     tabmleX2[1,2] =  glabel(text=format(log10LR,digits=dec),container=tabmleX2)
      tabmleX2[2,1] =  glabel(text="Lik=",container=tabmleX2)
-     tabmleX2[2,2] =  glabel(text=signif(exp(fit$loglik),sig),container=tabmleX2)
+     tabmleX2[2,2] =  glabel(text=format(10^log10LR,digits=dec),container=tabmleX2)
 #     tabmleX2[3,1] =  glabel(text="Laplace P(E)=",container=tabmleX2)
-#     tabmleX2[3,2] =  glabel(text=signif(exp(fit$logmargL),sig),container=tabmleX2)
+#     tabmleX2[3,2] =  glabel(text=format(exp(fit$logmargL),digits=sig),container=tabmleX2)
     }
 
     if(type=="START") { #loads already calculated results if program starts
@@ -1632,12 +1635,12 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      par <- set$param     
 
      #fit under hd: (does it for all methods)
-     mlefit_hd <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hd,mod$knownRef_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,alpha=alphaCI,pXi=par$pXi)
+     mlefit_hd <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hd,mod$knownRef_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)
      if(!is.null(set$mlefit_hd) && set$mlefit_hd$fit$loglik>mlefit_hd$fit$loglik )  mlefit_hd <- set$mlefit_hd #the old model was better
 
      #fit under hp: (only for evidence)
      if(type=="EVID") {
-      mlefit_hp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hp,mod$knownRef_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,alpha=alphaCI,pXi=par$pXi)
+      mlefit_hp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hp,mod$knownRef_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)
       if(!is.null(set$mlefit_hp) && set$mlefit_hp$fit$loglik>mlefit_hp$fit$loglik )  mlefit_hp <- set$mlefit_hp #the old model was better
      } else {
       mlefit_hp <- NULL #not used otherwise
@@ -1653,7 +1656,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     }
 
     #GUI:
-    tabmleA = glayout(spacing=0,container=(tabMLEtmp[1,1] <- gframe("Maximum Likelihood Estimates under Hd",container=tabMLEtmp))) 
+    tabmleA = glayout(spacing=0,container=(tabMLEtmp[1,1] <- gframe("Estimates under Hd",container=tabMLEtmp))) 
     tableMLE(mlefit_hd$fit,tabmleA)
     tabmleA3 = glayout(spacing=0,container=(tabmleA[3,1] <-gframe("Further Action",container=tabmleA))) 
     tabmleA3[1,1] <- gbutton(text="MCMC simulation",container=tabmleA3,handler=function(h,...) { doMCMC(mlefit_hd) } )
@@ -1661,7 +1664,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { } )
 
     if(type=="EVID") { #used only for weight-of-evidence
-     tabmleB = glayout(spacing=0,container=(tabMLEtmp[1,2] <-gframe("Maximum Likelihood Estimates under Hp",container=tabMLEtmp))) 
+     tabmleB = glayout(spacing=0,container=(tabMLEtmp[1,2] <-gframe("Estimates under Hp",container=tabMLEtmp))) 
      tableMLE(mlefit_hp$fit,tabmleB)
      tabmleB3 = glayout(spacing=0,container=(tabmleB[3,1] <-gframe("Further Action",container=tabmleB))) 
      tabmleB3[1,1] <- gbutton(text="MCMC simulation",container=tabmleB3,handler=function(h,...) { doMCMC(mlefit_hp) } )
@@ -1673,7 +1676,9 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     tabmleD = glayout(spacing=5,container=(tabMLEtmp[2,1] <-gframe("Further evaluation",container=tabMLEtmp))) 
     tabmleD[1,1] <- gbutton(text="Optimize model more",container=tabmleD,handler=function(h,...) { refreshTabMLE(type)  } )
     if(type=="EVID") {
-     LRmle <- exp(mlefit_hp$fit$loglik - mlefit_hd$fit$loglik)
+     logLRmle <- mlefit_hp$fit$loglik - mlefit_hd$fit$loglik
+     log10LRmle <- logLRmle/log(10) 
+     LRmle <- exp(logLRmle)
      LRlap <- exp(mlefit_hp$fit$logmargL - mlefit_hd$fit$logmargL)
      LRi <- exp(logLiki(mlefit_hp)-logLiki(mlefit_hd))
      resEVID <- list(LRmle=LRmle,LRlap=LRlap,LRi=LRi) 
@@ -1688,16 +1693,16 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      }
     } #end if start
     if(type=="EVID" || type=="START") {
-     tabmleC = glayout(spacing=0,container=(tabMLEtmp[1,3] <-gframe("Weight-of-evidence",container=tabMLEtmp))) 
-     tabmleC1 = glayout(spacing=0,container=(tabmleC[1,1] <-gframe("Maximum likelihood based:",container=tabmleC))) 
+     tabmleC = glayout(spacing=0,container=(tabMLEtmp[1,3] <-gframe("Weight-of-evidence\n(MLE based)",container=tabMLEtmp))) 
+     tabmleC1 = glayout(spacing=0,container=(tabmleC[1,1] <-gframe("Joint LR",container=tabmleC))) 
      tabmleC1[1,1] =  glabel(text="LR=",container=tabmleC1)
-     tabmleC1[1,2] =  glabel(text=LRmle,container=tabmleC1)
+     tabmleC1[1,2] =  glabel(text=format(LRmle,digits=dec),container=tabmleC1)
      tabmleC1[2,1] =  glabel(text="log10LR=",container=tabmleC1)
-     tabmleC1[2,2] =  glabel(text=log10(LRmle),container=tabmleC1)
+     tabmleC1[2,2] =  glabel(text=format(log10LRmle,digits=dec),container=tabmleC1)
      tabmleC3 = glayout(spacing=0,container=(tabmleC[2,1] <-gframe("LR for each loci",container=tabmleC))) 
      for(i in 1:length(LRi)) {
       tabmleC3[i,1] =  glabel(text=names(LRi)[i],container=tabmleC3)
-      tabmleC3[i,2] =  glabel(text=LRi[i],container=tabmleC3)
+      tabmleC3[i,2] =  glabel(text=format(LRi[i],digits=dec),container=tabmleC3)
      }
 #     tabmleC2 = glayout(spacing=0,container=(tabmleC[3,1] <-gframe("Laplace approximation based:",container=tabmleC))) 
 #     tabmleC2[1,1] =  glabel(text="LR=",container=tabmleC2)
@@ -1820,7 +1825,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
  
   #helpfunction to make GUI-table with LR calculations
   tableLR = function(LRi) { 
-   sig <- 5 #number of signif to show
+   sig <- 4 #number of signif to show
    tabLRmixB1[1,1] = glabel(text="Locus",container=tabLRmixB1)
    tabLRmixB1[1,2] = glabel(text="LR",container=tabLRmixB1)
    tabLRmixB1[1,3] = glabel(text="log10LR",container=tabLRmixB1)
@@ -1828,15 +1833,15 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
    for(loc in locs) {
     i = which(loc==locs)
     tabLRmixB1[i+1,1] = glabel(text=loc,container=tabLRmixB1)
-    tabLRmixB1[i+1,2] = glabel(text=signif(LRi[i],sig),container=tabLRmixB1)
-    tabLRmixB1[i+1,3] = glabel(text=signif(log10(LRi[i]),sig),container=tabLRmixB1)
+    tabLRmixB1[i+1,2] = glabel(text=format(LRi[i],digits=sig),container=tabLRmixB1)
+    tabLRmixB1[i+1,3] = glabel(text=format(log10(LRi[i]),digits=sig),container=tabLRmixB1)
    }
 
    #show jointly:
    tabLRmixB2[1,1] = glabel(text="LR",container=tabLRmixB2)
    tabLRmixB2[2,1] = glabel(text="log10LR",container=tabLRmixB2)
-   tabLRmixB2[1,2] = glabel(text=prod(LRi),container=tabLRmixB2)
-   tabLRmixB2[2,2] = glabel(text=sum(log10(LRi)),container=tabLRmixB2)
+   tabLRmixB2[1,2] = glabel(text=format(prod(LRi),digits=sig),container=tabLRmixB2)
+   tabLRmixB2[2,2] = glabel(text=format(sum(log10(LRi),digits=sig)),container=tabLRmixB2)
   }
 
   #helpfunction for calculating LR for each given dropout pD (takes a numeric)
@@ -2008,15 +2013,21 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
         Glist[[loc]]$LR[j] <- hp0/hd0 #store LR
        }
      } #end for each locus
-     print("Simulating tippet plot...")
      ntippet <- get("optLRMIX",envir=mmTK)$ntippets #get number of tippets to simulate
+     print(paste0("Simulating ",ntippet," tippets..."))
      RMLR <- rep(0,ntippet) #vector of tippets
      for(loc in locs) {
       RMLR <- RMLR + sample(log10(Glist[[loc]]$LR),ntippet,replace=TRUE,prob=Glist[[loc]]$Gprob)
      }
      minmax = range(RMLR[!is.infinite(RMLR)])
+     xbar <- sum(10^RMLR)/ntippet #mean LR
+     print( paste0("Mean of samples = ", xbar ))
+     empvarLR <- (sum((10^(2*RMLR))) - ntippet*xbar^2)/(ntippet-1)  #emperical variance
+     varxbar <- empvarLR/ntippet
+     print( paste0("Standard Error of samples = ",sqrt(varxbar)) )
      quantiles<-quantile(RMLR,c(0.01,0.05,0.5,0.95,0.99))
      print(quantiles)
+     if(ntippet>5e6) stop("Number of tippets was above 5mill. This is too large to plot!")
      lr0 <- NULL #log10 LR
      LRi <- get("resEVIDLRMIX",envir=mmTK) #get EVID calculations when GUI starts
      if(!is.null(LRi))  lr0 <- sum(log10(LRi))
