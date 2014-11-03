@@ -8,7 +8,7 @@
 #' @return ret A list(popFreq,refData) with Q-assignated alleles. 
 #' @export
 
-Qassignate <- function(samples,popFreq,refData=NULL) {
+Qassignate <- function(samples,popFreq,refData=NULL,doQ=TRUE) {
  popFreq2 <- popFreq
  refData2 <- refData
  locs <- names(popFreq)
@@ -25,19 +25,24 @@ Qassignate <- function(samples,popFreq,refData=NULL) {
   }
   popFreq[[loc]] <- popFreq[[loc]]/sum(popFreq[[loc]]) #normalize
 
-  tmp <- popFreq[[loc]][names(popFreq[[loc]])%in%evid] #find observed alleles
-  if(length(tmp)<length(popFreq[[loc]])) { 
-   tmp <- c(tmp,1-sum(tmp))
-   names(tmp)[length(tmp)] <- "99"
-  }
-  popFreq2[[loc]] <- tmp
-  if(!is.null(refData)) { #insert 99 as default allele of missing refs
-   newP <- names(popFreq2[[loc]]) 
-   if(!all(unlist(refData[[loc]])%in%newP)) { #there was some missing alleles
-    for(k in 1:length(refData[[loc]])) {
-     refData2[[loc]][[k]][!refData[[loc]][[k]]%in%newP] <- "99" #insert missing
+  if(doQ) {#if Q-assignate
+   tmp <- popFreq[[loc]][names(popFreq[[loc]])%in%evid] #find observed alleles
+   if(length(tmp)<length(popFreq[[loc]])) { 
+    tmp <- c(tmp,1-sum(tmp))
+    names(tmp)[length(tmp)] <- "99"
+   }
+   popFreq2[[loc]] <- tmp
+   if(!is.null(refData)) { #insert 99 as default allele of missing refs
+    newP <- names(popFreq2[[loc]]) 
+    if(!all(unlist(refData[[loc]])%in%newP)) { #there was some missing alleles
+     for(k in 1:length(refData[[loc]])) {
+      refData2[[loc]][[k]][!refData[[loc]][[k]]%in%newP] <- "99" #insert missing
+     }
     }
    }
+  } else { #if don't Q-assignate
+   popFreq2 <- popFreq
+   refData2 <- refData
   }
  }
  return(list(popFreq=popFreq2,refData=refData2))

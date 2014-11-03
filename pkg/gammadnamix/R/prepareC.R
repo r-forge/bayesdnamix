@@ -63,6 +63,7 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
    }
   }
  }
+
  #fix known sample-information:
  mkvec <- numeric() #number of times each alleles are sampled
  nkval <- numeric() #total number of sampled alleles in each marker
@@ -105,17 +106,21 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
    for(s in 1:nS) { #for each sample
     obsA <- samples[[s]][[loc]]$adata  #observed alllees
     if(length(obsA)>0) { #if atleast 1 observed
-     for(j in 1:length(obsA)) samples[[s]][[loc]]$adata[j] <- anames2[anames==obsA[j]] #update allele-name
+     for(j in 1:length(obsA)) {
+      if(!any(anames==obsA[j])) stop(paste0("For locus ",loc,": Please add allele ",obsA[j]," to the population frequncy table"))
+      samples[[s]][[loc]]$adata[j] <- anames2[anames==obsA[j]] #update allele-name
+     }
     } #dont do anything if non-observed!
    } #end for each samples
  } #end for each marker
  #fix genotypes:
 
  #Encode allel-names in Gset: NB: BE CAREFUL!
+ Gset2 <- Gset #keep an old version!
  for(loc in locs) { #for each marker
   oldnames<-names(popFreq[[loc]])
   newnames<-names(popFreq2[[loc]])
-  for(old in oldnames) Gset[[loc]][old==Gset[[loc]]] <- newnames[which(old==oldnames)] #change values
+  for(old in oldnames) Gset[[loc]][old==Gset2[[loc]]] <- newnames[which(old==oldnames)] #change values
  }
 
  #take into account for replicates here!

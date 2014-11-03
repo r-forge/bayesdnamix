@@ -25,6 +25,6 @@ validMCMC <- function(mcmcfit,trace=TRUE,acf=TRUE) {
   if(trace) plot(mcmcfit$posttheta[,i],ty="l",ylab="",xlab="")
   if(acf) acf(mcmcfit$posttheta[,i],lag.max=200,ylab="",xlab="")
  }
- par(mfrow=c(1,1)) 
+ par(mfrow=c(1,1))
 }
 

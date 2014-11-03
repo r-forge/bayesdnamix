@@ -21,13 +21,12 @@
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
-#' @param alpha Significant level used for confidence interval for parameter estimation. Default is 0.05.
 #' @param delta Standard deviation of normal distribution when drawing random startpoints. Default is 10.
 #' @return ret A list(fit,model,nDone,delta) where fit is Maximixed likelihood elements for given model.
 #' @export
 #' @references Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
 #' @keywords continuous model, Maximum Likelihood Estimation
-contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10,alpha=0.05){
+contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10){
  ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef)
 
  if(is.null(xi)) {
@@ -53,7 +52,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   while(nOK<nDone) {
     p0 <- rnorm(np,sd=delta) #generate random start value on Real
     likval <- negloglikYphi(p0)  
-	if(is.infinite(likval)) { #if it was infinite
+    if(is.infinite(likval)) { #if it was infinite
 	 nITER <- nITER + 1	 
     } else {
      tryCatch( {
@@ -73,7 +72,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
 	   }
      },error=function(e) e) #end trycatch 
     }
-	if(nOK==0 && nITER>maxITER) {
+    if(nOK==0 && nITER>maxITER) {
      nOK <- nDone #finish loop
      maxL <- -Inf #maximized likelihood
      maxPhi <- rep(NA,np) #Set as NA
@@ -144,9 +143,8 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  } else {
   Sigma2[1,1:(np+1)] <- Sigma2[1:(np+1),1] <- 0 #no uncertainty
  }
- #CI for theta:
- thetaSD <- sqrt(diag(Sigma2))
- thetaCI <- thetahat2 + cbind(qnorm(alpha/2)*thetaSD,0,qnorm(1-alpha/2)*thetaSD)
+ #Standard error for theta:
+ thetaSE <- sqrt(diag(Sigma2))
 
  phinames <- c("log(mu)","log(sigma)")
  thetanames <- c("mu","sigma")
@@ -160,14 +158,13 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   thetanames <- c(thetanames,"xi") 
   thetanames2 <- c(thetanames2,"xi") 
  } 
- colnames(thetaCI) <- c(paste0(alpha/2*100,"%"),"MLE",paste0((1-alpha/2)*100,"%"))
- rownames(thetaCI) <- thetanames2
  colnames(maxSigma) <- rownames(maxSigma) <- phinames 
  colnames(Sigma) <- rownames(Sigma) <- thetanames
  colnames(Sigma2) <- rownames(Sigma2) <- thetanames2
  names(maxPhi) <- phinames
  names(thetahat) <- thetanames
  names(thetahat2) <- thetanames2
+ names(thetaSE) <- thetanames2
 
  #laplace approx:
  logmargL <- 0.5*(np*log(2*pi)+determinant(Sigma)$mod[1]) + maxL #get log-marginalized likelihood
@@ -175,7 +172,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  if(nU>1) { #if more than 1 unknown 
   logmargL <- log(factorial(nU)) + logmargL #get correct ML adjusting for symmetry
  }
- fit <- list(phihat=maxPhi,thetahat=thetahat,thetahat2=thetahat2,phiSigma=maxSigma,thetaSigma=Sigma,thetaSigma2=Sigma2,loglik=maxL,thetaCI=thetaCI,logmargL=logmargL)
+ fit <- list(phihat=maxPhi,thetahat=thetahat,thetahat2=thetahat2,phiSigma=maxSigma,thetaSigma=Sigma,thetaSigma2=Sigma2,loglik=maxL,thetaSE=thetaSE,logmargL=logmargL)
  #store model:
  model <- list(nC=nC,samples=samples,popFreq=popFreq,refData=refData,condOrder=condOrder,knownRef=knownRef,xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi)
  ret <- list(fit=fit,model=model,nDone=nDone,delta=delta)

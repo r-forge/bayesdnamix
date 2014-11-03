@@ -57,8 +57,6 @@ class recurseClassStutterRep { //recurse-class for each loci
   Mat<int> *Xij; //(N x C) - matrix. Taking out columns to use for restriction
   Col<int> *Zi; //N-vector. used as colsum of Xij
   Row<int> condVec; //Define row in condmatrix
-  Mat<int> XijSub; //(tilde(N) x C) - matrix. Subset of X for non-dropout: X[E,]
-  Mat<int> Xijtmp; //used for stutter
 
   //parameters
   double rho;  //1. parameter part of theta
@@ -77,7 +75,7 @@ class recurseClassStutterRep { //recurse-class for each loci
   double pDprod; //dropout/in/nondrop probability product
   double pAprod; //allele probability product (used for dropin)
   double bigsum; //summed marginal
-  Col<uword> psiR; //row-indice of Y,X in calculation: contributing alleles (finds where Z>0)
+  Col<uword> psiRind; //row-indice of Y,X in calculation: contributing alleles (finds where Z>0)
   Col<uword> psiDO; //row-indice of Y,X in calculation: dropped-out alleles (finds where Y=0 AND Z>0)
   Col<uword> psiDI; //row-indice of Y,X in calculation: dropped-in alleles (finds where Y>0 AND mu=0)
   Col<uword> psiYmu; //row-indice of Y,X in calculation: non-dropped out alleles (finds where Y>0 AND mu>0)
@@ -130,27 +128,19 @@ class recurseClassStutterRep { //recurse-class for each loci
     }
 
     if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
-     if(xi>0) { //incorporate stutter ratio
-      psiR = find(*Zi>0); //Indices for contributing alleles. checks those non-zero
-      psitmp = Abpind->elem(psiR); //gives index (starts from 1) of stuttered-alleles from contributing alleles.
-      psiSind = find(psitmp>0); //indices to those beeing possible stuttered
+	 mui = rho*((*Xij)*(*mvec)); //this is now alpha-parameter in gamma. Note the multiplication with a scalar.
+ 	 if(xi>0) { //incorporate stutter ratio
+ //     psiRind = find( ((*Zi>0) + (*Yi>0))==2 ); //Indices for contributing alleles WHICH HAS peak height
+      psiRind = find( *Zi>0 ); //Indices for contributing alleles WHICH HAS peak height
+      psitmp = Abpind->elem(psiRind); //gives index (starts from 1) of stuttered-alleles from contributing alleles.
+      psiSind = find(psitmp>0); //indices to those beeing possible stuttered 
       if(psiSind.n_elem>0) {
        psiS = psitmp.elem(psiSind)-1; //find indices of stuttered alleles. Adjust index (starting from 0)
-       psiRtoS = psiR.elem(psiSind); //find indices of corresponding stuttering alleles
-
+       psiRtoS = psiRind.elem(psiSind); //find indices of corresponding stuttering alleles
        //fix stutter-contributor-X:
-       Xijtmp = *Xij;
-       Xijtmp.zeros();
-       Xijtmp.rows(psiS) = Xij->rows(psiRtoS); //insert relevant stutter-contributors
-       mui = ( (1-xi)*((*Xij)*(*mvec)) + xi*(Xijtmp*(*mvec))  ); //mean peak height of model (contributed means only)
-      } else { //if none in stutter-position
-       mui = ( (1-xi)*((*Xij)*(*mvec)) ); //mean peak height of model (contributed means only)
-      }
-     } else { //no stutter ratio
-      mui = ( (*Xij)*(*mvec) ); //mean peak height of model
-     }
-     mui = mui*rho; //this is now alpha-parameter in gamma (not expected peak height)!
-
+	   mui.elem(psiS) = (1-xi)*mui.elem(psiS) + xi*mui.elem(psiRtoS); //stutter-scaling only relevant for some allele
+  	  } //end if any stuttered alleles
+     } 
      
      pDprod = 1; //init dropin probability
      lik = 0; //init lik (true peaks+dropout)
@@ -232,8 +222,6 @@ class recurseClassStutterRep { //recurse-class for each loci
    tau = theta2[0];
    rho = theta2[1];
    xi = theta2[2];
-//   rho = th[0];  //get value of model parameter (distr-param)
-//   tau = th[1];  //get value of model parameter (distr-param)
    konstant = log(tau);
    konstant2 = 1/tau;
    ds  = new Col<uword>(1); //used when accessing columns in matrix (dummy variable)
@@ -320,8 +308,6 @@ class recurseClassStutter { //recurse-class for each loci
   Mat<int> *Xij; //(N x C) - matrix. Taking out columns to use for restriction
   Col<int> *Zi; //N-vector. used as colsum of Xij
   Row<int> condVec; //Define row in condmatrix
-  Mat<int> XijSub; //(tilde(N) x C) - matrix. Subset of X for non-dropout: X[E,]
-  Mat<int> Xijtmp; //used for stutter
   Col<double> Ytmp; //temporary used
 
   //parameters
@@ -340,15 +326,18 @@ class recurseClassStutter { //recurse-class for each loci
   double pGprod; //genotype probability product
   double pDprod; //dropout/in/nondrop probability product
   double pAprod; //allele probability product (used for dropin)
-  double bigsum; //summed marginal
-  Col<uword> psiR; //row-indice of Y,X in calculation: contributing alleles (finds where Z>0)
+  double bigsum; //summed marginal 
+  Col<uword> psiRind; //row-indice of Y,X in calculation: contributing alleles (finds where Z>0)
   Col<uword> psiDO; //row-indice of Y,X in calculation: dropped-out alleles (finds where Y=0 AND Z>0)
   Col<uword> psiDI; //row-indice of Y,X in calculation: dropped-in alleles (finds where Y>0 AND mu=0)
   Col<uword> psiYmu; //row-indice of Y,X in calculation: non-dropped out alleles (finds where Y>0 AND mu>0)
-  Col<uword> psiBP; //indices relevant to stutter (bp>0)
-  Col<uword> psiRtoS; //row-indice of Y,X in calculation: indices beeing Stutter to
-  Col<uword> psiRfromS; //row-indice of Y,X in calculation: indices beeing Stutter from
+  Col<uword> psiSind; //indices relevant to stutter (bp>0)
+  Col<uword> psiS; //row-indice of Y,X in calculation: indices of allele beeing stuttered
+  Col<uword> psiRtoS; //row-indice of Y,X in calculation: indices of allele stuttering from
   Col<uword> psitmp; //temporary variable
+
+ 
+ 
  
   void recUpdateXM1(int k) { 
    int j,l; //used to traverse genotype probabilites
@@ -380,32 +369,27 @@ class recurseClassStutter { //recurse-class for each loci
       pGprod *= (pGvec->at(j));   //If unknown: multiply with unknown genotype product
      }
     }
-    if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
-     pDprod = 1;
-     if(xi>0) { //incorporate stutter ratio
-      psiR = find(*Zi>0); //Indices for contributing alleles. checks those non-zero
-      psitmp = Abpind->elem(psiR); //take out bp of contributing alleles.
-      psiBP = find(psitmp>0); //indices relevant to stutter
-      if(psiBP.n_elem>0) {
-       psiRtoS = psitmp.elem(psiBP)-1; //find indices which may be stuttered to. Adjust index (starting from 0)
-       psiRfromS = psiR.elem(psiBP); //find indices which may be stuttered from
+
+	if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
+	 mui = rho*((*Xij)*(*mvec)); //mean peak height of model (contributed means only). Note the multiplication with a scalar.
+ 	 if(xi>0) { //incorporate stutter ratio
+      psiRind = find( ((*Zi>0) + (*Yi>0))==2 ); //Indices for contributing alleles WHICH HAS peak height
+      //psiRind = find( *Zi>0 ); //Indices for contributing alleles WHICH HAS peak height
+      psitmp = Abpind->elem(psiRind); //gives index (starts from 1) of stuttered-alleles from contributing alleles.
+      psiSind = find(psitmp>0); //indices to those beeing possible stuttered 
+      if(psiSind.n_elem>0) {
+       psiS = psitmp.elem(psiSind)-1; //find indices of stuttered alleles. Adjust index (starting from 0)
+       psiRtoS = psiRind.elem(psiSind); //find indices of corresponding stuttering alleles
        //fix stutter-contributor-X:
-       Xijtmp = *Xij;
-       Xijtmp.zeros();
-       Xijtmp.rows(psiRtoS) = Xij->rows(psiRfromS); //insert relevant stutter-contributors
-       mui = ( (1-xi)*((*Xij)*(*mvec)) + xi*(Xijtmp*(*mvec))  ); //mean peak height of model (contributed means only)
-      } else { //if none in stutter-position
-       mui = ( (1-xi)*((*Xij)*(*mvec)) ); //mean peak height of model (contributed means only)
-      }
-     } else { //no stutter ratio
-      mui = ( (*Xij)*(*mvec) ); //mean peak height of model
-     }
-     mui = mui*rho; //this is now alpha-parameter!
+	   mui.elem(psiS) = (1-xi)*mui.elem(psiS) + xi*mui.elem(psiRtoS); //stutter-scaling only relevant for some allele
+  	  } //end if any stuttered alleles
+     } 
      psiYmu = find( ((*Yi>0) + (mui>0))==2 ); //Indices for modelled alleles
      psiDO = find( ((*Yi==0) + (mui>0))==2 ); //Indices for dropped out alleles
      psiDI = find( ((*Yi>0) + (mui==0))==2 ); //Indices for dropped in alleles
 
      //calculate dropin:
+	 pDprod = 1;	 //dropin probability
      if(*prC>0) { //only if drop-in probability is >0. 
       if(psiDI.n_elem>0) {        
        pDprod = prod( (*prC)*(pAvec->elem(psiDI))) ; //multiply with allele probability
@@ -415,9 +399,9 @@ class recurseClassStutter { //recurse-class for each loci
       } else { //if no dropin found
        pDprod = (1-*prC); //scale with probability of not dropping in
       }
-     } //end if drop-in probability given
+     }
      if(*prC>0 || psiDI.n_elem==0) { //if possible for dropin or no drop-in given
-      //Step 2) calculating log-likelihood of models
+	 //Step 2) calculating log-likelihood of models
       lik = 0; //summarize log-likelihood
        Ytmp = Yi->elem(psiYmu); //take out relevant peak heights
        mutmp = mui.elem(psiYmu); //this is alpha-parameter!
@@ -468,12 +452,9 @@ class recurseClassStutter { //recurse-class for each loci
    t0 = t0in;//copy pointer to threshold
    lambda = lam; //copy pointer to parameter of exponential drop-in model
 //reparameterization: (mu,sd) -> (rho,tau) notice the switched placement
-   //transformation to R
    tau = theta2[0];
    rho = theta2[1];
    xi = theta2[2];
-//   rho = th[0];  //get value of model parameter (distr-param)
-//   tau = th[1];  //get value of model parameter (distr-param)
    konstant = log(tau);
    konstant2 = 1/tau;
 
