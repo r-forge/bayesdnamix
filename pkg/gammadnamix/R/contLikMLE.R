@@ -58,7 +58,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
      tryCatch( {
        foo <- nlm(f=negloglikYphi, p=p0,hessian=TRUE)
        Sigma <- solve(foo$hessian)
-       if(any(diag(Sigma)>0) && foo$code==1 && foo$iterations>2) { #REQUIREMENT FOR BEING ACCEPTED
+       if(any(diag(Sigma)>0) && foo$code%in%c(1,2) && foo$iterations>2) { #REQUIREMENT FOR BEING ACCEPTED
     	nITER <- 0 #reset INF if accepted
         likval <- -foo$min
         nOK=nOK+1 #it was accepted as an optimum

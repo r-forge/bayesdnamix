@@ -36,7 +36,7 @@ contLikMCMC = function(mlefit,niter=1e4,delta=2) {
    }
  } else {  
    loglikYphi <- function(phi2) {   #call c++- function: length(phi)=nC
-    phi <- c(phi2,xi) #stutter-parameter added as known
+    phi <- c(phi2,model$xi) #stutter-parameter added as known
     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(phi),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
     return(Cval)
    }

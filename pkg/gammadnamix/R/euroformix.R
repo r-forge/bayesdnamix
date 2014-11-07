@@ -13,7 +13,7 @@
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/euroformix0")
 #rm(list=ls())
 #envirfile=NULL
-#source("euroformix.R");euroformix()
+#source("euroformix.R");#euroformix()
 
 euroformix = function(envirfile=NULL) {
 
@@ -33,6 +33,9 @@ euroformix = function(envirfile=NULL) {
  #software name:
  softname <- paste0("EuroFormix v",version)
 
+ #NUMBER OF MAX LOCI TO VISUALIZE:
+ maxloc <- 30 #REQUIRE LESS THAN 30 loci to be able to select!
+
 
  #####################
  #create environment #
@@ -44,7 +47,7 @@ euroformix = function(envirfile=NULL) {
   assign("optFreq",list(freqsize=0),envir=mmTK) #options when new frequencies are found (size of imported database,minFreq)
   assign("optMLE",list(nDone=3,delta=10,dec=4),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
-  assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=1000),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05),envir=mmTK) #options when doing LRmix
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05,ntippets=1e6),envir=mmTK) #options when doing database search (maxDB)
@@ -361,6 +364,9 @@ euroformix = function(envirfile=NULL) {
     }),
    'Set maximum of sigma-parameter'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="maxsigma",txt="Set upper boundary of mu parameter:") 
+    }),
+   'Set maximum of stutter-ratio'=list(handler=function(h,...) {  
+      setValueUser(what1="optINT",what2="maxxi",txt="Set upper boundary of xi parameter:") 
     })
   ),
   Deconvolution=list(
@@ -493,7 +499,7 @@ euroformix = function(envirfile=NULL) {
   nC <- set$model$nC_hd #number of contributors
  
   #default values
-  if(is.null(thlist$mx)) thlist$mx <- format((nC:1)/sum(nC:1),3) #default value
+  if(is.null(thlist$mx)) thlist$mx <- round((nC:1)/sum(nC:1),3) #default value
 
 
   #user input:
@@ -993,6 +999,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
     upper <- rep(1,nC+2)
     upper[nC] <- optint$maxmu
     upper[nC+1] <- optint$maxsigma
+    upper[nC+2] <- optint$maxxi
     if(!is.null(xi)) { #must remove stutter ratio if known
      lower <- lower[-nC+2]
      upper <- lower[-nC+2]
@@ -1107,9 +1114,9 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    tabmodelA5[4,1] <- glabel(text="Dropin peak height \n hyperparam (lambda):",container=tabmodelA5)
    tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=4)
 
-   tabmodelA5[5,1] <- glabel(text="Stutter prior function p(x): ",container=tabmodelA5)
-   tabmodelA5[6,1] <- gedit(text="1",container=tabmodelA5,width=20)
-   enabled(tabmodelA5[6,1]) <- FALSE #NOT IMPLEMENTED
+   #tabmodelA5[5,1] <- glabel(text="Stutter prior function p(x): ",container=tabmodelA5)
+   #tabmodelA5[6,1] <- gedit(text="1",container=tabmodelA5,width=20)
+   #enabled(tabmodelA5[6,1]) <- FALSE #NOT IMPLEMENTED
 
    if(type=="GEN") { #deactivate options for generation:
     enabled(tabmodelA4a[2,2]) <- FALSE #deactivate fst-correction
@@ -1117,24 +1124,26 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    }
 
    #Data selection
-   tabmodelB[1,1] <- glabel(text="Loci:",container=tabmodelB)
-   for(loc in locs) { #insert locus names from popFreq
-    tabmodelB[1+which(loc==locs),1] <- loc  #insert loc-name
-   }
-   for(msel in mixSel) { #for each selected mixture
-    tabmodelB[1,1 + which(msel==mixSel)] <- glabel(text=msel,container=tabmodelB) #get selected mixturenames
-    for(loc in locs) { #for each locus
-     exist <- !is.null(mixD[[msel]][[loc]]$adata) ##&& !is.null(mixD[[msel]][[loc]]$hdata) #check if exist alleles!
-     tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)]  <- gcheckbox(text="",container=tabmodelB,checked=exist)
-     if(!exist) enabled(tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)]) <- FALSE #deactivate non-existing locus
+   if(length(locs)<=maxloc) { 
+    tabmodelB[1,1] <- glabel(text="Loci:",container=tabmodelB)
+    for(loc in locs) { #insert locus names from popFreq
+     tabmodelB[1+which(loc==locs),1] <- loc  #insert loc-name
     }
-   }  
-   for(rsel in refSel) { #for each selected reference
-    tabmodelB[1,1 + nM + which(rsel==refSel)] <- glabel(text=rsel,container=tabmodelB) #name of reference
-    for(loc in locs) { #for each locus
-     exist <- !is.null(refD[[rsel]][[loc]]$adata) #check if allele exists
-     tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]  <- gcheckbox(text="",container=tabmodelB,checked=exist)
-     if(!exist) enabled(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) <- FALSE #deactivate non-existing locus
+    for(msel in mixSel) { #for each selected mixture
+     tabmodelB[1,1 + which(msel==mixSel)] <- glabel(text=msel,container=tabmodelB) #get selected mixturenames
+     for(loc in locs) { #for each locus
+      exist <- !is.null(mixD[[msel]][[loc]]$adata) ##&& !is.null(mixD[[msel]][[loc]]$hdata) #check if exist alleles!
+      tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)]  <- gcheckbox(text="",container=tabmodelB,checked=exist)
+      if(!exist) enabled(tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)]) <- FALSE #deactivate non-existing locus
+     }
+    }  
+    for(rsel in refSel) { #for each selected reference
+     tabmodelB[1,1 + nM + which(rsel==refSel)] <- glabel(text=rsel,container=tabmodelB) #name of reference
+     for(loc in locs) { #for each locus
+      exist <- !is.null(refD[[rsel]][[loc]]$adata) #check if allele exists
+      tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]  <- gcheckbox(text="",container=tabmodelB,checked=exist)
+      if(!exist) enabled(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) <- FALSE #deactivate non-existing locus
+     }
     }
    }
 
@@ -1142,11 +1151,15 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    storeSettings <- function(lrtype="PLOT") {
      #lrtype={"CONT"},{"QUAL"},{"PLOT"}
       sellocs <- numeric() #Selected loci (which all mixtures, references has)
-      for(loc in locs) { #for each locus in popFreq
-       isOK <- TRUE
-       for(msel in mixSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)])  #check if locus checked for samples
-       for(rsel in refSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) #check if locus checked for references
-       if(isOK) sellocs <- c(sellocs,loc) #locus can be evaluated
+      if(length(locs)<=maxloc) { 
+       for(loc in locs) { #for each locus in popFreq
+        isOK <- TRUE
+        for(msel in mixSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + which(msel==mixSel)])  #check if locus checked for samples
+        for(rsel in refSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) #check if locus checked for references
+        if(isOK) sellocs <- c(sellocs,loc) #locus can be evaluated
+       }
+      } else {
+        sellocs <- locs #use all locs what-so-ever if more than 30 loci
       }
       if(length(sellocs)==0) { #don't do anything if no loci will be evaluated
        gmessage(message="No loci are evaluated! Be sure that all selected data have valid data in their loci.",title="No loci found!",icon="error")
@@ -1700,15 +1713,12 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      tabmleC1[2,1] =  glabel(text="log10LR=",container=tabmleC1)
      tabmleC1[2,2] =  glabel(text=format(log10LRmle,digits=dec),container=tabmleC1)
      tabmleC3 = glayout(spacing=0,container=(tabmleC[2,1] <-gframe("LR for each loci",container=tabmleC))) 
-     for(i in 1:length(LRi)) {
-      tabmleC3[i,1] =  glabel(text=names(LRi)[i],container=tabmleC3)
-      tabmleC3[i,2] =  glabel(text=format(LRi[i],digits=dec),container=tabmleC3)
+     if(length(LRi)<=maxloc) { #show all LR per loci only if less than maxloc
+      for(i in 1:length(LRi)) {
+       tabmleC3[i,1] =  glabel(text=names(LRi)[i],container=tabmleC3)
+       tabmleC3[i,2] =  glabel(text=format(LRi[i],digits=dec),container=tabmleC3)
+      }
      }
-#     tabmleC2 = glayout(spacing=0,container=(tabmleC[3,1] <-gframe("Laplace approximation based:",container=tabmleC))) 
-#     tabmleC2[1,1] =  glabel(text="LR=",container=tabmleC2)
-#     tabmleC2[1,2] =  glabel(text=LRlap,container=tabmleC2)
-#     tabmleC2[2,1] =  glabel(text="log10LR=",container=tabmleC2)
-#     tabmleC2[2,2] =  glabel(text=log10(LRlap),container=tabmleC2)
      tabmleD[2,1] <- gbutton(text="Continuous LR\n(Integrated Likelihood based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
     } #end if EVID or START
     if(type=="DB") tabmleD[2,1] <- gbutton(text="Database search",container=tabmleD,handler=function(h,...) { doDB("MLE")} )

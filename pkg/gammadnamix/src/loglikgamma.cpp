@@ -130,6 +130,7 @@ class recurseClassStutterRep { //recurse-class for each loci
     if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
 	 mui = rho*((*Xij)*(*mvec)); //this is now alpha-parameter in gamma. Note the multiplication with a scalar.
  	 if(xi>0) { //incorporate stutter ratio
+      mutmp = mui;
  //     psiRind = find( ((*Zi>0) + (*Yi>0))==2 ); //Indices for contributing alleles WHICH HAS peak height
       psiRind = find( *Zi>0 ); //Indices for contributing alleles WHICH HAS peak height
       psitmp = Abpind->elem(psiRind); //gives index (starts from 1) of stuttered-alleles from contributing alleles.
@@ -137,8 +138,8 @@ class recurseClassStutterRep { //recurse-class for each loci
       if(psiSind.n_elem>0) {
        psiS = psitmp.elem(psiSind)-1; //find indices of stuttered alleles. Adjust index (starting from 0)
        psiRtoS = psiRind.elem(psiSind); //find indices of corresponding stuttering alleles
-       //fix stutter-contributor-X:
-	   mui.elem(psiS) = (1-xi)*mui.elem(psiS) + xi*mui.elem(psiRtoS); //stutter-scaling only relevant for some allele
+        mui.elem(psiRtoS) = (1-xi)*mui.elem(psiRtoS); //stutter-scaling only relevant for some allele
+  	    mui.elem(psiS) = mui.elem(psiS) + xi*mutmp.elem(psiRtoS); //add proportion to stuttered alleles
   	  } //end if any stuttered alleles
      } 
      
@@ -373,16 +374,17 @@ class recurseClassStutter { //recurse-class for each loci
 	if(k==(*nC-1)) { //IF IN LAST CONTRIBUTOR
 	 mui = rho*((*Xij)*(*mvec)); //mean peak height of model (contributed means only). Note the multiplication with a scalar.
  	 if(xi>0) { //incorporate stutter ratio
-      psiRind = find( ((*Zi>0) + (*Yi>0))==2 ); //Indices for contributing alleles WHICH HAS peak height
-      //psiRind = find( *Zi>0 ); //Indices for contributing alleles WHICH HAS peak height
+      mutmp = mui;
+      //psiRind = find( ((*Zi>0) + (*Yi>0))==2 ); //Indices for contributing alleles WHICH HAS peak height
+      psiRind = find( *Zi>0 ); //Indices for contributing alleles WHICH HAS peak height
       psitmp = Abpind->elem(psiRind); //gives index (starts from 1) of stuttered-alleles from contributing alleles.
       psiSind = find(psitmp>0); //indices to those beeing possible stuttered 
       if(psiSind.n_elem>0) {
        psiS = psitmp.elem(psiSind)-1; //find indices of stuttered alleles. Adjust index (starting from 0)
        psiRtoS = psiRind.elem(psiSind); //find indices of corresponding stuttering alleles
-       //fix stutter-contributor-X:
-	   mui.elem(psiS) = (1-xi)*mui.elem(psiS) + xi*mui.elem(psiRtoS); //stutter-scaling only relevant for some allele
-  	  } //end if any stuttered alleles
+        mui.elem(psiRtoS) = (1-xi)*mui.elem(psiRtoS); //stutter-scaling only relevant for some allele
+  	    mui.elem(psiS) = mui.elem(psiS) + xi*mutmp.elem(psiRtoS); //add proportion to stuttered alleles
+		} //end if any stuttered alleles
      } 
      psiYmu = find( ((*Yi>0) + (mui>0))==2 ); //Indices for modelled alleles
      psiDO = find( ((*Yi==0) + (mui>0))==2 ); //Indices for dropped out alleles

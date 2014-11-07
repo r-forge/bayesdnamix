@@ -47,7 +47,6 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
    mixData <- list()
    nDropout <- nDropin <- nStutter <- rep(NA,nL) #counts dropout/dropin/stutters
 
- 
    for(loc in locs) {
     if( is.null(refData[[loc]])) refData[[loc]] <- list()     
     nR <- length(refData[[loc]])
@@ -66,7 +65,7 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
     mixA <- agg$Group
     if(stutt>0) { #include stutter
      mixA2 <- c(agg$Group,(as.numeric(agg$Group)-1)) #stutter positions
-     mixH2 <- c(mixH,stutt*mixH)
+     mixH2 <- c((1-stutt)*mixH,stutt*mixH)
      agg2=aggregate(mixH2,by=list(mixA2),sum) #aggregate stutter peaks
      mixA <- agg2$Group
      mixH <- agg2$x
