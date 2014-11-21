@@ -9,7 +9,7 @@
 validMCMC <- function(mcmcfit,trace=TRUE,acf=TRUE) {
  txt <- colnames(mcmcfit$posttheta)
  p <- length(txt)
- par(mfrow=c(p,1+sum(c(trace,acf)) ),mar = c(1,1,1,1), mgp = c(0,0.2,0))
+ par(mfrow=c(p,1+sum(c(trace,acf)) ),mar = c(1.2,1,1,0.2), mgp = c(0,0.2,0))
  for(i in 1:p) {
   if( grepl("mx",txt[i])) {
    dens <- density(mcmcfit$posttheta[,i],from=0,to=1)
@@ -25,6 +25,9 @@ validMCMC <- function(mcmcfit,trace=TRUE,acf=TRUE) {
   if(trace) plot(mcmcfit$posttheta[,i],ty="l",ylab="",xlab="")
   if(acf) acf(mcmcfit$posttheta[,i],lag.max=200,ylab="",xlab="")
  }
- par(mfrow=c(1,1))
+ dev.new()
+ op <- par(no.readonly = TRUE)
+ dev.off()
+ par(op)
 }
 

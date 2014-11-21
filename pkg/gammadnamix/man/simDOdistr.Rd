@@ -28,7 +28,7 @@ Vector with accepted samples from the dropout distribution
 MCMC Allele dropout distribution sampler based on total number of alleles in an evidence.
 }
 \details{
-simDOdistr samples from the drop-out distribution based on total number of alleles in evidence under a specified prepositions.
+simDOdistr samples from the drop-out distribution based on total number of alleles in evidence under a specified prepositions. It returns if no samples was accepted in first iteration
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

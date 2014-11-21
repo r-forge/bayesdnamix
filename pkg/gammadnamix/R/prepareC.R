@@ -96,7 +96,7 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
    numAnames <- as.numeric(anames) #convert from string to numbers
    BPind <- rep(0,length(numAnames)) #init 0 if allele doesn't have any bp-twin
    for(j in 1:length(numAnames)) { #for each alleles
-    bpind <- which((numAnames[j]-1)==numAnames) #store index of what allele it stutters to
+    bpind <- which(as.character(numAnames[j]-1)==anames ) #store index of what allele it stutters to
     if(length(bpind)>0) BPind[j] <- bpind #assign index-placement
    }
    allAbpind <- c(allAbpind,BPind)

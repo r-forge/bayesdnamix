@@ -13,7 +13,7 @@
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/euroformix0")
 #rm(list=ls())
 #envirfile=NULL
-#source("euroformix.R");#euroformix()
+#source("euroformix.R");euroformix()
 
 euroformix = function(envirfile=NULL) {
 
@@ -31,7 +31,7 @@ euroformix = function(envirfile=NULL) {
  version = 1
 
  #software name:
- softname <- paste0("EuroFormix v",version)
+ softname <- paste0("EuroForMix v",version)
 
  #NUMBER OF MAX LOCI TO VISUALIZE:
  maxloc <- 30 #REQUIRE LESS THAN 30 loci to be able to select!
@@ -1010,10 +1010,13 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
 
   ##EVID INTEGRATION (can be done anywhere after model setup)##
   doINT <- function(type) { #Used either with EVID or DB
-     #sig = number of decimals
-     optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
+    #sig = number of decimals
+    set <- get("setEVID",envir=mmTK)
+    if(length(set$samples)>1) {
+       gmessage(message="The LR (integrated Likelihood based) does not handle multiple replicates",icon="error")
+    } else {
      if(type=="EVID") {
-       set <- get("setEVID",envir=mmTK)
+       optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
        par <- set$param
        mod <- set$model
        print(paste0("Calculating integrals with relative error ",optint$reltol))
@@ -1031,11 +1034,12 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
        res <- list(LR=LR,dev=dev)
        assign("resEVIDINT",res,envir=mmTK) #assign deconvolved result to environment
        #Print a GUI message:
-       gmessage(message=paste0("The LR (integrated Likelihood based)\nwas calculated as \n",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]"),title="Continuous LR (Integrated Likelihood based)",icon="info")
+       gmessage(message=paste0("The LR (integrated Likelihood based)\nwas calculated as \nLR=",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]\nlog10LR=",format(log10(LR),digits=4)," [",format(log10(dev[1]),digits=4)," , ",format(log10(dev[2]),digits=4),"]"),title="Continuous LR (Integrated Likelihood based)",icon="info")
      } 
      if(type=="DB") { #Case of DB-search
        doDB("INT") #do database search with integration
      }
+   }
   } #end Integration
 
 
@@ -1599,7 +1603,34 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
      print(paste0("Sampling acceptance ratio=",round(mcmcfit$accrat,2),". This should be around 0.2"))
      validMCMC(mcmcfit,acf=FALSE) #don't plot acf
+
+     #Here we also plot Dropout model:
+     #mcmcfit      
   }
+
+  #helpfunction ran when call deconvolution
+  doMCMC <- function(mleobj) { 
+     optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
+     if(any(is.na(mleobj$fit$phiSigma))) return();
+     print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
+     print("Note: You can change default number of iterations in toolbar menu.")
+     mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
+     print(paste0("Sampling acceptance ratio=",round(mcmcfit$accrat,2),". This should be around 0.2"))
+     validMCMC(mcmcfit,acf=FALSE) #don't plot acf
+  } #end function
+
+  #Simulating LR over the parameter space
+  simLR = function(mlehp,mlehd) {
+     optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
+     if(any(is.na(mlehp$fit$phiSigma)) || any(is.na(mlehd$fit$phiSigma)) ) return();
+     print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
+     log10LR <- (contLikMCMC(mlehp,optlist$niter,optlist$delta)$postlogL - contLikMCMC(mlehd,optlist$niter,optlist$delta)$postlogL)/log(10)
+     plot(density(log10LR),xlab="log10 LR",ylab="log10LR distr",main="Distribution of LR over posterior space of parameters")
+     qqs <- c(0.01,0.025,0.05,0.25,0.5,0.75,0.95,0.975,0.99)
+     LRqq <- quantile(log10LR,qqs)
+     print(LRqq)
+  }
+
 
   refreshTabMLE = function(type) { 
     #type={"EVID","DB","DC"}
@@ -1668,21 +1699,29 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      if(type=="DC") assign("setDC",set,envir=mmTK) #store setup for DC
     }
 
+    #helpfunction to print msg to screen
+    modelfitmsg =function() gmessage(message="The one-sample Kolmogorov-Smirnov test\nrejected the peak height model assumption\n(with significance level 0.05)",title="Rejection of model assumption",icon="info")
+
+
     #GUI:
     tabmleA = glayout(spacing=0,container=(tabMLEtmp[1,1] <- gframe("Estimates under Hd",container=tabMLEtmp))) 
     tableMLE(mlefit_hd$fit,tabmleA)
     tabmleA3 = glayout(spacing=0,container=(tabmleA[3,1] <-gframe("Further Action",container=tabmleA))) 
     tabmleA3[1,1] <- gbutton(text="MCMC simulation",container=tabmleA3,handler=function(h,...) { doMCMC(mlefit_hd) } )
     tabmleA3[2,1] <- gbutton(text="Deconvolution",container=tabmleA3,handler=function(h,...) { doDC(mlefit_hd) }  )
-    tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { } )
+    tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { 
+     if(validMLEmodel(mlefit_hd)<0.05) modelfitmsg()
+    } )
 
-    if(type=="EVID") { #used only for weight-of-evidence
+    if(type=="EVID" || type=="START") { #used only for weight-of-evidence
      tabmleB = glayout(spacing=0,container=(tabMLEtmp[1,2] <-gframe("Estimates under Hp",container=tabMLEtmp))) 
      tableMLE(mlefit_hp$fit,tabmleB)
      tabmleB3 = glayout(spacing=0,container=(tabmleB[3,1] <-gframe("Further Action",container=tabmleB))) 
      tabmleB3[1,1] <- gbutton(text="MCMC simulation",container=tabmleB3,handler=function(h,...) { doMCMC(mlefit_hp) } )
      tabmleB3[2,1] <- gbutton(text="Deconvolution",container=tabmleB3,handler=function(h,...) {  doDC(mlefit_hp) }  )
-     tabmleB3[3,1] <- gbutton(text="Model validation",container=tabmleB3,handler=function(h,...) { } )
+     tabmleB3[3,1] <- gbutton(text="Model validation",container=tabmleB3,handler=function(h,...) { 
+      if(validMLEmodel(mlefit_hp)<0.05) modelfitmsg()
+     } )
     }
 
     #We show weight-of-evidence
@@ -1690,7 +1729,6 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     tabmleD[1,1] <- gbutton(text="Optimize model more",container=tabmleD,handler=function(h,...) { refreshTabMLE(type)  } )
     if(type=="EVID") {
      logLRmle <- mlefit_hp$fit$loglik - mlefit_hd$fit$loglik
-     log10LRmle <- logLRmle/log(10) 
      LRmle <- exp(logLRmle)
      LRlap <- exp(mlefit_hp$fit$logmargL - mlefit_hd$fit$logmargL)
      LRi <- exp(logLiki(mlefit_hp)-logLiki(mlefit_hd))
@@ -1711,7 +1749,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      tabmleC1[1,1] =  glabel(text="LR=",container=tabmleC1)
      tabmleC1[1,2] =  glabel(text=format(LRmle,digits=dec),container=tabmleC1)
      tabmleC1[2,1] =  glabel(text="log10LR=",container=tabmleC1)
-     tabmleC1[2,2] =  glabel(text=format(log10LRmle,digits=dec),container=tabmleC1)
+     tabmleC1[2,2] =  glabel(text=format(log10(LRmle),digits=dec),container=tabmleC1)
      tabmleC3 = glayout(spacing=0,container=(tabmleC[2,1] <-gframe("LR for each loci",container=tabmleC))) 
      if(length(LRi)<=maxloc) { #show all LR per loci only if less than maxloc
       for(i in 1:length(LRi)) {
@@ -1720,6 +1758,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
       }
      }
      tabmleD[2,1] <- gbutton(text="Continuous LR\n(Integrated Likelihood based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
+     tabmleD[3,1] <- gbutton(text="Simulate LR distribution",container=tabmleD,handler=function(h,...) { simLR(mlefit_hp,mlefit_hd) } ) 
     } #end if EVID or START
     if(type=="DB") tabmleD[2,1] <- gbutton(text="Database search",container=tabmleD,handler=function(h,...) { doDB("MLE")} )
     tabmleE = glayout(spacing=0,container=(tabMLEtmp[2,2] <-gframe("Save results to file",container=tabMLEtmp))) 

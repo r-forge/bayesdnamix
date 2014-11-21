@@ -1,5 +1,5 @@
 #' @title plotEPG
-#' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
+#' @author Oskar Hansson <Oskar.Hansson.at.fhi.no> and Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 #' @description EPG plotter created by Oskar Hansson.
 #' @details Plots peak height with corresponding allele for one sample for a given kit.
 #' @param Data List of adata- and hdata-elements.

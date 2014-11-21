@@ -14,19 +14,21 @@ Qassignate <- function(samples,popFreq,refData=NULL,doQ=TRUE) {
  locs <- names(popFreq)
  minF <- min(unlist(popFreq)) #lowest observed frequency
  for(loc in locs) { #make Q-assignation for each loci
-  evid <- unique(unlist( lapply(samples,function(x) x[[loc]]$adata) )) #vectorize alleles for all replicates
+  evid <- evid0 <- unique(unlist( lapply(samples,function(x) x[[loc]]$adata) )) #vectorize alleles for all replicates
+  if(!is.null(refData)) evid  <- unique(c(evid,unlist(refData[[loc]])))
 
-  #if new alleles not in popFreq
+  #if new alleles in evidence or references not in popFreq
   newa <- evid[!evid%in%names(popFreq[[loc]])]   
   if(length(newa)>0) {
    tmp <- names(popFreq[[loc]])
    popFreq[[loc]] <- c(popFreq[[loc]],rep(minF,length(newa)))
    names(popFreq[[loc]]) <-  c(tmp,newa)
+   print(paste0("Locus ",loc,": Allele(s) ",paste0(newa,collapse=",")," was inserted with frequency ",minF))
   }
   popFreq[[loc]] <- popFreq[[loc]]/sum(popFreq[[loc]]) #normalize
 
   if(doQ) {#if Q-assignate
-   tmp <- popFreq[[loc]][names(popFreq[[loc]])%in%evid] #find observed alleles
+   tmp <- popFreq[[loc]][names(popFreq[[loc]])%in%evid0] #find observed alleles
    if(length(tmp)<length(popFreq[[loc]])) { 
     tmp <- c(tmp,1-sum(tmp))
     names(tmp)[length(tmp)] <- "99"

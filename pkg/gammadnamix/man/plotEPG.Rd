@@ -19,6 +19,6 @@ EPG plotter created by Oskar Hansson.
 Plots peak height with corresponding allele for one sample for a given kit.
 }
 \author{
-Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
+Oskar Hansson <Oskar.Hansson.at.fhi.no> and Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 }
 
