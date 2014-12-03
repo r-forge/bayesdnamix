@@ -12,11 +12,13 @@
 
 validMLEmodel <- function(mlefit,plotYdistr=FALSE,plotDdistr=FALSE) {
  theta <- mlefit$fit$thetahat #condition on mle parameter
- model <- mlefit$model #take out assumed model with given data
  np <- length(theta) #number of unknown parameters
+ model <- mlefit$model #take out assumed model with given data
+ xi <- model$xi
+ if(!is.null(xi)) theta <- c(theta,as.numeric(xi))
  locs <- names(model$popFreq)
  nL <- length(locs)
- nC <- mlefit$model$nC #number of contributors
+ nC <- model$nC #number of contributors
  mvec <- mlefit$fit$thetahat2[1:nC]
  mu <- theta[nC]
  sigma <- theta[nC+1]
@@ -47,16 +49,19 @@ if(plotDdistr) {
   x11()
 }
 
-  likYtheta <- function(yval) {   #call c++- function: length(theta)=nC+1
+if(is.null(xi)) { #stutter is unknown
+  likYtheta <- function(yval) {   #call c++- function: length(theta)=nC+2
     ret$obsY[j] <- yval
     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
     return(exp(Cval + log(model$pXi(theta[ret$nC+2])))) #weight with prior of tau and 
   }
-  likYtheta <- function(yval) {   #call c++- function: length(theta)=nC
+} else { #stutter is known. call c++- function: length(theta)=nC+1
+  likYtheta <- function(yval) {   
     ret$obsY[j] <- yval
     Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
     return(exp(Cval))
   }
+}
   alpha <- 0.05
   alpha2 <- alpha/sum(sapply(model$samples,function(x) sapply(x,function(y) length(y$adata)))) #"bonferroni outlier"
   maxYobs <- max(sapply(model$samples,function(x) sapply(x,function(y) max(y$hdata)))) #max observation
@@ -64,7 +69,6 @@ if(plotDdistr) {
   maxY <- ceiling(max(maxYobs,maxYexp)) #get max observed
 
   cumprobi <- numeric()
-  #loc = locs[10] #locus to consider: Know answer
   for(loc in locs) { #traverse for each locus
    samples <- lapply(model$samples,function(x) x[loc])
    ret <- prepareC(nC=model$nC,samples,popFreq=model$popFreq[loc],refData=model$refData[loc],condOrder=model$condOrder,knownRef=model$knownRef)

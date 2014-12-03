@@ -1,5 +1,5 @@
-#setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myArticles/stutterLR/script")
 rm(list=ls())
+#install.packages("gammadnamix", repos="http://R-Forge.R-project.org") 
 library(gammadnamix)
 
 #load data:
@@ -14,43 +14,34 @@ refDataQ <- retlist$refData
 threshT = 50 #peak height threshold
 condHp <- c(1,2,3) #Conditioned references under hp
 condHd <- c(1,2,0) #Conditioned references under hd
-nC <- 4 #number of contributors
+nC <- 3 #number of contributors
 
 #NON Q-assignated data:
 set.seed(1)
 nDone <- 1 #number of random optimization start points
 hptime <- system.time( {  hpSmle <- contLikMLE(nC,samples,mcdata$popFreq,mcdata$refData,condOrder=condHp,threshT=threshT,nDone=nDone) } )[3]
-print(hpSmle$fit$thetahat) #MLE under hp
-print(sqrt(diag(hpSmle$fit$thetaSigma2))) #standard error
+print(hpSmle$fit$thetahat2) #MLE under hp
+print(hpSmle$fit$thetaSE) #standard error
 set.seed(1)
 hdtime <- system.time( {  hdSmle <- contLikMLE(nC,samples,mcdata$popFreq,mcdata$refData,condOrder=condHd,threshT=threshT,nDone=nDone) } )[3] #slow for replicate version
-print(hdSmle$fit$thetahat) #MLE under hd
-print(sqrt(diag(hdSmle$fit$thetaSigma2))) #standard error
+print(hdSmle$fit$thetahat2) #MLE under hp
+print(hdSmle$fit$thetaSE) #standard error
 print(c(hptime,hdtime)) #time usage
 LRmle <- exp(hpSmle$fit$loglik-hdSmle$fit$loglik) #MLE optimized 
-LRlap <- exp(hpSmle$fit$logmargL-hdSmle$fit$logmargL) #Laplace approximated
 print(log10(LRmle))
-print(log10(LRlap))
-
 
 #For Q-assignated data: (much faster than using all data)
 set.seed(1)
 nDone <- 3 #number of random optimization start points
-hptime <- system.time( {  hpSmleQ <- contLikMLE(nC,samples,popFreqQ,refDataQ,condOrder=condHp,threshT=threshT,nDone=nDone) } )[3] #-117.9732
-print(hpSmleQ$fit$thetahat) #MLE
-print(sqrt(diag(hpSmleQ$fit$thetaSigma2))) #standard error
-
-hdtime <- system.time( {  hdSmleQ <- contLikMLE(nC,samples,popFreqQ,refDataQ,condOrder=condHd,threshT=threshT,nDone=nDone) } )[3] #-129.3092
+hptime <- system.time( {  hpSmleQ <- contLikMLE(nC,samples,popFreqQ,refDataQ,condOrder=condHp,threshT=threshT,nDone=nDone) } )[3] #
+print(hpSmleQ$fit$thetahat2) #MLE
+print(hpSmleQ$fit$thetaSE) #standard error
+hdtime <- system.time( {  hdSmleQ <- contLikMLE(nC,samples,popFreqQ,refDataQ,condOrder=condHd,threshT=threshT,nDone=nDone) } )[3] #
 print(c(hptime,hdtime))
-print(hdSmleQ$fit$thetahat) #MLE
-print(sqrt(diag(hdSmleQ$fit$thetaSigma2))) #standard error
-
+print(hdSmleQ$fit$thetahat2) #MLE
+print(hdSmleQ$fit$thetaSE) #standard error
 LRmleQ <- exp(hpSmleQ$fit$loglik-hdSmleQ$fit$loglik) #MLE optimized 
-LRlapQ <- exp(hpSmleQ$fit$logmargL-hdSmleQ$fit$logmargL) #Laplace approximated
 print(log10(LRmleQ))
-print(log10(LRlapQ))
-
-
 
 #Integrated likelihood
 reltol <- 0.05 #relative error

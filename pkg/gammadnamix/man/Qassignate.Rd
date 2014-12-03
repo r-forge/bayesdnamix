@@ -11,17 +11,15 @@ Qassignate(samples, popFreq, refData = NULL, doQ = TRUE)
 \item{popFreq}{A list of allele frequencies for a given population.}
 
 \item{refData}{Reference objects with list element [[s]]$adata[[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.}
-
-\item{doQ}{Boolean whether a Q-assignation is done or not.}
 }
 \value{
-ret A list(popFreq,refData) with (possible) Q-assignated alleles.
+ret A list(popFreq,refData) with Q-assignated alleles.
 }
 \description{
 Q-assignation. It also takes care of include new alleles into popFreq by assigning it lowest observed frequnce.
 }
 \details{
-Assignes non-shown alleles as one single allele with the corresponding summed up allele frequencies.
+Assignes non-shown alleles as one single allele.
 }
 \author{
 Oyvind Bleka <Oyvind.Bleka.at.fhi.no>

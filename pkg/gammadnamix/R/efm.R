@@ -1,6 +1,6 @@
-#' @title euroformixTK
+#' @title efm
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
-#' @description euroformixTK is a GUI wrapper for gammadnamix
+#' @description efm (euroformix) is a GUI wrapper for gammadnamix
 #' @details The function is a graphical layer for the functions in the package gammadnamix. See ?gammadnamix for more information.
 #' @param envirfile A file to a saved environment of a project
 #' @export
@@ -9,13 +9,13 @@
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/")
 #roxygenize("gammadnamix")
 
-#library(gammadnamix); sessionInfo();euroformix()
+#library(gammadnamix); sessionInfo();efm()
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/euroformix0")
 #rm(list=ls())
 #envirfile=NULL
-#source("euroformix.R");euroformix()
+#source("efm.R");efm()
 
-euroformix = function(envirfile=NULL) {
+efm = function(envirfile=NULL) {
 
  #size of main window
  mwH <- 1000
@@ -28,7 +28,7 @@ euroformix = function(envirfile=NULL) {
  options(guiToolkit="tcltk")
 
  #version:
- version = 1
+ version = 1.0
 
  #software name:
  softname <- paste0("EuroForMix v",version)
@@ -44,7 +44,7 @@ euroformix = function(envirfile=NULL) {
   mmTK = new.env() #create new envornment object
 
   #Toolbar options: can be changed any time by using toolbar
-  assign("optFreq",list(freqsize=0),envir=mmTK) #options when new frequencies are found (size of imported database,minFreq)
+  assign("optFreq",list(freqsize=0,wildsize=7),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
   assign("optMLE",list(nDone=3,delta=10,dec=4),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
   assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
@@ -320,6 +320,38 @@ euroformix = function(envirfile=NULL) {
   }
  }
 
+ #helpfunction for printing evidence sample to terminal
+ printEvid = function(subD) {
+  locs <- names(subD) #get unique loci
+  mixtab <- matrix(ncol=2,nrow=length(locs))
+  for(loc in  locs) { #for each locus
+        mixA <- subD[[loc]]$adata
+        mixH <- subD[[loc]]$hdata
+        if(!is.null(mixA)) mixtab[which(loc==locs),1] <- paste0(mixA ,collapse="/")
+        if(!is.null(mixH)) mixtab[which(loc==locs),2] <- paste0(mixH ,collapse="/")
+  }
+  rownames(mixtab) <- locs
+  colnames(mixtab) <- c("Allele","Height")
+  print(mixtab)
+ }  
+
+ #helpfunction for printing reference sample to terminal
+ printRefs = function(refD,refSel=NULL) {
+   nR <- length(refSel) #number of selected references
+   locs <- unique(unlist(lapply(refD,names))) #get unique loci
+   reftab <- matrix(ncol=nR,nrow=length(locs))
+   for(rsel in refSel) {
+    for(loc in  locs) { #for each locus
+      refA <-refD[[rsel]][[loc]]$adata
+      if(!is.null(refA)) reftab[which(loc==locs),which(rsel==refSel)] <- paste0(refA ,collapse="/")
+    }
+   }
+   rownames(reftab) <- locs
+   colnames(reftab) <- refSel 
+   print(reftab)
+ }
+
+
 
 
 ###########GUI WINDOW STARTS#########
@@ -337,6 +369,9 @@ euroformix = function(envirfile=NULL) {
   Frequencies=list(
    'Set size of frequency database'=list(handler=function(h,...) {  
       setValueUser(what1="optFreq",what2="freqsize",txt="Set size of imported database:") 
+    }),
+   'Set number of wildcards in false positives match'=list(handler=function(h,...) {  
+      setValueUser(what1="optFreq",what2="wildsize",txt="Set number of missmatches (wildcards) in false positive match:") 
     })
   ),
   Optimization=list(
@@ -423,7 +458,6 @@ euroformix = function(envirfile=NULL) {
  tabMLE = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="MLE fit") #results from MLE
  tabDC = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Deconvolution") #results from a deconvolution
  tabDB= ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Database search") #results from a database search
- tabVAL = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Model validation") #modelvalidation from MLE
  tabLRMIX <- ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Qual. LR") #LRmix
  svalue(nb) <- 2 #initial start at second tab
 
@@ -696,14 +730,15 @@ euroformix = function(envirfile=NULL) {
   }
  }
 
- #c) 
  #prints evidence, references, EPG, databases and population frequencies
  f_viewdata = function(h,...) {
+  #types: freq,mix,ref,db
   evidD <- getData("mix") #get selected data
   mixSel  <- numeric()
   if(!is.null(evidD)) mixSel <- svalue(tabimportB[2,1])  #get selected mixtures
 
-  if(h$action=="freq") { #prints EPG
+  if(h$action=="freq") { #prints frequencies
+   wildsize <- get("optFreq",envir=mmTK)$wildsize
    popFreq <- get("popFreq",envir=mmTK) #get frequencies
    if(is.null(popFreq)) {
     tkmessageBox(message="Please import and select population frequencies!")
@@ -711,7 +746,7 @@ euroformix = function(envirfile=NULL) {
    } else {
     locs <- names(popFreq)
     nL <- length(locs)
-    unAchr <- unique(unlist(sapply( popFreq,names) )) #get character alleles
+    unAchr <- unique(unlist(lapply( popFreq,names) )) #get character alleles
     ord <- order(as.numeric(unAchr)) 
     unAchr <- unAchr[ord]  #make increasing order
     outD <- unAchr
@@ -742,9 +777,9 @@ euroformix = function(envirfile=NULL) {
     #Calculate random man probability of matching for each samples
     for(msel in mixSel) { 
      cind <- which(msel==mixSel)
-     print(paste0("Calculating exact MAC random man distribution for sample ",msel,". This could take a while..."))
+     print(paste0("Calculating false positive MAC probability for sample ",msel,". This could take a while..."))
      si <- matsi[!is.na(matsi[,cind]),cind]
-     macdist <- exactMACdistr(si,2*length(si)-4) #allow down to 4 missmatches
+     macdist <- exactMACdistr(si,2*length(si)-min(wildsize,2*length(si))) #missmatches
      cumprob <- rev(cumsum(rev(macdist)))
      ymax <- max(cumprob)
      delta <- 0.03
@@ -758,36 +793,27 @@ euroformix = function(envirfile=NULL) {
 
   if(h$action=="mix") { #prints EPG
      kitname <- svalue(tabimportA[3,1]) #get kit name. Must be same name as in generateEPG
+     #first: Print evidences:
      for(msel in mixSel) {
       subD <- evidD[[msel]] #selected samples
       print("------------------------------------")
       print(paste("Samplename: ",msel,sep=""))
-      print(subD)
+      printEvid(subD)
       if(which(msel==mixSel)>1) dev.new() #create new plot for next EPG
       plotEPG(Data=subD,kitname,sname=msel) #plot epg's
-     } 
-   focus(mainwin)
+     }
+     print("------------------------------------")
+     focus(mainwin)
   }
 
   if(h$action=="ref") { #print tables only
      refD <- getData("ref")
      refSel <- numeric()
      if(!is.null(refD))  refSel <- svalue(tabimportB[2,2])  #get selected references
-     nR <- length(refSel) #number of selected references
-
-     #first: Print references:
-     for(rsel in refSel) {
-      print("------------------------------------")
-      print(paste("Referencename: ",rsel,sep=""))
-      tab <- matrix(unlist(refD[[rsel]]),ncol=2,byrow=TRUE)
-      ref <- paste0(tab[,1],"/",tab[,2])
-      names(ref) <- names(refD[[rsel]])
-      print(ref)
-     }
-   
-     #second: Print #matches to selected samples
-     for(msel in mixSel) { #for each selected 
-      print("------------------------------------")
+     nR <- length(refSel)
+     printRefs(refD,refSel)
+     #second: Print #matches to selected samples: Condition on samples inside evids
+     for(msel in mixSel) { #for each selected evidence 
       print(paste0("Number of matching alleles with samplename ",msel,":"))
       subD <- evidD[[msel]] #selected samples
       locs <- names(subD)
@@ -800,8 +826,15 @@ euroformix = function(envirfile=NULL) {
           if(!is.null(refA)) tab[which(loc==locs),which(rsel==refSel)] <- sum(refA%in%subD[[loc]]$adata)
         }
       } 
-      print(t(tab))
+     MAC <- colSums(tab,na.rm=TRUE) #remove NA's
+     nLocs <- colSums(!is.na(tab))
+     matchrate <- MAC/(2*nLocs)
+     tab2 <- rbind(tab,MAC,nLocs)
+
+     #Not implemented: If freqs are imported: Calculate false postive match probability of observed MAC
+     print(tab2)
      } #end for each mix    
+     print("------------------------------------")
    } #end if references
 
    if(h$action=="db") {  #view imported databases
@@ -1001,8 +1034,8 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
     upper[nC+1] <- optint$maxsigma
     upper[nC+2] <- optint$maxxi
     if(!is.null(xi)) { #must remove stutter ratio if known
-     lower <- lower[-nC+2]
-     upper <- lower[-nC+2]
+     lower <- lower[-(nC+2)]
+     upper <- upper[-(nC+2)]
     }
     return(bound=list(lower=lower,upper=upper))
   }
@@ -1011,7 +1044,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
   ##EVID INTEGRATION (can be done anywhere after model setup)##
   doINT <- function(type) { #Used either with EVID or DB
     #sig = number of decimals
-    set <- get("setEVID",envir=mmTK)
+    set <- get(paste0("set",type),envir=mmTK)
     if(length(set$samples)>1) {
        gmessage(message="The LR (integrated Likelihood based) does not handle multiple replicates",icon="error")
     } else {
@@ -1070,7 +1103,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    } 
    tabmodelA3 = glayout(spacing=0,container=(tabmodelA[3,1] <-gframe("Contributor(s) under Hd:",container=tabmodelA)))
    tabmodelA4a = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Continuous Model Parameters",container=tabmodelA))) 
-   if(type=="EVID") tabmodelA4b = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Qualitative Model Parameters",container=tabmodelA))) 
+   if(type%in%c("EVID","DB")) tabmodelA4b = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Qualitative Model Parameters",container=tabmodelA))) 
    tabmodelA5 = glayout(spacing=0,container=(tabmodelA[6,1] <-gframe("Advanced Parameters",container=tabmodelA))) 
 
    if(type=="DB") { #add database-names if included:
@@ -1102,7 +1135,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    tabmodelA4a[2,2] <- gedit(text="0",container=tabmodelA4a,width=4)
 
    #Model parameters for qualitative model:
-   if(type=="EVID") {
+   if(type%in%c("EVID","DB")) {
     tabmodelA4b[1,1] <- glabel(text="Probability of Dropin: ",container=tabmodelA4b)
     tabmodelA4b[1,2] <- gedit(text="0.05",container=tabmodelA4b,width=4)
     tabmodelA4b[2,1] <- glabel(text="fst-correction: ",container=tabmodelA4b)
@@ -1125,6 +1158,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    if(type=="GEN") { #deactivate options for generation:
     enabled(tabmodelA4a[2,2]) <- FALSE #deactivate fst-correction
     enabled(tabmodelA5[1,1]) <- FALSE #deactivate Q-assignation fst-correction
+    enabled(tabmodelA5[3,2]) <- FALSE #deactivate stutter ratio
    }
 
    #Data selection
@@ -1152,7 +1186,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    }
 
    #helpfunction which takes GUI settings and stores them in "set'type'"
-   storeSettings <- function(lrtype="PLOT") {
+   storeSettings = function(lrtype="PLOT") {
      #lrtype={"CONT"},{"QUAL"},{"PLOT"}
       sellocs <- numeric() #Selected loci (which all mixtures, references has)
       if(length(locs)<=maxloc) { 
@@ -1297,12 +1331,15 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
       #loads each selections and plot epg:
       set = get(paste0("set",type),set,envir=mmTK) #store setup for relevant type
       print("Assumed population frequencies:")
-      print(set$popFreqQ)
+      print(unlist(set$popFreqQ))
       print("Considered references:")
-      print(set$refDataQ)
+      print(t(sapply(set$refDataQ,function(x) {  sapply(x,function(y) { paste0(y,collapse="/") } ) })))
       print("Considered Evidence samples:")
-      print(set$samples)
-
+      for(sn  in names(set$samples)) {
+       print("------------------------------------")
+       print(paste("Samplename: ",sn,sep=""))
+       printEvid(set$samples[[sn]])
+      }
       #plot EPG:
       kit <- get("selPopKitName",envir=mmTK)[1] #get selected kit
       if(is.na(kit)) return()
@@ -1328,18 +1365,24 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
       refreshTabMLE(type) #refresh MLE fit tab (i.e. it fits the specified model)
       svalue(nb) <- 4 #go to mle-fit window (for all cases) when finished
     }) #end cont. calculation button
-    if(type%in%c("EVID","DB")) tabmodelD[2,1] = gbutton(text="Continuous LR \n(Integrated Likelihood based)",container=tabmodelD,handler=
+    if(type%in%c("EVID","DB")) {
+     tabmodelD[2,1] = gbutton(text="Continuous LR \n(Integrated Likelihood based)",container=tabmodelD,handler=
 	function(h,...) {
       storeSettings("CONT") #store model-settings
       doINT(type) #Integrate either for EVID or DB search
-    }) #end cont. calculation button
-    if(type=="EVID") tabmodelD[3,1] = gbutton(text="Qualitative LR\n(semi-continuous)",container=tabmodelD,handler=
+     }) #end cont. calculation button
+     tabmodelD[3,1] = gbutton(text="Qualitative LR\n(semi-continuous)",container=tabmodelD,handler=
 	function(h,...) {
       storeSettings("QUAL") #store model-settings (use other input)
-      refreshTabLRMIX() #refresh LRmix calculation tab (i.e. it fits the specified model)
-      svalue(nb) <- 8 #go to mle-fit window (for all cases) when finished
-    }) #end cont. calculation button
-   } #end type-cases
+      if(type=="DB") {
+        doDB("QUAL")
+      } else {
+        refreshTabLRMIX() #refresh LRmix calculation tab (i.e. it fits the specified model)
+        svalue(nb) <- 7 #go to LRmix tab
+      }
+     }) #end cont. calculation button
+    } #end if evid or db
+   } #end if not gen
    visible(mainwin) <- TRUE
    focus(mainwin)
   } #end refresh setup tab-frame
@@ -1395,7 +1438,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
        dblocs <- toupper(colnames(subD)) #get database locs
        indD <- rownames(subD) #get individual names in database
        macD <- rep(0,length(indD)) #matching allele counter for each reference
-       LRD <- rep(0,length(indD)) #matching allele counter for each reference
+       LRD <- rep(0,length(indD)) #Continuous LR for each reference
        nlocs <- rep(0,length(indD)) #Number of loci which are used for calculating score - Note: Require that reference in DB has a genotype
 
        #convert allele-names of elements in database to one in popFreq
@@ -1437,6 +1480,9 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
         LR1 <- rep(1,nrow(subD)) #LRmix vec
         nU_hp <- mod$nC_hp - sum(mod$condOrder_hp>0) #number of unknowns under Hp                    
         nU_hd <- mod$nC_hd - sum(mod$condOrder_hd>0) #number of unknowns under Hd                    
+        if(ITYPE!="QUAL") pC <- opt$QUALpC #get drop-in parameter from option
+        if(ITYPE=="QUAL") pC <- par$prC #get drop-in parameter from GUI
+
         for(loc in dblocs ) { #for each locus in db 
           if(is.null(popFreq[[loc]])) next #skip to next locus
               evidlist <- lapply( set$samples, function(x) x[[loc]]$adata ) #take out sample data:
@@ -1467,74 +1513,80 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
                   if(ss>1) Ei <- c(Ei,"0") #insert zero
                   Evid <- c(Evid,Ei)
                 } #end for each evidence
-                hp0 <- likEvid( Evid,T=ref0,V=NULL,x=nU_hp,theta=par$fst, prDHet=pDvec, prDHom=pDvec^2, prC=opt$QUALpC, freq=popFreqQ[[loc]])
-                if(par$fst>0 | j==1) hd0 <- likEvid( Evid,T=condR,V=undbR[j,],x=nU_hd,theta=par$fst, prDHet=pDvec, prDHom=pDvec^2, prC=opt$QUALpC, freq=popFreqQ[[loc]])
+                hp0 <- likEvid( Evid,T=ref0,V=NULL,x=nU_hp,theta=par$fst, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
+
+                if(ITYPE!="QUAL") th0 <- 0
+                if(ITYPE=="QUAL") th0 <- par$fst
+                if(th0>0 | j==1) hd0 <- likEvid( Evid,T=condR,V=undbR[j,],x=nU_hd,theta=th0, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
                 LR1[dbind] <- LR1[dbind]*hp0/hd0   #if more alleles than unknown
               }#end for each genotypes
         } #end for each locus
 
-        print(paste0("Calculating continuous LR for ",sum(!LR0bool)," individual(s) in database ",dsel,"..."))
-        #CONT LR calculation for each reference in table: 
-        #unsubD <- unique( subD ) #get unique values. Not in use
-        for(rind in 1:length(indD)) { #for each individual in database
-         if(LR0bool[rind]) next #skip individual in database (which will have LR=0)
-         Dind <- subD[rind,] #take out individual
-         dblocs2 <- dblocs[!is.na(Dind)] #take out loci which the reference in database have
-         locevalind <- locs_hd%in%dblocs2
-         loceval <- locs_hd[locevalind] #locus to evaluate
+        #CONT LR calculation for each reference in table:  
+        if(ITYPE!="QUAL") { 
+         print(paste0("Calculating continuous LR for ",sum(!LR0bool)," individual(s) in database ",dsel,"..."))
+         #unsubD <- unique( subD ) #get unique values. Not in use
+         for(rind in 1:length(indD)) { #for each individual in database
+          if(LR0bool[rind]) next #skip individual in database (which will have LR=0)
+          Dind <- subD[rind,] #take out individual
+          dblocs2 <- dblocs[!is.na(Dind)] #take out loci which the reference in database have
+          locevalind <- locs_hd%in%dblocs2
+          loceval <- locs_hd[locevalind] #locus to evaluate 
 
-         #setup for hp:
-         #insert Dind to refData         
-         if(is.null(refData)) { #
-          refData2 <- list()
-          condOrder_hp <- 1 #put conditional-index to model  
-          condOrder_hd <- 0 #put conditional-index to model 
-         } else { 
-          refData2 <- refData[loceval] #take out only relevant loci to analyse
-          condOrder_hp <- c(mod$condOrder_hp,max(mod$condOrder_hp)+1) #put conditional-index to model 
-          condOrder_hd <- c(mod$condOrder_hd,0) #put conditional-index to model 
-         }
-         nR <- length(condOrder_hp) #number of references in refData2
-         for(loc in loceval) refData2[[loc]]$ref99 <- unlist(strsplit(Dind[ which(loc==dblocs) ], "/"))  #insert data into a new ref
-         samples <- lapply( set$samples, function(x) x[loceval] ) #take only relevant mixture data:
-         
-
-         if(ITYPE=="MLE") { #calculate with MLE
-           logLi_hdeval <- logLi_hd[locevalind] #take out relevant values
-           mlefit_hp <- contLikMLE(mod$nC_hp+1,samples,popFreqQ[loceval],refData2,condOrder_hp,mod$knownRef_hp,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi)
-           if(par$fst>0) { #must calculate Hd once again (assume Rj is known)
-            mlefit_hdj <- contLikMLE(mod$nC_hd,samples,popFreqQ[loceval],refData2,condOrder_hd,nR,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi)
-            LRD[rind] <- exp(mlefit_hp$fit$loglik - mlefit_hdj$fit$loglik) #insert calculated LR adjusted by fst-correction
-           } else {
-            LRD[rind] <- exp(mlefit_hp$fit$loglik - sum(logLi_hdeval)) #insert calculated LR:
-           }  
-         } #END DB WITH TYPE MLE
-         if(ITYPE=="INT") { #Calculate with INT
-           int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownRef_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi)     
-           hd0INT <- numeric()
-           if(par$fst==0 && length(hd0stored)>0) { #If any previous calculated values
-             if(par$fst==0) { #can use stored value if fst=0
-              for(l in 1:length(hd0stored)) { #for each element in list
-               hd0locs <- hd0stored[[l]][-1]
-               if(all(hd0locs%in%loceval) && all(loceval%in%hd0locs)) hd0INT <-  as.numeric(hd0stored[[l]][1]) #get stored hd-value
+          #setup for hp:
+          #insert Dind to refData         
+          if(is.null(refData)) { #
+           refData2 <- list()
+           condOrder_hp <- 1 #put conditional-index to model  
+           condOrder_hd <- 0 #put conditional-index to model 
+          } else { 
+           refData2 <- refData[loceval] #take out only relevant loci to analyse
+           condOrder_hp <- c(mod$condOrder_hp,max(mod$condOrder_hp)+1) #put conditional-index to model 
+           condOrder_hd <- c(mod$condOrder_hd,0) #put conditional-index to model 
+          }
+          nR <- length(condOrder_hp) #number of references in refData2
+          for(loc in loceval) refData2[[loc]]$ref99 <- unlist(strsplit(Dind[ which(loc==dblocs) ], "/"))  #insert data into a new ref
+          samples <- lapply( set$samples, function(x) x[loceval] ) #take only relevant mixture data:
+          
+          if(ITYPE=="MLE") { #calculate with MLE
+            logLi_hdeval <- logLi_hd[locevalind] #take out relevant values
+            mlefit_hp <- contLikMLE(mod$nC_hp+1,samples,popFreqQ[loceval],refData2,condOrder_hp,mod$knownRef_hp,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi)
+            if(par$fst>0) { #must calculate Hd once again (assume Rj is known)
+             mlefit_hdj <- contLikMLE(mod$nC_hd,samples,popFreqQ[loceval],refData2,condOrder_hd,nR,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi)
+             LRD[rind] <- exp(mlefit_hp$fit$loglik - mlefit_hdj$fit$loglik) #insert calculated LR adjusted by fst-correction
+            } else {
+             LRD[rind] <- exp(mlefit_hp$fit$loglik - sum(logLi_hdeval)) #insert calculated LR:
+            }  
+          } #END DB WITH TYPE MLE
+          if(ITYPE=="INT") { #Calculate with INT
+            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownRef_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi)     
+            hd0INT <- numeric()
+            if(par$fst==0 && length(hd0stored)>0) { #If any previous calculated values
+              if(par$fst==0) { #can use stored value if fst=0
+               for(l in 1:length(hd0stored)) { #for each element in list
+                hd0locs <- hd0stored[[l]][-1]
+                if(all(hd0locs%in%loceval) && all(loceval%in%hd0locs)) hd0INT <-  as.numeric(hd0stored[[l]][1]) #get stored hd-value
+               }
               }
-             }
-           }
-           if(length(hd0INT)==0) { #calculate and store
-             int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
-             hd0INT <- int_hd$margL
-             hd0stored[[length(hd0stored) + 1]] <- c(hd0INT,loceval)
-           }
-           LRD[rind] <- int_hp$margL/hd0INT
-         } #END DB WITH TYPE INT
-         if(rind%%50==0) print(paste0(round(rind/length(indD)*100),"% finished"))
-       }
-       print(paste0(100,"% finished for database ",dsel))
-      DBtab <- rbind(DBtab , cbind(indD,LRD,LR1,macD,nlocs) ) #add to DBtab
+            }
+            if(length(hd0INT)==0) { #calculate and store
+              int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
+              hd0INT <- int_hd$margL
+              hd0stored[[length(hd0stored) + 1]] <- c(hd0INT,loceval)
+            }
+            LRD[rind] <- int_hp$margL/hd0INT
+          } #END DB WITH TYPE INT
+          if(rind%%50==0) print(paste0(round(rind/length(indD)*100),"% finished"))
+         } #end for each individual
+        } #end type QUAL
+        print(paste0(100,"% finished for database ",dsel))
+        if(ITYPE=="QUAL") LRD <- rep(NA,length(LR1))
+        DBtab <- rbind(DBtab , cbind(indD,LRD,LR1,macD,nlocs) ) #add to DBtab
     } #end for each databases
-    colnames(DBtab) <- c("Referencename","cont LR","qual LR","MAC","nLocs")
+    colnames(DBtab) <- c("Referencename","contLR","qualLR","MAC","nLocs")
     assign("resDB",DBtab ,envir=mmTK) #assign deconvolved result to environment
-    refreshTabDB("LRC") #LR is order to sort with
+    if(ITYPE!="QUAL") refreshTabDB(1) #cont LR is order to sort with
+    if(ITYPE=="QUAL") refreshTabDB(2) #qual LR is order to sort with
     svalue(nb) <- 6 #go to database search results window when finished     
    } #end doDB
 
@@ -1790,7 +1842,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     tabDCa = glayout(spacing=1,container=(tabDCtmp[1,1] <-glayout(spacing=0,container=tabDCtmp)),expand=TRUE) #table layout
     tabDCb = glayout(spacing=1,container=(tabDCtmp[2,1] <-glayout(spacing=0,container=tabDCtmp)),expand=TRUE) #table layout
     tabDCa[1,1] <- gtable(DCtable,container=tabDCa,height=mwH*0.5,width=mwW,height=mwH-2*mwH/3,do.autoscroll=TRUE,noRowsVisible=TRUE) #add to frame
-    tabDCb[2,1] <- gbutton(text="Save table",container=tabDCb,handler=f_savetableDC)  
+    tabDCb[1,1] <- gbutton(text="Save table",container=tabDCb,handler=f_savetableDC)  
    }
  }
  refreshTabDC() #open results when program starts
@@ -1800,7 +1852,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
 ###############Tab 6: Database search:########################
 ##############################################################
 
- tabDBtmp <- glayout(spacing=30,container=tabDB) #grid-layout
+ tabDBtmp <- glayout(spacing=15,container=tabDB) #grid-layout
 
  f_savetableDB = function(h,...) {
    DBsearch <-get("resDB",envir=mmTK) #load results from environment
@@ -1812,38 +1864,33 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
    tabfile = gfile(text="Save table",type="save")
    if(!is.na(tabfile)) {
     if(length(unlist(strsplit(tabfile,"\\.")))==1) tabfile = paste0(tabfile,".",sep)
-    ord <- order(as.numeric(DBsearch[,2]),decreasing=TRUE) 
-    if(h$action=="LRC") ord <- order(as.numeric(DBsearch[,3]),decreasing=TRUE) 
-    if(h$action=="MAC") ord <- order(as.numeric(DBsearch[,4]),decreasing=TRUE) 
+    ord <- order(as.numeric(DBsearch[,as.integer(h$action)+1]),decreasing=TRUE) 
     if(length(ord)<=1) write.table(DBsearch,file=tabfile,quote=FALSE,sep="\t",row.names=FALSE) #load environment
     if(length(ord)>1) write.table(DBsearch[ord,],file=tabfile,quote=FALSE,sep="\t",row.names=FALSE) #load environment
     print(paste("Full ranked table saved in ",tabfile,sep=""))
    }
   }
 
- refreshTabDB = function(rank) {
+ refreshTabDB = function(ranktype=2) {
    DBtable <- get("resDB",envir=mmTK) #get deconvolved result 
    if(!is.null(DBtable)) {
-    if(rank=="LRC") rankind <- 2
-    if(rank=="LRQ") rankind <- 3
-    if(rank=="MAC") rankind <- 4
-    ord <- order(as.numeric(DBtable[,rankind]),decreasing=TRUE) #need to convert to numeric!
+    ord <- order(as.numeric(DBtable[,ranktype+1]),decreasing=TRUE) #need to convert to numeric!
     tabDBa = glayout(spacing=1,container=(tabDBtmp[1,1] <-glayout(spacing=0,container=tabDBtmp)),expand=TRUE) #table layout
     tabDBb = glayout(spacing=1,container=(tabDBtmp[2,1] <-glayout(spacing=0,container=tabDBtmp)),expand=TRUE) #table layout
-    if(length(ord)<=1) tabDBa[1,1] <- gtable(DBtable,container=tabDBa,width=mwW,height=mwH*0.5,do.autoscroll=TRUE,noRowsVisible=TRUE) #add to frame
-    if(length(ord)>1) tabDBa[1,1] <- gtable(DBtable[ord[1:min(get("optDB",envir=mmTK)$maxDB,length(ord))],] ,container=tabDBa,width=mwW,height=mwH*0.5,do.autoscroll=TRUE,noRowsVisible=TRUE) #add to frame
-    tabDBb[2,1] <- gbutton(text="Save table",container=tabDBb,handler=f_savetableDB,action=rank)  
+    tabDBc = glayout(spacing=1,container=(tabDBtmp[3,1] <-glayout(spacing=0,container=tabDBtmp)),expand=TRUE) #table layout
+    tabDBa[1,1] <- glabel("Sort table:",container=tabDBa)
+    itemvec <- c("contLR","qualLR","MAC","nLocs")
+    tabDBa[2,1] <- gradio(items=itemvec,selected=ranktype,horizontal=TRUE,container=tabDBa,handler=function(x) {
+      refreshTabDB( which(itemvec==svalue(tabDBa[2,1])) )
+    })
+    if(length(ord)<=1) tabDBb[1,1] <- gtable(DBtable,container=tabDBb,width=mwW,height=mwH*0.5,do.autoscroll=TRUE,noRowsVisible=TRUE) #add to frame
+    if(length(ord)>1) tabDBb[1,1] <- gtable(DBtable[ord[1:min(get("optDB",envir=mmTK)$maxDB,length(ord))],] ,container=tabDBb,width=mwW,height=mwH*0.5,do.autoscroll=TRUE,noRowsVisible=TRUE) #add to frame
+    tabDBc[1,1] <- gbutton(text="Save table",container=tabDBc,handler=f_savetableDB,action=ranktype)  
    }
  }
- refreshTabDB("LRC") #when program starts
+ refreshTabDB() #when program starts: Consider qual-rank
  visible(mainwin) <- TRUE
  focus(mainwin)
-
-
-###############################################################
-###############Tab 7: Model validation:########################
-###############################################################
-
 
 
 ###############################################################
@@ -1887,10 +1934,11 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
    }
 
    #show jointly:
+   totLR <- prod(LRi)
    tabLRmixB2[1,1] = glabel(text="LR",container=tabLRmixB2)
    tabLRmixB2[2,1] = glabel(text="log10LR",container=tabLRmixB2)
-   tabLRmixB2[1,2] = glabel(text=format(prod(LRi),digits=sig),container=tabLRmixB2)
-   tabLRmixB2[2,2] = glabel(text=format(sum(log10(LRi),digits=sig)),container=tabLRmixB2)
+   tabLRmixB2[1,2] = glabel(text=format(totLR,digits=sig),container=tabLRmixB2)
+   tabLRmixB2[2,2] = glabel(text=format(log10(totLR),digits=sig),container=tabLRmixB2)
   }
 
   #helpfunction for calculating LR for each given dropout pD (takes a numeric)
