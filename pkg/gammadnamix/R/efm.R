@@ -1,6 +1,6 @@
 #' @title efm
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
-#' @description efm (euroformix) is a GUI wrapper for gammadnamix
+#' @description efm (EuroForMix) is a GUI wrapper for gammadnamix
 #' @details The function is a graphical layer for the functions in the package gammadnamix. See ?gammadnamix for more information.
 #' @param envirfile A file to a saved environment of a project
 #' @export
@@ -257,7 +257,7 @@ efm = function(envirfile=NULL) {
   projfile = gfile(text="Open project",type="open", filter=list("Project"=list(patterns=list("*.Rdata"))))
   if(!is.na(projfile)) {
    dispose(mainwin)
-   euroformix(projfile) #send environment into program
+   efm(projfile) #send environment into program
   }
  }
  f_saveproj = function(h,...) {
@@ -1812,7 +1812,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      tabmleD[2,1] <- gbutton(text="Continuous LR\n(Integrated Likelihood based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
      tabmleD[3,1] <- gbutton(text="Simulate LR distribution",container=tabmleD,handler=function(h,...) { simLR(mlefit_hp,mlefit_hd) } ) 
     } #end if EVID or START
-    if(type=="DB") tabmleD[2,1] <- gbutton(text="Database search",container=tabmleD,handler=function(h,...) { doDB("MLE")} )
+    if(type=="DB") tabmleD[2,1] <- gbutton(text="Search Database",container=tabmleD,handler=function(h,...) { doDB("MLE")} )
     tabmleE = glayout(spacing=0,container=(tabMLEtmp[2,2] <-gframe("Save results to file",container=tabMLEtmp))) 
     tabmleE[1,1] <- gbutton(text="All results",container=tabmleE,handler=f_savetableALL,action=type)
     if(type=="EVID") tabmleE[2,1] <- gbutton(text="Only LR results",container=tabmleE,handler=f_savetableEVID)
@@ -2000,7 +2000,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
   tabLRmixA3 = glayout(spacing=0,container=(tabLRmixA[3,1] <-gframe("Postanalysis",container=tabLRmixA))) 
 
   tabLRmixB1 = glayout(spacing=0,container=(tabLRmixB[1,1] <-gframe("Loci",container=tabLRmixB)))  
-  tabLRmixB2 = glayout(spacing=0,container=(tabLRmixB[2,1] <-gframe("Jointly",container=tabLRmixB)))  
+  tabLRmixB2 = glayout(spacing=0,container=(tabLRmixB[2,1] <-gframe("Joint",container=tabLRmixB)))  
 
 
   #Preanalysis (sensistivity and dropout plots)
