@@ -49,9 +49,8 @@ efm = function(envirfile=NULL) {
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
   assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=1000),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
-  assign("optDB",list(maxDB=10000,QUALpC=0.05),envir=mmTK) #options when doing LRmix
-  assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05,ntippets=1e6),envir=mmTK) #options when doing database search (maxDB)
-
+  assign("optDB",list(maxDB=10000,QUALpC=0.05),envir=mmTK)  #options when doing database search (maxDB)
+  assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05,ntippets=1e6),envir=mmTK) #options when doing LRmix
 
   #initializing environment variables
   assign("workdir",NULL,envir=mmTK) #assign working directory to mmTK-environment
@@ -1143,11 +1142,15 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    }
 
    #Advanced parameters:
-   tabmodelA5[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA5,checked=TRUE,horisontal=TRUE) #checked only if not generating
+   isSNP <- all(sapply(popFreq,length)==2) #check if SNP data
+   stuttTxt <- ""
+   if(isSNP) stuttTxt <- 0 #set as no stutter
+
+   tabmodelA5[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE) #checked only if not generating
    tabmodelA5[2,1] <- glabel(text="Detection threshold: ",container=tabmodelA5)
    tabmodelA5[2,2] <- gedit(text="150",container=tabmodelA5,width=4)
    tabmodelA5[3,1] <- glabel(text="Stutter ratio (xi): ",container=tabmodelA5)
-   tabmodelA5[3,2] <- gedit(text="",container=tabmodelA5,width=4)
+   tabmodelA5[3,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=4)
    tabmodelA5[4,1] <- glabel(text="Dropin peak height \n hyperparam (lambda):",container=tabmodelA5)
    tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=4)
 
@@ -1196,8 +1199,13 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
         for(rsel in refSel) isOK <- isOK && svalue(tabmodelB[1+which(loc==locs),1 + nM + which(rsel==refSel)]) #check if locus checked for references
         if(isOK) sellocs <- c(sellocs,loc) #locus can be evaluated
        }
-      } else {
-        sellocs <- locs #use all locs what-so-ever if more than 30 loci
+      } else { #if more than 30 loci: select only valid existing loci in both mix and possible refs
+       for(loc in locs) { #for each locus in popFreq
+        isOK <- TRUE
+        for(msel in mixSel) isOK <- isOK && !is.null(mixD[[msel]][[loc]])
+        for(rsel in refSel) isOK <- isOK && !is.null(refD[[rsel]][[loc]])
+        if(isOK) sellocs <- c(sellocs,loc) #locus can be evaluated
+       }
       }
       if(length(sellocs)==0) { #don't do anything if no loci will be evaluated
        gmessage(message="No loci are evaluated! Be sure that all selected data have valid data in their loci.",title="No loci found!",icon="error")
@@ -1911,8 +1919,8 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     saveTable(tab, "txt") 
    }
   }
-  noSamples = function(hyp) { #helpfunction for tell user that wrong model assumption was used.
-    gmessage(message=paste0("No samples was accepted out of the first 1000.\nPlease change hypothesis under ",hyp),title="Wrong model specification",icon="error")
+  noSamples = function(hyp,M) { #helpfunction for tell user that wrong model assumption was used.
+    gmessage(message=paste0("No samples was accepted out of the first ",M," samples.\nPlease retry sampling or change hypothesis ",hyp),title="Wrong model specification",icon="error")
     stop()
   }  
 
@@ -1926,13 +1934,14 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
    tabLRmixB1[1,2] = glabel(text="LR",container=tabLRmixB1)
    tabLRmixB1[1,3] = glabel(text="log10LR",container=tabLRmixB1)
 
-   for(loc in locs) {
-    i = which(loc==locs)
-    tabLRmixB1[i+1,1] = glabel(text=loc,container=tabLRmixB1)
-    tabLRmixB1[i+1,2] = glabel(text=format(LRi[i],digits=sig),container=tabLRmixB1)
-    tabLRmixB1[i+1,3] = glabel(text=format(log10(LRi[i]),digits=sig),container=tabLRmixB1)
+   if(length(locs)<=maxloc) { #not given if more than 30 locs
+    for(loc in locs) {
+     i = which(loc==locs)
+     tabLRmixB1[i+1,1] = glabel(text=loc,container=tabLRmixB1)
+     tabLRmixB1[i+1,2] = glabel(text=format(LRi[i],digits=sig),container=tabLRmixB1)
+     tabLRmixB1[i+1,3] = glabel(text=format(log10(LRi[i]),digits=sig),container=tabLRmixB1)
+    }
    }
-
    #show jointly:
    totLR <- prod(LRi)
    tabLRmixB2[1,1] = glabel(text="LR",container=tabLRmixB2)
@@ -2035,13 +2044,14 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     for(ss in 1:nS) { #for each sample (do dropout calculation)
      print(paste0("For evidence ",names(set$samples)[[ss]],":"))
      print("Estimating quantiles from allele dropout distribution under Hp...")
-     DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hp,popFreq=set$popFreq,refData=refHp,minS=nsample,prC=par$prC)
-     if(length(DOdist)==0) noSamples("Hp")
+     Msamp <- 2000 #number of samples for each vectorization
+     DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hp,popFreq=set$popFreq,refData=refHp,minS=nsample,prC=par$prC,M=Msamp)
+     if(length(DOdist)==0) noSamples("Hp",Msamp)
      qqhp <- quantile(DOdist ,c(alpha,1-alpha)) #get quantiles
      print(qqhp)
      print("Estimating quantiles from allele dropout distribution under Hd...")
-     DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hd,popFreq=set$popFreq,refData=refHd,minS=nsample,prC=par$prC)
-     if(length(DOdist)==0) noSamples("Hd")
+     DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hd,popFreq=set$popFreq,refData=refHd,minS=nsample,prC=par$prC,M=Msamp)
+     if(length(DOdist)==0) noSamples("Hd",Msamp)
      qqhd <- quantile(DOdist ,c(alpha,1-alpha)) #get quantiles
      print(qqhd)
      if(ss==1) consDO <- rbind(qqhp,qqhd)
