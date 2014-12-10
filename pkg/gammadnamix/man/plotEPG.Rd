@@ -3,7 +3,7 @@
 \alias{plotEPG}
 \title{plotEPG}
 \usage{
-plotEPG(Data, kitname, sname = "")
+plotEPG(Data, kitname, sname = "", threshT = 0)
 }
 \arguments{
 \item{Data}{List of adata- and hdata-elements.}
@@ -11,6 +11,8 @@ plotEPG(Data, kitname, sname = "")
 \item{kit}{name of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}}
 
 \item{sname}{Sample name label.}
+
+\item{threshT}{The detection threshold can be shown in gray in the plot.}
 }
 \description{
 EPG plotter created by Oskar Hansson.
@@ -19,6 +21,6 @@ EPG plotter created by Oskar Hansson.
 Plots peak height with corresponding allele for one sample for a given kit.
 }
 \author{
-Oskar Hansson <Oskar.Hansson.at.fhi.no> and Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
+Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 }
 

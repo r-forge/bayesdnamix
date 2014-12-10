@@ -1,12 +1,13 @@
 #' @title plotEPG
-#' @author Oskar Hansson <Oskar.Hansson.at.fhi.no> and Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
+#' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
 #' @description EPG plotter created by Oskar Hansson.
 #' @details Plots peak height with corresponding allele for one sample for a given kit.
 #' @param Data List of adata- and hdata-elements.
 #' @param kit name of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
 #' @param sname Sample name label.
+#' @param threshT The detection threshold can be shown in gray in the plot.
 #' @export
-plotEPG <- function(Data,kitname,sname="") {
+plotEPG <- function(Data,kitname,sname="",threshT=0) {
  #Data is list with allele and height data. Only one sample!
  #for selected sample:
 
@@ -346,7 +347,7 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	peakHalfWidth <- 0.6
 
 	# Relative Allele name text size:	
-	alleleNameTxtSize <- 0.7
+	alleleNameTxtSize <- 0.8
 
 	# Distance between the highest peak in a plot and the plot border (1.04 = 4% margin).
 	yMarginTop <- 1.04
@@ -528,11 +529,14 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	colorVector <- colorNumbers[match(dyeVector, colorLetters)]
 	
 	# Get number of colors.
-	noColors <- nlevels(factor(dyeVector))
+#	noColors <- nlevels(factor(dyeVector))  #removed ØB
 
 	# Get colors
-	colors <- levels(factor(dyeVector))
-	colors <- colorNumbers[match(colors, colorLetters)]
+#	colors <- levels(factor(dyeVector))#removed ØB
+#	colors <- colorNumbers[match(colors, colorLetters)]#removed ØB
+	colors <- unique(colorVector)  #added ØB
+      noColors <-  length(colors) #added ØB
+
 
 
 	# INITIATE VARIABLES
@@ -623,7 +627,8 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	# Reduce the spacing between the plots.
 	# c(bottom, left, top, right) is the number of lines of margin to be specified on the four sides of the plot.
 	# The default is c(5, 4, 4, 2) + 0.1
-	par(mar = c(3, 4, 2, 2) + 0.1)
+#	par(mar = c(3, 4, 2, 2) + 0.1)
+	par(mar = c(2, 4, 1.5, 1) + 0.1)
 
 	# Define lower and upper bound for the x axis.
 	xMin <- .Machine$integer.max 
@@ -689,6 +694,7 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 		plot(c(xMin, xMax), c(0, yMax), type="n", ylim = c(0, yMax * yMarginTop), ann = FALSE)
 #		plot(c(xMin, xMax), c(min(phList), max(phList)), type="n", ylim = c(0, yMax * yMarginTop), ann = FALSE)
 
+            if(threshT>0) abline(h=threshT,col="gray",lwd=0.5)
 
 		# Write text if no data.
 		if (noData) {
@@ -705,13 +711,15 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 
 		# Label the x axis.
 		# pos values of 1, 2, 3 and 4 indicate positions below, left, above and right of the coordinate.
-		mtext(paste(xlabel), side = 1, line = 2, adj = 0, cex = 0.8)
+#		mtext(paste(xlabel), side = 1, line = 2, adj = 0, cex = 0.8)
+		mtext(paste(xlabel), side = 1, line = 1, adj = 0, cex = alleleNameTxtSize)
 
 		# Write allele names under the alleles.
 		# The additional par(xpd=TRUE) makes it possible to write text outside of the plot region.
 		text(bpVector, 0, labels = allelesByColorList[[color]], cex = alleleNameTxtSize, pos = 1, xpd = TRUE) 
 
-            text(bpmarkerByColorList[[color]], yMax + yMax*0.025  ,markerByColorList[[color]],cex=alleleNameTxtSize)
+#            text(bpmarkerByColorList[[color]], yMax + yMax*0.02 ,expression(bold(paste0(markerByColorList[[color]]))),cex=alleleNameTxtSize,font=1)
+            text(bpmarkerByColorList[[color]], yMax + yMax*0.02 ,markerByColorList[[color]],cex=alleleNameTxtSize,font=2)
 
  
 

@@ -25,7 +25,7 @@ simDOdistr(totA, nC, popFreq, refData = NULL, M = 1000, minS = 2000,
 Vector with accepted samples from the dropout distribution
 }
 \description{
-MCMC Allele dropout distribution sampler based on total number of alleles in an evidence.
+MC Allele dropout distribution sampler based on total number of alleles in an evidence.
 }
 \details{
 simDOdistr samples from the drop-out distribution based on total number of alleles in evidence under a specified prepositions. It returns if no samples was accepted in first iteration

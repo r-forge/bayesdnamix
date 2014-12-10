@@ -9,7 +9,7 @@ efm(envirfile = NULL)
 \item{envirfile}{A file to a saved environment of a project}
 }
 \description{
-efm (euroformix) is a GUI wrapper for gammadnamix
+efm (EuroForMix) is a GUI wrapper for gammadnamix
 }
 \details{
 The function is a graphical layer for the functions in the package gammadnamix. See ?gammadnamix for more information.

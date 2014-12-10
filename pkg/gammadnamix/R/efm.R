@@ -432,8 +432,8 @@ efm = function(envirfile=NULL) {
    'Set significance level in dropout distr.'=list(handler=function(h,...) {  
       setValueUser(what1="optLRMIX",what2="alpha",txt="Set significance level (quantiles) in dropout distribution:") 
     }),
-   'Set number of tippets'=list(handler=function(h,...) {  
-      setValueUser(what1="optLRMIX",what2="ntippets",txt="Set number of tippet samples in tippet plot:") 
+   'Set number of non-contributors'=list(handler=function(h,...) {  
+      setValueUser(what1="optLRMIX",what2="ntippets",txt="Set number of non-contributor samples in non-contributor plot:") 
     })
   )
  )
@@ -1354,7 +1354,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
       samples <- set$samples
       for(sn in names(samples)) {
        if(which(sn==names(samples))>1) dev.new() #create new plot for next EPG
-       plotEPG(samples[[sn]],kitname=kit,sname=sn) #plot epg's
+       plotEPG(samples[[sn]],kitname=kit,sname=sn,threshT=set$param$threshT) #plot epg's
       }
      })
    }
@@ -2044,7 +2044,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     for(ss in 1:nS) { #for each sample (do dropout calculation)
      print(paste0("For evidence ",names(set$samples)[[ss]],":"))
      print("Estimating quantiles from allele dropout distribution under Hp...")
-     Msamp <- 2000 #number of samples for each vectorization
+     Msamp <- 1000 #number of samples for each vectorization
      DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hp,popFreq=set$popFreq,refData=refHp,minS=nsample,prC=par$prC,M=Msamp)
      if(length(DOdist)==0) noSamples("Hp",Msamp)
      qqhp <- quantile(DOdist ,c(alpha,1-alpha)) #get quantiles
@@ -2091,16 +2091,16 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
   tippets <- mod$knownref_hd #known non-contributors under Hd
   if(!is.null(tippets)) {
    tN <- names(set$refData[[1]][tippets]) #tippet names
-   tabLRmixA3[1,1] <- glabel( "Select reference to tippet:",container=tabLRmixA3)
+   tabLRmixA3[1,1] <- glabel( "Select reference to\nreplace with non-contributor:",container=tabLRmixA3)
    tabLRmixA3[2,1] <- gcombobox( items=tN ,container=tabLRmixA3)
-   tabLRmixA3[3,1] <- gbutton(text="Do Tippet",container=tabLRmixA3,handler=function(x) {
+   tabLRmixA3[3,1] <- gbutton(text="Sample non-contributors",container=tabLRmixA3,handler=function(x) {
 
      #calculate LR for all genotypes in original popFreq.
      pD <- as.numeric(svalue(tabLRmixA2[1,2])) #take dropout-value as given in GUI
      tipref <- svalue(tabLRmixA3[2,1]) #get name of reference to tippet
      Glist <- getGlist(set$popFreqQ) #get random man-Glist 
 
-     print("Precalculating for tippet plot...")
+     print("Precalculating for non-contributor plot...")
      #calculate LRs directly here: 
      tipsel <- which(tN==tipref) #index of tippet to select
      tipind <- mod$knownref_hd[tipsel] #get tip-ind in refData
@@ -2121,7 +2121,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
        }
      } #end for each locus
      ntippet <- get("optLRMIX",envir=mmTK)$ntippets #get number of tippets to simulate
-     print(paste0("Simulating ",ntippet," tippets..."))
+     print(paste0("Simulating ",ntippet," non-contributors..."))
      RMLR <- rep(0,ntippet) #vector of tippets
      for(loc in locs) {
       RMLR <- RMLR + sample(log10(Glist[[loc]]$LR),ntippet,replace=TRUE,prob=Glist[[loc]]$Gprob)
@@ -2134,11 +2134,11 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      print( paste0("Standard Error of samples = ",sqrt(varxbar)) )
      quantiles<-quantile(RMLR,c(0.01,0.05,0.5,0.95,0.99))
      print(quantiles)
-     if(ntippet>5e6) stop("Number of tippets was above 5mill. This is too large to plot!")
+     if(ntippet>5e6) stop("Number of non-contributors was above 5mill. This is too large to plot!")
      lr0 <- NULL #log10 LR
      LRi <- get("resEVIDLRMIX",envir=mmTK) #get EVID calculations when GUI starts
      if(!is.null(LRi))  lr0 <- sum(log10(LRi))
-     mtxt = paste0("Tippet calculation for ",tipref," with ",ntippet," samples.")
+     mtxt = paste0("Non-contributor test for ",tipref," with ",ntippet," samples.")
      plot(ecdf(RMLR),xlim=c(minmax[1],max(minmax[2],lr0)) , main=mtxt,xlab="log10(LR)")
      if(!is.null(lr0)) {
       points(lr0,1,pch=10,col="blue")

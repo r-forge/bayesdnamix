@@ -1,6 +1,6 @@
 #' @title simDOdistr
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
-#' @description MCMC Allele dropout distribution sampler based on total number of alleles in an evidence.
+#' @description MC Allele dropout distribution sampler based on total number of alleles in an evidence.
 #' @export
 #' @details simDOdistr samples from the drop-out distribution based on total number of alleles in evidence under a specified prepositions. It returns if no samples was accepted in first iteration
 #' @param totA Total number of allele-observations in evidence.
