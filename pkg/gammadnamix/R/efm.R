@@ -48,7 +48,7 @@ efm = function(envirfile=NULL) {
   assign("optMLE",list(nDone=3,delta=10,dec=4),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
   assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
-  assign("optDC",list(alphaprob=0.9999,maxlist=1000),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
+  assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05),envir=mmTK)  #options when doing database search (maxDB)
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05,ntippets=1e6),envir=mmTK) #options when doing LRmix
 
@@ -219,18 +219,18 @@ efm = function(envirfile=NULL) {
   if(length(sind)>1)  sind = sind[grep("name",tolower(cn[sind]),fixed=TRUE)] #use only sample name
   A_ind = grep("allele",tolower(cn),fixed=TRUE) #allele col-ind
   H_ind = grep("height",tolower(cn),fixed=TRUE) #height col-ind
-  ln = unique(toupper(X[,lind])) #locus names: Convert to upper case
+  locs = unique(toupper(X[,lind])) #locus names: Convert to upper case
   sn = unique(X[,sind]) #sample names
-  I = length(ln)
   Y = list() #insert non-empty characters:
-  for(k in 1:length(sn)) { #for each sample in matrix
-   Y[[sn[k]]] = list() #one list for each sample
-   for(i in 1:I) { #for each locus
-     xind = X[,sind]==sn[k] & toupper(X[,lind])==ln[i] #get index in X for given sample and locus
+  for(s in sn) { #for each sample in matrix
+   Y[[s]] = list() #one list for each sample
+   for(loc in locs) { #for each locus
+     xind = X[,sind]==s & toupper(X[,lind])==loc #get index in X for given sample and locus
+     if(!any(xind)) next
      keep <- which(!is.na(X[xind,A_ind]) & X[xind,A_ind]!="")
      if(length(keep)>0) {
-      if(length(A_ind)>0) Y[[sn[k]]][[ln[i]]]$adata = as.character(X[xind,A_ind][keep])
-      if(length(H_ind)>0) Y[[sn[k]]][[ln[i]]]$hdata = as.numeric(as.character(X[xind,H_ind][keep]))
+      if(length(A_ind)>0) Y[[s]][[loc]]$adata = as.character(X[xind,A_ind][keep])
+      if(length(H_ind)>0) Y[[s]][[loc]]$hdata = as.numeric(as.character(X[xind,H_ind][keep]))
      }
    }
   }
@@ -773,7 +773,7 @@ efm = function(envirfile=NULL) {
     gtable(outD ,container=dbwin) #create table
     visible(dbwin) <- TRUE
 
-    #Calculate random man probability of matching for each samples
+    #Calculate random match probability of matching for each samples
     for(msel in mixSel) { 
      cind <- which(msel==mixSel)
      print(paste0("Calculating false positive MAC probability for sample ",msel,". This could take a while..."))
@@ -783,7 +783,7 @@ efm = function(envirfile=NULL) {
      ymax <- max(cumprob)
      delta <- 0.03
      if(msel!=mixSel[1]) dev.new() #create new plot for next EPG
-     barplot(cumprob,main="Random man probability having number of allele matches>=k",xlab="k number of allele matches",space=0,ylim=c(0,ymax+ymax*2*delta))
+     barplot(cumprob,main="Random match probability having number of allele matches>=k",xlab="k number of allele matches",space=0,ylim=c(0,ymax+ymax*2*delta))
      text(1:length(cumprob)-0.5,cumprob+ymax*delta,labels=format(cumprob,digits=2))
      mtext(paste0("Sample: ",msel))
     }
@@ -791,6 +791,9 @@ efm = function(envirfile=NULL) {
   } #end freq
 
   if(h$action=="mix") { #prints EPG
+     refD <- getData("ref") #get selected references
+     refSel <- numeric()
+     if(!is.null(refD))  refSel <- svalue(tabimportB[2,2])  #get selected references
      kitname <- svalue(tabimportA[3,1]) #get kit name. Must be same name as in generateEPG
      #first: Print evidences:
      for(msel in mixSel) {
@@ -799,7 +802,7 @@ efm = function(envirfile=NULL) {
       print(paste("Samplename: ",msel,sep=""))
       printEvid(subD)
       if(which(msel==mixSel)>1) dev.new() #create new plot for next EPG
-      plotEPG(Data=subD,kitname,sname=msel) #plot epg's
+      plotEPG(Data=subD,kitname,sname=msel,refcond=refD[refSel]) #plot epg's
      }
      print("------------------------------------")
      focus(mainwin)
@@ -810,6 +813,7 @@ efm = function(envirfile=NULL) {
      refSel <- numeric()
      if(!is.null(refD))  refSel <- svalue(tabimportB[2,2])  #get selected references
      nR <- length(refSel)
+     if(nR==0) return()
      printRefs(refD,refSel)
      #second: Print #matches to selected samples: Condition on samples inside evids
      for(msel in mixSel) { #for each selected evidence 
@@ -825,13 +829,14 @@ efm = function(envirfile=NULL) {
           if(!is.null(refA)) tab[which(loc==locs),which(rsel==refSel)] <- sum(refA%in%subD[[loc]]$adata)
         }
       } 
-     MAC <- colSums(tab,na.rm=TRUE) #remove NA's
-     nLocs <- colSums(!is.na(tab))
-     matchrate <- MAC/(2*nLocs)
-     tab2 <- rbind(tab,MAC,nLocs)
+      MAC <- colSums(tab,na.rm=TRUE) #remove NA's
+      nLocs <- colSums(!is.na(tab))
+      matchrate <- MAC/(2*nLocs)
+      tab2 <- rbind(tab,MAC,nLocs)
 
-     #Not implemented: If freqs are imported: Calculate false postive match probability of observed MAC
-     print(tab2)
+      #Not implemented: If freqs are imported: Calculate false postive match probability of observed MAC
+      print(tab2)
+
      } #end for each mix    
      print("------------------------------------")
    } #end if references

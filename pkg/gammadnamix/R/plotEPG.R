@@ -6,8 +6,9 @@
 #' @param kit name of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
 #' @param sname Sample name label.
 #' @param threshT The detection threshold can be shown in gray in the plot.
+#' @param refcond condition on a list$refname$locname$adata of reference alleles which are labeled in EPG
 #' @export
-plotEPG <- function(Data,kitname,sname="",threshT=0) {
+plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
  #Data is list with allele and height data. Only one sample!
  #for selected sample:
 
@@ -284,7 +285,7 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 } #end function
 
 
- generateEPG<-function(typingKit, alleleList, peakHeightList, locusVector, sampleName, dyeVector=NULL,  offsetVector=NULL,repeatUnitVector=NULL,  drawBoxPlots=TRUE, drawPeaks=TRUE){
+ generateEPG<-function(typingKit, alleleList, peakHeightList, locusVector, sampleName, refLabelList=NULL, refnames=NULL, dyeVector=NULL,  offsetVector=NULL,repeatUnitVector=NULL,  drawBoxPlots=TRUE, drawPeaks=TRUE){
 
 	# This function generates an electropherogram (EPG) like plot from lists of allele names and peak heights.
 	# Default values are used if no typing kit is specified.
@@ -299,7 +300,9 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	# offsetVector - a vector specifying the marker start offsets in base pairs.
 	# repeatUnitVector - a vector specifying the repeat unit size in base pairs.
 	# sampleName - title on the EPG.
-	# typingKit - kit short name or index number as specified in the function 'getKit'.
+	# refLabelList - a list of reference-index
+	# refnames - a vector with reference names
+ 	# typingKit - kit short name or index number as specified in the function 'getKit'.
 
 	# NB! If 'locusVector', 'dyeVector', 'offsetVector' or 'repeatUnitVector' is provided
 	# they override the information in a matching 'typingKit' IF they are of the same lenght.
@@ -338,8 +341,9 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	# sampleName is used as title.
 	
 	# X axis label:
-	xlabel <- "base pair"
-	
+#	xlabel <- "base pair"
+	xlabel <- "bp"
+
 	# Y axis label:
 	ylabel <- "peak height (rfu)"	
 
@@ -545,10 +549,11 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	basePairList <- list()
 	phListByColor <- list()
 	allelesByColorList <- list()
-
+	
       markerByColorList <- list()
       bpmarkerByColorList <- list()
-
+      refLabelByColorList <- list()
+      isLab <- length(refnames)>0 #boolean have labels
 
 	# SORT DATA ACCORDING TO COLOR CHANNEL and
 	# CONVERT ALLELE NAMES TO FRAGMENT LENGTH IN BASE PAIRS
@@ -577,6 +582,8 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 		# Extract all repeat unit sizes in the same color channel.
 		repeatUnitByColor <- repeatUnitVector[selectedMarkers]
 
+            refLabelByColor <- refLabelList[selectedMarkers] #added ØB
+
 		# Loop over all markers in that color channel.
 		for (marker in 1:length(allelesByColor)){
 
@@ -598,7 +605,7 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 			basePairTmpLst[[marker]] <- offsetByColor[marker] + floor(alleleValue) * repeatUnitByColor[marker] + (alleleValue %% 1) * 10
 		}
             bpmarkerByColorList[[color]] <- sapply(basePairTmpLst,function(x) x[1])
-
+           
 		# Add basepair to list.
 		for(row in 1:length(allelesByColor)){
 
@@ -607,10 +614,13 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 				basePairList[[color]] <- basePairTmpLst[[row]]
 				phListByColor[[color]] <- peakHeightsByColor[[row]]
 				allelesByColorList[[color]] <- allelesByColor[[row]]
+                        if(isLab) refLabelByColorList[[color]] <- refLabelByColor[[row]]
 			} else {
 				basePairList[[color]] <- c(basePairList[[color]], basePairTmpLst[[row]])
 				phListByColor[[color]] <- c(phListByColor[[color]], peakHeightsByColor[[row]])
 				allelesByColorList[[color]] <- c(allelesByColorList[[color]], allelesByColor[[row]])
+ 				if(isLab) refLabelByColorList[[color]] <- c(refLabelByColorList[[color]], refLabelByColor[[row]])
+
 			}
 		}
 	}
@@ -628,7 +638,7 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	# c(bottom, left, top, right) is the number of lines of margin to be specified on the four sides of the plot.
 	# The default is c(5, 4, 4, 2) + 0.1
 #	par(mar = c(3, 4, 2, 2) + 0.1)
-	par(mar = c(2, 4, 1.5, 1) + 0.1)
+	par(mar = c(2.3, 4, 1.5, 1) + 0.1)
 
 	# Define lower and upper bound for the x axis.
 	xMin <- .Machine$integer.max 
@@ -666,13 +676,11 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 		# Get alleles and peak heights for current marker.
 		bpVector <- basePairList[[color]]
 		phList <- phListByColor[[color]]
-#print("phList")
-#print(phList)
+
 		# Create blank plot with axes.
 #		yMax <- sapply(na.omit(phList),max)
 		yMax <- sapply(phList[!is.na(phList)],max)
-#print("yMax1")
-#print(yMax)
+
 		noData <- FALSE
 		if (length(yMax) == 0) {
 #print("length yMax == 0")
@@ -681,19 +689,18 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 		}
 		yMax <- max(yMax)
 #		yMax <- sapply(na.omit(yMax),max)
-#print("Ymax2")
-#print(yMax)
 
 #		noData <- FALSE
 		if (is.infinite(yMax) || is.na(yMax)) {
-#print("yMax infinite or NA")
-#print("yMax")
 			yMax <- 1 # Minimal height.
 			noData <- TRUE
 		}
-		plot(c(xMin, xMax), c(0, yMax), type="n", ylim = c(0, yMax * yMarginTop), ann = FALSE)
-#		plot(c(xMin, xMax), c(min(phList), max(phList)), type="n", ylim = c(0, yMax * yMarginTop), ann = FALSE)
-
+		plot(c(xMin, xMax), c(0, yMax), type="n", ylim = c(0, yMax * yMarginTop), ann = FALSE,axes=FALSE)
+            axis(side = 2)
+            nl <- 25 #number of ticks
+            axis(side = 1,at=seq(xMin,xMax,l=nl),label=rep("",nl))
+            if(isLab && color==1) legend("topright",legend=paste0("Label ",1:length(refnames)," = ",refnames),bty="n")
+            abline(h=0)
             if(threshT>0) abline(h=threshT,col="gray",lwd=0.5)
 
 		# Write text if no data.
@@ -711,17 +718,16 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 
 		# Label the x axis.
 		# pos values of 1, 2, 3 and 4 indicate positions below, left, above and right of the coordinate.
-#		mtext(paste(xlabel), side = 1, line = 2, adj = 0, cex = 0.8)
-		mtext(paste(xlabel), side = 1, line = 1, adj = 0, cex = alleleNameTxtSize)
+#		mtext(paste(xlabel), side = 1, line = 2, adj = 0, cex = alleleNameTxtSize)
+		mtext(paste(xlabel), side = 1, line = 0, adj = 0, cex = alleleNameTxtSize)
 
 		# Write allele names under the alleles.
 		# The additional par(xpd=TRUE) makes it possible to write text outside of the plot region.
 		text(bpVector, 0, labels = allelesByColorList[[color]], cex = alleleNameTxtSize, pos = 1, xpd = TRUE) 
+            if(isLab) text(bpVector,-yMax/20,labels=refLabelByColorList[[color]],cex = alleleNameTxtSize,pos=1, xpd = TRUE)
 
-#            text(bpmarkerByColorList[[color]], yMax + yMax*0.02 ,expression(bold(paste0(markerByColorList[[color]]))),cex=alleleNameTxtSize,font=1)
-            text(bpmarkerByColorList[[color]], yMax + yMax*0.02 ,markerByColorList[[color]],cex=alleleNameTxtSize,font=2)
-
- 
+#           text(bpmarkerByColorList[[color]], yMax + yMax*0.02 ,expression(bold(paste0(markerByColorList[[color]]))),cex=alleleNameTxtSize,font=1)
+            text(bpmarkerByColorList[[color]], yMax + yMax*0.04 ,markerByColorList[[color]],cex=1,font=2,xpd = TRUE)
 
 		# Loop over all peaks.
 		for (peak in 1:length(bpVector)){
@@ -754,15 +760,38 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
  if( all(alength==0) ) {
   gmessage(message="There is no allele data in sample!",title="Error",icon="error")
  } else {
+
    #fix order prior:
    kit <- getKit(kitname, showMessages=FALSE)
    adata <- lapply(Data,function(x) x$adata)
    hdata <- lapply(Data,function(x) x$hdata)
-   for(loc in locs) { #impute missing heights with 0
+   cdata <- list() #used to label conditioned references
+   for(loc in locs) { #impute missing heights with 1
+
+    #reference data:
+    if(!is.null(refcond)) {
+     rdata <- lapply(refcond,function(x) unlist(x[[loc]]))
+     unrdata <- unique(unlist(rdata))
+     newA <- unrdata[!unrdata%in%adata[[loc]]] #get new alleles
+     nA <- length(newA)
+     if(nA>0) {
+      adata[[loc]] <- c(adata[[loc]], newA)
+      hdata[[loc]] <- c(hdata[[loc]], rep(1,nA)) #insert peak heights
+     }
+     cdata[[loc]] <- rep("",length(adata[[loc]]))
+     for(rn in names(refcond)) {
+       ri <- which(names(refcond)==rn) #reference index
+       ind <- adata[[loc]]%in%rdata[[rn]]
+       fix <- nchar(cdata[[loc]][ind])>0 
+       cdata[[loc]][ind][fix] <- paste0(cdata[[loc]][ind][fix],"/")
+       cdata[[loc]][ind] <- paste0(cdata[[loc]][ind],ri)
+     }
+    }
     if( length(hdata[[loc]])==0 ) {
      hdata[[loc]] <- rep(1,length(adata[[loc]]))
     }
-   }
+   } #end for each loci
+
    if (!is.na(kit[[1]][1])) { #the kit was found.
       kitlocs <- toupper(getKit(kitname,what="marker", showMessages=FALSE)) #make uppercase
       sname <- paste0(kitname," - ",sname)
@@ -781,11 +810,11 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
       }
 	adata <- adata[kitlocs] 
 	hdata <- hdata[kitlocs] 
+	cdata <- cdata[kitlocs] 
    } else {
     kitlocs <- locs
    }
-
-   generateEPG(typingKit=kitname,alleleList=adata,peakHeightList=hdata, locusVector=kitlocs,sampleName=sname, drawBoxPlots=FALSE, drawPeaks=TRUE)
+   generateEPG(typingKit=kitname,alleleList=adata,peakHeightList=hdata, locusVector=kitlocs,sampleName=sname, drawBoxPlots=FALSE, drawPeaks=TRUE,refLabelList=cdata,refnames=names(refcond))
  }
 }
 
