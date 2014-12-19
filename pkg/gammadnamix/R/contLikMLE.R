@@ -22,11 +22,12 @@
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
 #' @param delta Standard deviation of normal distribution when drawing random startpoints. Default is 10.
+#' @param verbose Boolean whether printing optimization progress. Default is TRUE.
 #' @return ret A list(fit,model,nDone,delta) where fit is Maximixed likelihood elements for given model.
 #' @export
 #' @references Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
 #' @keywords continuous model, Maximum Likelihood Estimation
-contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10){
+contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10,verbose=TRUE){
  ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef)
 
  if(is.null(xi)) {
@@ -42,7 +43,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
    return(-Cval)
   }
  }
-
+ mu0 <- mean(sapply(samples,function(x) mean(sapply(x, function(y) sum(as.numeric(y$hdata)))))/2) #expected amount of DNA
  maxITER <- 500 #number of possible times to be INF or not valid optimum before any acceptance
  np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
  maxL <- -Inf #
@@ -51,6 +52,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  suppressWarnings({
   while(nOK<nDone) {
     p0 <- rnorm(np,sd=delta) #generate random start value on Real
+    p0[nC] <- rnorm(1,log(mu0),sd=delta) #generate random start value for mu
     likval <- negloglikYphi(p0)  
     if(is.infinite(likval)) { #if it was infinite
 	 nITER <- nITER + 1	 
@@ -58,18 +60,21 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
      tryCatch( {
        foo <- nlm(f=negloglikYphi, p=p0,hessian=TRUE)
        Sigma <- solve(foo$hessian)
-       if(any(diag(Sigma)>0) && foo$code%in%c(1,2) && foo$iterations>2) { #REQUIREMENT FOR BEING ACCEPTED
-    	nITER <- 0 #reset INF if accepted
+       if(all(diag(Sigma)>=0) && foo$code%in%c(1,2) && foo$iterations>2) { #REQUIREMENT FOR BEING ACCEPTED
+     	  nITER <- 0 #reset INF if accepted
         likval <- -foo$min
         nOK=nOK+1 #it was accepted as an optimum
         if(likval>maxL) {
          maxL <- likval #maximized likelihood
          maxPhi <- foo$est #set as topfoo     
          maxSigma <- Sigma 
+         if(verbose) print(paste0("loglik=",maxL))
+         if(verbose) print(paste0(maxPhi,collapse=","))
         }
+	  if(verbose) print(paste0("Done with ",nOK,"/",nDone," optimizations"))
        } else { #NOT ACCEPTED
-     	 nITER <- nITER + 1 
-	   }
+     	  nITER <- nITER + 1 
+       }
      },error=function(e) e) #end trycatch 
     }
     if(nOK==0 && nITER>maxITER) {
@@ -104,15 +109,17 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   J <- matrix(0,length(phi),length(phi))
   if(nC>1) {
    DmDm <- matrix(0,nC-1,nC-1)
-   for(i in 1:(nC-1)) {
-    mitmp <- 1/(1+exp(-phi[i])) #temporary variable
+   irange <- 1:(nC-1) #range of mixture proportions
+   xtmp <- 1/(1+exp(-phi[irange ])) #aux variable
+   dxtmp <-  exp(-phi[irange])*xtmp^2 #derivative of aux variable
+   for(i in irange) {
     for(j in 1:i) {
      if(j==i) {
-       DmDm[i,i] <- exp(-phi[i])*mitmp^2
+       DmDm[i,i] <- dxtmp[i]
        if(i>1) DmDm[i,i] <- DmDm[i,i]*(1-sum(mle[1:(j-1)])) #note using mle(theta) here!
-     } else {
-       DmDm[i,j] <- -mitmp*(sum( DmDm[1:i,j] ))
-     } #end case
+     } else { #cross-derivatives
+       DmDm[i,j] <- -xtmp[i]*sum(DmDm[1:(i-1),j])
+     }
     } #end for each col j (xj)
    } #end for each row i (fi)
   J[1:(nC-1),1:(nC-1)] <- DmDm
@@ -126,7 +133,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  } #end jacobian
  J <- Jacob(maxPhi,mle=thetahat)
  Sigma <- (t(J)%*%maxSigma%*%J) #this is correct covariance of thetahat. Observed hessian is used
- #Sigma <- (J%*%maxSigma%*%t(J))/sqrt(np) #this formula is wrong!
+ #Sigma <- (J%*%maxSigma%*%t(J))/sqrt(np) #this formula is not correct
 
  #get extended Sigma (all parameters)
  Sigma2 <- matrix(NA,nrow=np+1,ncol=np+1) #extended covariance matrix also including mx[nC]

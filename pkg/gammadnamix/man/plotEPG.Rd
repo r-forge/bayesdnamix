@@ -3,7 +3,7 @@
 \alias{plotEPG}
 \title{plotEPG}
 \usage{
-plotEPG(Data, kitname, sname = "", threshT = 0)
+plotEPG(Data, kitname, sname = "", threshT = 0, refcond = NULL)
 }
 \arguments{
 \item{Data}{List of adata- and hdata-elements.}
@@ -13,6 +13,8 @@ plotEPG(Data, kitname, sname = "", threshT = 0)
 \item{sname}{Sample name label.}
 
 \item{threshT}{The detection threshold can be shown in gray in the plot.}
+
+\item{refcond}{condition on a list$refname$locname$adata of reference alleles which are labeled in EPG}
 }
 \description{
 EPG plotter created by Oskar Hansson.

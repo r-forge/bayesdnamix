@@ -5,7 +5,8 @@
 \usage{
 contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
   knownRef = NULL, xi = NULL, prC = 0, nDone = 1, threshT = 50,
-  fst = 0, lambda = 0, pXi = function(x) 1, delta = 10)
+  fst = 0, lambda = 0, pXi = function(x) 1, delta = 10,
+  verbose = TRUE)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -35,6 +36,8 @@ contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
 \item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
 
 \item{delta}{Standard deviation of normal distribution when drawing random startpoints. Default is 10.}
+
+\item{verbose}{Boolean whether printing optimization progress. Default is TRUE.}
 }
 \value{
 ret A list(fit,model,nDone,delta) where fit is Maximixed likelihood elements for given model.
