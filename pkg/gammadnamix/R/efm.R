@@ -34,7 +34,7 @@ efm = function(envirfile=NULL) {
  softname <- paste0("EuroForMix v",version)
 
  #NUMBER OF MAX LOCI TO VISUALIZE:
- maxloc <- 30 #REQUIRE LESS THAN 30 loci to be able to select!
+ maxloc <- 30 #REQUIRE LESS OR EQUAL THAN 30 loci to be able to select!
 
 
  #####################
@@ -451,13 +451,13 @@ efm = function(envirfile=NULL) {
  mainwin <- gwindow(softname, visible=FALSE, width=mwW,height=mwH)
  gmenu(mblst,container=mainwin)
  nb = gnotebook(container=mainwin)
- tabGEN = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Generate data") #tab1: Generates data(with peak heights) for a given model (plot EPG in addition)
+ tabGEN = glayout(expand=TRUE,spacing=spc,container=nb,label="Generate data") #tab1: Generates data(with peak heights) for a given model (plot EPG in addition)
  tabimport = ggroup(horizontal=FALSE,expand=TRUE,spacing=40,container=nb,label="Import data") #tab2: (imports all files)
- tabmodel = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Model specification") #tab3: specify model used in weight-of-evidence (INT/MLE) or in a Database search 
- tabMLE = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="MLE fit") #results from MLE
- tabDC = ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Deconvolution") #results from a deconvolution
- tabDB= ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Database search") #results from a database search
- tabLRMIX <- ggroup(horizontal=FALSE,expand=TRUE,spacing=spc,container=nb,label="Qual. LR") #LRmix
+ tabmodel = glayout(expand=TRUE,spacing=spc,container=nb,label="Model specification") #tab3: specify model used in weight-of-evidence (INT/MLE) or in a Database search 
+ tabMLE = glayout(expand=TRUE,spacing=spc,container=nb,label="MLE fit") #results from MLE
+ tabDC = ggroup(expand=TRUE,spacing=spc,container=nb,label="Deconvolution") #results from a deconvolution
+ tabDB= ggroup(expand=TRUE,spacing=spc,container=nb,label="Database search") #results from a database search
+ tabLRMIX <- glayout(expand=TRUE,spacing=spc,container=nb,label="Qual. LR") #LRmix
  svalue(nb) <- 2 #initial start at second tab
 
 
@@ -465,10 +465,10 @@ efm = function(envirfile=NULL) {
 ###############Tab 1: Create Data:##################
 ####################################################
 
- tabGENtmp <- glayout(spacing=0,container=tabGEN)
-
  refreshTabGEN = function(thlist=list(mu=1000,sigma=0.15,xi=0.1,mx=NULL) ) { #can be repeated
   visible(mainwin) <- FALSE 
+  tabGENtmp <- glayout(spacing=0,container=(tabGEN[1,1,expand=TRUE] <- ggroup(container=tabGEN))) 
+
 
   #load/save helpfunctions for generated data
   f_openprof = function(h,...) {
@@ -1026,9 +1026,6 @@ efm = function(envirfile=NULL) {
 #######################################Tab 3: Model setup:##########################################################
 #####################################################################################################################
 
-tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
-
-
   #helpfunction to get boundary from Toolbar:
   getboundary = function(nC,xi=NULL) {
     optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
@@ -1062,16 +1059,20 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
        bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
 
        #integrate:
-       int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownRef_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
-       print("Calculation under Hd done...")
-
-       int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownRef_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
+       print("Calculates under Hp...")
+       int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
+       print(paste0("Lik=",int_hp$margL))
+       print("Calculates under Hd...")
+       int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
+       print(paste0("Lik=",int_hd$margL))
        LR <- int_hp$margL/int_hd$margL
        dev <- range(c(int_hp$deviation/int_hd$deviation,int_hp$deviation/rev(int_hd$deviation))) #get deviation interval of LR
        res <- list(LR=LR,dev=dev)
        assign("resEVIDINT",res,envir=mmTK) #assign deconvolved result to environment
        #Print a GUI message:
-       gmessage(message=paste0("The LR (integrated Likelihood based)\nwas calculated as \nLR=",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]\nlog10LR=",format(log10(LR),digits=4)," [",format(log10(dev[1]),digits=4)," , ",format(log10(dev[2]),digits=4),"]"),title="Continuous LR (Integrated Likelihood based)",icon="info")
+       txt <- paste0("The LR (integrated Likelihood based)\nwas calculated as \nLR=",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]\nlog10LR=",format(log10(LR),digits=4)," [",format(log10(dev[1]),digits=4)," , ",format(log10(dev[2]),digits=4),"]")
+       cat(txt)
+       gmessage(message=txt,title="Continuous LR (Integrated Likelihood based)",icon="info")
      } 
      if(type=="DB") { #Case of DB-search
        doDB("INT") #do database search with integration
@@ -1083,6 +1084,9 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
   refreshTabmodel = function(mixSel,refSel,dbSel,type) { 
    #type={"GEN","EVID","DB","DC"}
    visible(mainwin) <- FALSE
+   tabmodeltmp <- glayout(spacing=spc,container=(tabmodel[1,1,expand=TRUE] <- ggroup(container=tabmodel))) 
+   edwith = 6 #edit width
+
    popFreq <- get("popFreq",envir=mmTK)
    locs <- names(popFreq)  #get names of loci for imported population frequencies. used as default in list
    mixD = getData("mix")
@@ -1101,29 +1105,17 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    #Hypothesis selection: subframe of A
    txt <- "Contributor(s) under Hp:"
    if(type=="DB") txt <- paste0(txt, "\n(DB-reference already included)")
-   if(type!="GEN") { #if not generating samples
-    tabmodelA1 = glayout(spacing=0,container=(tabmodelA[1,1] <-gframe("Evidence(s)",container=tabmodelA))) 
-    if(type!="DC") tabmodelA2 = glayout(spacing=0,container=(tabmodelA[2,1] <-gframe(txt,container=tabmodelA))) 
-   } 
+   if(type%in%c("DB","EVID")) tabmodelA2 = glayout(spacing=0,container=(tabmodelA[2,1] <-gframe(txt,container=tabmodelA))) 
    tabmodelA3 = glayout(spacing=0,container=(tabmodelA[3,1] <-gframe("Contributor(s) under Hd:",container=tabmodelA)))
-   tabmodelA4a = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Continuous Model Parameters",container=tabmodelA))) 
-   if(type%in%c("EVID","DB")) tabmodelA4b = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Qualitative Model Parameters",container=tabmodelA))) 
-   tabmodelA5 = glayout(spacing=0,container=(tabmodelA[6,1] <-gframe("Advanced Parameters",container=tabmodelA))) 
+   tabmodelA4 = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Model Parameters",container=tabmodelA))) 
+   tabmodelA5 = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Advanced Parameters",container=tabmodelA))) 
 
-   if(type=="DB") { #add database-names if included:
-    tabmodelA6 = glayout(spacing=0,container=(tabmodelA[7,1] <-gframe("Database(s) to search",container=tabmodelA))) 
-    for(dsel in dbSel) tabmodelA6[which(dsel==dbSel),1] =  glabel(text=dsel,container=tabmodelA6)
-   }
-   if(type!="GEN") { #don't show evidence if GEN
-    for(msel in mixSel) {
-     tabmodelA1[which(msel==mixSel),1] <- gcheckbox(text=msel,container=tabmodelA1,checked=TRUE)
-     enabled(tabmodelA1[which(msel==mixSel),1]) <- FALSE
-    }
-   }
+   #specify references under hypotheses
    for(rsel in refSel) {
-    if(!type%in%c("DC","GEN")) tabmodelA2[which(rsel==refSel),1]  <- gcheckbox(text=rsel,container=tabmodelA2,checked=TRUE) #Check as default under Hp
+    if(type%in%c("DB","EVID")) tabmodelA2[which(rsel==refSel),1]  <- gcheckbox(text=rsel,container=tabmodelA2,checked=TRUE) #Check as default under Hp
     tabmodelA3[which(rsel==refSel),1]  <- gcheckbox(text=rsel,container=tabmodelA3,checked=!(type=="EVID")) #references under Hd (not checked if evidnece)
    }
+
    #specify number of unknowns
    if(!type%in%c("DC","GEN")) {
     tabmodelA2[nR+1,1] <- glabel(text="#unknowns (Hp): ",container=tabmodelA2)
@@ -1132,41 +1124,36 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    tabmodelA3[nR+1,1] <- glabel(text="#unknowns (Hd): ",container=tabmodelA3)
    tabmodelA3[nR+1,2] <- gedit(text="2",container=tabmodelA3,width=4)
 
-   #Model parameters for continuous model:
-   tabmodelA4a[1,1] <- glabel(text="Probability of Dropin: ",container=tabmodelA4a)
-   tabmodelA4a[1,2] <- gedit(text="0",container=tabmodelA4a,width=4)
-   tabmodelA4a[2,1] <- glabel(text="fst-correction: ",container=tabmodelA4a)
-   tabmodelA4a[2,2] <- gedit(text="0",container=tabmodelA4a,width=4)
-
-   #Model parameters for qualitative model:
-   if(type%in%c("EVID","DB")) {
-    tabmodelA4b[1,1] <- glabel(text="Probability of Dropin: ",container=tabmodelA4b)
-    tabmodelA4b[1,2] <- gedit(text="0.05",container=tabmodelA4b,width=4)
-    tabmodelA4b[2,1] <- glabel(text="fst-correction: ",container=tabmodelA4b)
-    tabmodelA4b[2,2] <- gedit(text="0.02",container=tabmodelA4b,width=4)
-   }
-
-   #Advanced parameters:
+   #Case if SNP data:
    isSNP <- all(sapply(popFreq,length)==2) #check if SNP data
    stuttTxt <- ""
-   if(isSNP) stuttTxt <- 0 #set as no stutter
+   t0 <- 150 #detection threshold as default
+   if(isSNP) {
+    stuttTxt <- 0 #set as no stutter
+    t0 <- 10
+   }
 
+   #Model parameters:
+   tabmodelA4[1,1] <- glabel(text="Detection threshold: ",container=tabmodelA4)
+   tabmodelA4[1,2] <- gedit(text=t0,container=tabmodelA4,width=edwith)
+   tabmodelA4[2,1] <- glabel(text="fst-correction: ",container=tabmodelA4)
+   tabmodelA4[2,2] <- gedit(text="0",container=tabmodelA4,width=edwith)
+
+   #Advanced parameters:
    tabmodelA5[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE) #checked only if not generating
-   tabmodelA5[2,1] <- glabel(text="Detection threshold: ",container=tabmodelA5)
-   tabmodelA5[2,2] <- gedit(text="150",container=tabmodelA5,width=4)
-   tabmodelA5[3,1] <- glabel(text="Stutter ratio (xi): ",container=tabmodelA5)
-   tabmodelA5[3,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=4)
-   tabmodelA5[4,1] <- glabel(text="Dropin peak height \n hyperparam (lambda):",container=tabmodelA5)
-   tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=4)
+   if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
 
-   #tabmodelA5[5,1] <- glabel(text="Stutter prior function p(x): ",container=tabmodelA5)
-   #tabmodelA5[6,1] <- gedit(text="1",container=tabmodelA5,width=20)
-   #enabled(tabmodelA5[6,1]) <- FALSE #NOT IMPLEMENTED
+   tabmodelA5[2,1] <- glabel(text="Stutter ratio (xi): ",container=tabmodelA5)
+   tabmodelA5[2,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=edwith)
+   tabmodelA5[3,1] <- glabel(text="Probability of Dropin: ",container=tabmodelA5)
+   tabmodelA5[3,2] <- gedit(text="0",container=tabmodelA5,width=edwith)
+   tabmodelA5[4,1] <- glabel(text="Dropin peak height \n hyperparam (lambda):",container=tabmodelA5)
+   tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=edwith)
 
    if(type=="GEN") { #deactivate options for generation:
-    enabled(tabmodelA4a[2,2]) <- FALSE #deactivate fst-correction
+    enabled(tabmodelA4[2,2]) <- FALSE #deactivate fst-correction
     enabled(tabmodelA5[1,1]) <- FALSE #deactivate Q-assignation fst-correction
-    enabled(tabmodelA5[3,2]) <- FALSE #deactivate stutter ratio
+    enabled(tabmodelA5[2,2]) <- FALSE #deactivate stutter ratio
    }
 
    #Data selection
@@ -1195,7 +1182,7 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
 
    #helpfunction which takes GUI settings and stores them in "set'type'"
    storeSettings = function(lrtype="PLOT") {
-     #lrtype={"CONT"},{"QUAL"},{"PLOT"}
+     #lrtype="CONT","QUAL","PLOT"
       sellocs <- numeric() #Selected loci (which all mixtures, references has)
       if(length(locs)<=maxloc) { 
        for(loc in locs) { #for each locus in popFreq
@@ -1251,14 +1238,12 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
       } #end for each loci
 
       #READ FROM GUI:
-      threshT <- as.numeric(svalue(tabmodelA5[2,2]))
-      xi <- svalue(tabmodelA5[3,2]) #stutter ratio
+      threshT <- as.numeric(svalue(tabmodelA4[1,2])) #threshold
+      fst <-  as.numeric(svalue(tabmodelA4[2,2])) #correction
+      xi <- svalue(tabmodelA5[2,2]) #stutter ratio
+      prC <-  as.numeric(svalue(tabmodelA5[3,2])) #dropin probability
       lambda <-   as.numeric(svalue(tabmodelA5[4,2])) #lambda is hyperparameter to dropin-peak height model
-      pXi = function(x)1  #default
-      if(lrtype!="QUAL") prC <-  as.numeric(svalue(tabmodelA4a[1,2])) #dropin probability
-      if(lrtype=="QUAL") prC <-  as.numeric(svalue(tabmodelA4b[1,2])) #dropin probability
-      if(lrtype!="QUAL") fst <-  as.numeric(svalue(tabmodelA4a[2,2])) #correction
-      if(lrtype=="QUAL") fst <-  as.numeric(svalue(tabmodelA4b[2,2])) #correction
+      pXi = function(x)1  #default constant
 
       #CHECK VARIABLES:
       checkPositive(threshT,"Threshold")
@@ -1305,7 +1290,13 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
         valhd <- as.integer(svalue(tabmodelA3[which(rsel==refSel),1])) 
         condOrder_hd[which(rsel==refSel)] <- valhd + valhd*max(condOrder_hd)
       }
-     
+      #get specified preposition 
+      knownref_hp <- knownref_hd <- NULL #known non-contributors under Hp always NULL (since they exist under condOrder)
+      if(type=="EVID") { #only for Evidence
+       knownref_hd <- which(condOrder_hp>0 & condOrder_hd==0) #those references conditioned under hp but not hd
+       if(length(knownref_hd)==0) knownref_hd <- NULL
+      }
+
       #number of contributors in model:
       nC_hp <- NULL
       if(!type%in%c("DC","GEN")) nC_hp <-  as.integer(svalue(tabmodelA2[nR+1,2])) + sum(condOrder_hp>0)
@@ -1319,13 +1310,6 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
        popFreqQ <- ret$popFreq
        refDataQ <- ret$refData
       }
-  
-      #get specified preposition 
-      knownref_hp <- knownref_hd <- NULL #known non-contributors under Hp always NULL (since they exist under condOrder)
-      if(type=="EVID") { #only for Evidence
-       knownref_hd <- which(condOrder_hp>0 & condOrder_hd==0) #those references conditioned under hp but not hd
-       if(length(knownref_hd)==0) knownref_hd <- NULL
-      }
 
       #get input to list: note: "fit_hp" and "fit_hd" are list-object from fitted model
       model <- list(nC_hp=nC_hp,nC_hd=nC_hd,condOrder_hp=condOrder_hp,condOrder_hd=condOrder_hd,knownref_hp=knownref_hp,knownref_hd=knownref_hd) #proposition
@@ -1336,10 +1320,15 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
    } #end store settings from GUI to environment
 
 
-   #Calculation button:  
+   #View evaluating evidence/databases  
    #Plot EPG of selected data (calls storeSettings first and then plotEPG by importing selected data)
    if(type!="GEN") {
-     tabmodelC[1,1] = gbutton(text="Plot EPG",container=tabmodelC,handler= function(h,...) { 
+     tabmodelC1 = glayout(spacing=0,container=(tabmodelC[1,1] <-gframe("Evidence(s)",container=tabmodelC))) 
+     for(msel in mixSel) {
+       tabmodelC1[which(msel==mixSel),1] <- gcheckbox(text=msel,container=tabmodelC1,checked=TRUE)
+       enabled(tabmodelC1[which(msel==mixSel),1]) <- FALSE
+     }
+     tabmodelC[2,1] = gbutton(text="Plot EPG",container=tabmodelC,handler= function(h,...) { 
       storeSettings("PLOT") #store settings
       #loads each selections and plot epg:
       set = get(paste0("set",type),set,envir=mmTK) #store setup for relevant type
@@ -1362,6 +1351,10 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
        plotEPG(samples[[sn]],kitname=kit,sname=sn,threshT=set$param$threshT) #plot epg's
       }
      })
+     if(type=="DB") { #add database-names if included:
+      tabmodelC3 = glayout(spacing=0,container=(tabmodelC[3,1] <-gframe("Database(s) to search",container=tabmodelC))) 
+      for(dsel in dbSel) tabmodelC3[which(dsel==dbSel),1] =  glabel(text=dsel,container=tabmodelC3)
+     }
    }
 
    #Calculation button:  
@@ -1563,16 +1556,16 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
           
           if(ITYPE=="MLE") { #calculate with MLE
             logLi_hdeval <- logLi_hd[locevalind] #take out relevant values
-            mlefit_hp <- contLikMLE(mod$nC_hp+1,samples,popFreqQ[loceval],refData2,condOrder_hp,mod$knownRef_hp,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi)
+            mlefit_hp <- contLikMLE(mod$nC_hp+1,samples,popFreqQ[loceval],refData2,condOrder_hp,mod$knownref_hp,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi,verbose=FALSE)
             if(par$fst>0) { #must calculate Hd once again (assume Rj is known)
-             mlefit_hdj <- contLikMLE(mod$nC_hd,samples,popFreqQ[loceval],refData2,condOrder_hd,nR,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi)
+             mlefit_hdj <- contLikMLE(mod$nC_hd,samples,popFreqQ[loceval],refData2,condOrder_hd,nR,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi,verbose=FALSE)
              LRD[rind] <- exp(mlefit_hp$fit$loglik - mlefit_hdj$fit$loglik) #insert calculated LR adjusted by fst-correction
             } else {
              LRD[rind] <- exp(mlefit_hp$fit$loglik - sum(logLi_hdeval)) #insert calculated LR:
             }  
           } #END DB WITH TYPE MLE
           if(ITYPE=="INT") { #Calculate with INT
-            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownRef_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi)     
+            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi)     
             hd0INT <- numeric()
             if(par$fst==0 && length(hd0stored)>0) { #If any previous calculated values
               if(par$fst==0) { #can use stored value if fst=0
@@ -1608,8 +1601,6 @@ tabmodeltmp <- glayout(spacing=spc,container=tabmodel)
 ##########################################################################################
 #HERE: WE DO BASICLY MLE-FITTING HERE: 
 #BUT DECONVOLUTION-function AND DATABASE SEARCHING is implemented here (saves memory usage)!
-
-tabMLEtmp <- glayout(spacing=30,container=tabMLE)
 
   f_savetableEVID = function(h,...) { #function for storing LR
    resEVID <- get("resEVID",envir=mmTK) #get EVID calculations when GUI starts
@@ -1666,7 +1657,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
      print("Note: You can change default number of iterations in toolbar menu.")
      mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
-     print(paste0("Sampling acceptance ratio=",round(mcmcfit$accrat,2),". This should be around 0.2"))
+     print(paste0("Sampling acceptance rate=",round(mcmcfit$accrat,2),". This should be around 0.2"))
      validMCMC(mcmcfit,acf=FALSE) #don't plot acf
 
      #Here we also plot Dropout model:
@@ -1680,7 +1671,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
      print("Note: You can change default number of iterations in toolbar menu.")
      mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
-     print(paste0("Sampling acceptance ratio=",round(mcmcfit$accrat,2),". This should be around 0.2"))
+     print(paste0("Sampling acceptance rate=",round(mcmcfit$accrat,2),". This should be around 0.2"))
      validMCMC(mcmcfit,acf=FALSE) #don't plot acf
   } #end function
 
@@ -1699,7 +1690,9 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
 
   refreshTabMLE = function(type) { 
     #type={"EVID","DB","DC"}
-   
+    visible(mainwin) <- FALSE
+    tabMLEtmp <- glayout(spacing=spc,container=(tabMLE[1,1,expand=TRUE] <- ggroup(container=tabMLE)))
+ 
     #optimizing options
     opt<- get("optMLE",envir=mmTK) #options when optimizing (nDone,delta)
     dec <- opt$dec #number of significant desimals to have in MLE print
@@ -1743,21 +1736,20 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      mod <- set$model
      par <- set$param     
 
-
-   
-     #fit under hd: (does it for all methods)
-     time <- system.time({     mlefit_hd <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hd,mod$knownRef_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)    })[3]
-     print(paste0("Optimizing under Hd took ",format(time,digits=5),"s"))
-     if(!is.null(set$mlefit_hd) && set$mlefit_hd$fit$loglik>mlefit_hd$fit$loglik )  mlefit_hd <- set$mlefit_hd #the old model was better
-
      #fit under hp: (only for evidence)
      if(type=="EVID") {
-      time <- system.time({     mlefit_hp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hp,mod$knownRef_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)     })[3]
+      time <- system.time({     mlefit_hp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)     })[3]
       print(paste0("Optimizing under Hp took ",format(time,digits=5),"s"))
       if(!is.null(set$mlefit_hp) && set$mlefit_hp$fit$loglik>mlefit_hp$fit$loglik )  mlefit_hp <- set$mlefit_hp #the old model was better
      } else {
       mlefit_hp <- NULL #not used otherwise
      }
+   
+     #fit under hd: (does it for all methods)
+     time <- system.time({     mlefit_hd <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)    })[3]
+     print(paste0("Optimizing under Hd took ",format(time,digits=5),"s"))
+     if(!is.null(set$mlefit_hd) && set$mlefit_hd$fit$loglik>mlefit_hd$fit$loglik )  mlefit_hd <- set$mlefit_hd #the old model was better
+
 
      #store MLE result:
      #store best mle-values once again
@@ -1819,7 +1811,7 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      tabmleC1[1,2] =  glabel(text=format(LRmle,digits=dec),container=tabmleC1)
      tabmleC1[2,1] =  glabel(text="log10LR=",container=tabmleC1)
      tabmleC1[2,2] =  glabel(text=format(log10(LRmle),digits=dec),container=tabmleC1)
-     tabmleC3 = glayout(spacing=0,container=(tabmleC[2,1] <-gframe("LR for each loci",container=tabmleC))) 
+     tabmleC3 = glayout(spacing=0,container=(tabmleC[2,1] <-gframe("LR for each locus",container=tabmleC))) 
      if(length(LRi)<=maxloc) { #show all LR per loci only if less than maxloc
       for(i in 1:length(LRi)) {
        tabmleC3[i,1] =  glabel(text=names(LRi)[i],container=tabmleC3)
@@ -1833,7 +1825,8 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
     tabmleE = glayout(spacing=0,container=(tabMLEtmp[2,2] <-gframe("Save results to file",container=tabMLEtmp))) 
     tabmleE[1,1] <- gbutton(text="All results",container=tabmleE,handler=f_savetableALL,action=type)
     if(type=="EVID") tabmleE[2,1] <- gbutton(text="Only LR results",container=tabmleE,handler=f_savetableEVID)
-
+ 
+    visible(mainwin) <- TRUE
     focus(mainwin) #focus window after calculations are done
   } #end refresh tab-frame of MLE-fit
 
@@ -1906,16 +1899,11 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
    }
  }
  refreshTabDB() #when program starts: Consider qual-rank
- visible(mainwin) <- TRUE
- focus(mainwin)
-
 
 ###############################################################
 ###############Tab 8: LRmix module:############################
 ###############################################################
  #uses only qualitative information
-
- tabLRMIXtmp <- glayout(spacing=30,container=tabLRMIX)
 
  f_savetableEVIDLRMIX = function(h,...) { #function for storing LR
    LRi <- get("resEVIDLRMIX",envir=mmTK) #get EVID calculations when GUI starts
@@ -1935,6 +1923,8 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
 
  refreshTabLRMIX = function() {
   require(forensim)
+  tabLRMIXtmp <- glayout(spacing=spc,container=(tabLRMIX[1,1,expand=TRUE] <- ggroup(container=tabLRMIX))) 
+  visible(mainwin) <- FALSE
  
   #helpfunction to make GUI-table with LR calculations
   tableLR = function(LRi) { 
@@ -2156,7 +2146,12 @@ tabMLEtmp <- glayout(spacing=30,container=tabMLE)
      }
    }) #end TIPPET BUTTON
   } #end if not tippet possible
+  visible(mainwin) <- TRUE
+  focus(mainwin)
  } #end refresh funtion
+
+ visible(mainwin) <- TRUE
+ focus(mainwin)
 
 } #end funcions
 
