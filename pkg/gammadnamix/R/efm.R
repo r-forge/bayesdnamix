@@ -1724,7 +1724,7 @@ efm = function(envirfile=NULL) {
        bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
        bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
        Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL 
-       Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL
+       if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL
        RMLR[m] <- log10(Lhp) - log10(Lhd)
       }
       if(m%%(ntippet/10)==0) {
