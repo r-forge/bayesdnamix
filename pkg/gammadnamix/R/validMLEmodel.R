@@ -62,11 +62,12 @@ if(is.null(xi)) { #stutter is unknown
     return(exp(Cval))
   }
 }
-  alpha <- 0.05
+  alpha <- 0.01
   alpha2 <- alpha/sum(sapply(model$samples,function(x) sapply(x,function(y) length(y$adata)))) #"bonferroni outlier"
   maxYobs <- max(sapply(model$samples,function(x) sapply(x,function(y) max(y$hdata)))) #max observation
   maxYexp <- qgamma(1-alpha2,2*nC*rho,scale=tau) #max observation in theory
   maxY <- ceiling(max(maxYobs,maxYexp)) #get max observed
+  minY <- model$threshT
 
   cumprobi <- numeric()
   for(loc in locs) { #traverse for each locus
@@ -76,20 +77,23 @@ if(is.null(xi)) { #stutter is unknown
    n <- length(Yupper) #number of observed peak heights 
    for(j in 1:n) {
     ret$obsY <- Yupper #reset observations
-    num <- integrate(Vectorize(likYtheta),lower=0,upper=Yupper[j])[[1]]
-    denom <- integrate(Vectorize(likYtheta),lower=0,upper=maxY)[[1]]
+    num <- integrate(Vectorize(likYtheta),lower=minY,upper=Yupper[j])[[1]]
+    denom <- integrate(Vectorize(likYtheta),lower=minY,upper=maxY)[[1]]
     val <- num/denom
     cumprobi <- c(cumprobi,val) #get cumulative probability
    }
   }
   N <- length(cumprobi)
   cumunif <-  punif((1:N)-0.5,0,N)
-  qqplot(cumunif,cumprobi,xlim=0:1,ylim=0:1,main="PP-plot between fitted model and theoretical model",xlab="Expected (Unif(0,1))",ylab="Observed (Pr(Yj<=yj|Y_{-j}<=y_{-j},model))")
-  abline(0,1)
- 
+
   #Goodness of fit test
   pval <- ks.test(cumprobi, "punif")$p.value
-  print(paste0("p-value from Goodness-of-fit test = ",pval))
+  txt <- paste0("p-value from Goodness-of-fit test = ",format(pval,digits=3))
+  print(txt)
+  qqplot(cumunif,cumprobi,xlim=0:1,ylim=0:1,main="PP-plot between fitted model and theoretical model",xlab="Expected: Unif(0,1)",ylab="Observed: (Pr(Yj<=yj|Y_{-j}<=y_{-j},Yj>=thresh,model))")
+  abline(0,1)
+  mtext(txt)
+ 
   return(pval)
 }
 

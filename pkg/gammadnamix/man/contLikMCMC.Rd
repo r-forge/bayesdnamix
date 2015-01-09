@@ -3,17 +3,24 @@
 \alias{contLikMCMC}
 \title{contLikMCMC}
 \usage{
-contLikMCMC(mlefit, niter = 10000, delta = 2)
+contLikMCMC(mlefit, uppermu = 10000, uppersigma = 1, upperxi = 1,
+  niter = 10000, delta = 10)
 }
 \arguments{
 \item{mlefit}{Fitted object using contLikMLE}
+
+\item{uppermu}{Upper boundary of the mu-parameters}
+
+\item{uppersigma}{Upper boundary of the sigma-parameters}
+
+\item{upperxi}{Upper boundary of the xi-parameters}
 
 \item{niter}{Number of samples in the MCMC-sampling.}
 
 \item{delta}{A numerical parameter to scale with the covariance function Sigma. Default is 2. Should be higher to obtain lower acception rate.}
 }
 \value{
-ret A list (margL,posttheta,postlogL,logpX,accrat) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, posttheta is the posterior samples from a MC routine, postlogL is sampled log-likelihood values, accrat is ratio of accepted samples.
+ret A list (margL,posttheta,postlogL,logpX,accrat,Ubound ) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, posttheta is the posterior samples from a MC routine, postlogL is sampled log-likelihood values, accrat is ratio of accepted samples. Ubound is upper boundary of parameters.
 }
 \description{
 contLikMCMC simulates from the posterior distribution for a bayesian STR DNA mixture model.

@@ -50,7 +50,7 @@ efm = function(envirfile=NULL) {
   assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05),envir=mmTK)  #options when doing database search (maxDB)
-  assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05,ntippets=1e6),envir=mmTK) #options when doing LRmix
+  assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05,ntippets=1e3),envir=mmTK) #options when doing LRmix
 
   #initializing environment variables
   assign("workdir",NULL,envir=mmTK) #assign working directory to mmTK-environment
@@ -399,7 +399,7 @@ efm = function(envirfile=NULL) {
    'Set maximum of sigma-parameter'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="maxsigma",txt="Set upper boundary of mu parameter:") 
     }),
-   'Set maximum of stutter-ratio'=list(handler=function(h,...) {  
+   'Set maximum of stutter-rate'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="maxxi",txt="Set upper boundary of xi parameter:") 
     })
   ),
@@ -540,7 +540,7 @@ efm = function(envirfile=NULL) {
   tabGENa[1,2] <- gedit(thlist$mu,container=tabGENa,width=10)
   tabGENa[2,1] <- glabel("sigma (coeffecient of variation)",container=tabGENa)
   tabGENa[2,2] <- gedit(thlist$sigma,container=tabGENa,width=10)
-  tabGENa[3,1] <- glabel("xi (stutter ratio)",container=tabGENa)
+  tabGENa[3,1] <- glabel("xi (stutter rate)",container=tabGENa)
   tabGENa[3,2] <- gedit(thlist$xi,container=tabGENa,width=10)
   for(k in 1:nC) { #for each contributors
    tabGENa[k+3,1] <- glabel( paste0("mx",k," (mix-proportion contr. ",k,")") ,container=tabGENa)
@@ -1008,8 +1008,6 @@ efm = function(envirfile=NULL) {
    } else if(h$action=="DB" && length(dbSel)==0) {
     gmessage(message="Please import and select reference-database for database search!")
    } else {
-#    delete(tabmodeltmp,tabmodel)  
-#    dispose(tabmodel)  
     refreshTabmodel(mixSel,refSel,dbSel,h$action) #refresh table with selected data
     svalue(nb) <- 3 #change tab of notebook
    }
@@ -1034,7 +1032,7 @@ efm = function(envirfile=NULL) {
     upper[nC] <- optint$maxmu
     upper[nC+1] <- optint$maxsigma
     upper[nC+2] <- optint$maxxi
-    if(!is.null(xi)) { #must remove stutter ratio if known
+    if(!is.null(xi)) { #must remove stutter rate if known
      lower <- lower[-(nC+2)]
      upper <- upper[-(nC+2)]
     }
@@ -1143,7 +1141,7 @@ efm = function(envirfile=NULL) {
    tabmodelA5[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE) #checked only if not generating
    if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
 
-   tabmodelA5[2,1] <- glabel(text="Stutter ratio (xi): ",container=tabmodelA5)
+   tabmodelA5[2,1] <- glabel(text="Stutter rate (xi): ",container=tabmodelA5)
    tabmodelA5[2,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=edwith)
    tabmodelA5[3,1] <- glabel(text="Probability of Dropin: ",container=tabmodelA5)
    tabmodelA5[3,2] <- gedit(text="0",container=tabmodelA5,width=edwith)
@@ -1153,7 +1151,7 @@ efm = function(envirfile=NULL) {
    if(type=="GEN") { #deactivate options for generation:
     enabled(tabmodelA4[2,2]) <- FALSE #deactivate fst-correction
     enabled(tabmodelA5[1,1]) <- FALSE #deactivate Q-assignation fst-correction
-    enabled(tabmodelA5[2,2]) <- FALSE #deactivate stutter ratio
+    enabled(tabmodelA5[2,2]) <- FALSE #deactivate stutter rate
    }
 
    #Data selection
@@ -1240,10 +1238,10 @@ efm = function(envirfile=NULL) {
       #READ FROM GUI:
       threshT <- as.numeric(svalue(tabmodelA4[1,2])) #threshold
       fst <-  as.numeric(svalue(tabmodelA4[2,2])) #correction
-      xi <- svalue(tabmodelA5[2,2]) #stutter ratio
+      xi <- svalue(tabmodelA5[2,2]) #stutter rate
       prC <-  as.numeric(svalue(tabmodelA5[3,2])) #dropin probability
       lambda <-   as.numeric(svalue(tabmodelA5[4,2])) #lambda is hyperparameter to dropin-peak height model
-      pXi = function(x)1  #default constant
+      pXi = function(x)1  #eval(parse(text="expression"))
 
       #CHECK VARIABLES:
       checkPositive(threshT,"Threshold")
@@ -1251,9 +1249,9 @@ efm = function(envirfile=NULL) {
       checkProb(prC,"Allele dropin-probability")
       checkProb(fst,"fst-correction")
       if(xi=="") {
-       xi <- NULL #assume unknown stutter ratio
+       xi <- NULL #assume unknown stutter rate
       } else {
-       checkProb(xi,"Stutter ratio (xi)")
+       checkProb(xi,"Stutter rate (xi)")
       }
 
       #prepare data for function in gammadnamix! Data-object must have correct format!
@@ -1650,44 +1648,92 @@ efm = function(envirfile=NULL) {
      svalue(nb) <- 5 #go to deconvolution results window (for all cases) when finished     
   }
 
-  #helpfunction ran when call deconvolution
-  doMCMC <- function(mleobj) { 
+  #helpfunction ran when call MCMC
+  doMCMC <- function(mleobj,returnPostLogL=FALSE,showValid=TRUE) { 
      optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
+     optint <- get("optINT",envir=mmTK) #get boundaries
      if(any(is.na(mleobj$fit$phiSigma))) return();
      print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
      print("Note: You can change default number of iterations in toolbar menu.")
-     mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
+     mcmcfit <- contLikMCMC(mleobj,uppermu=optint$maxmu,uppersigma=optint$maxsigma,upperxi=optint$maxxi,optlist$niter,optlist$delta)
      print(paste0("Sampling acceptance rate=",round(mcmcfit$accrat,2),". This should be around 0.2"))
-     validMCMC(mcmcfit,acf=FALSE) #don't plot acf
-
-     #Here we also plot Dropout model:
-     #mcmcfit      
+     if(showValid) validMCMC(mcmcfit,acf=FALSE) #don't plot acf
+     if(returnPostLogL) return(mcmcfit$postlogL)
   }
-
-  #helpfunction ran when call deconvolution
-  doMCMC <- function(mleobj) { 
-     optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
-     if(any(is.na(mleobj$fit$phiSigma))) return();
-     print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
-     print("Note: You can change default number of iterations in toolbar menu.")
-     mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
-     print(paste0("Sampling acceptance rate=",round(mcmcfit$accrat,2),". This should be around 0.2"))
-     validMCMC(mcmcfit,acf=FALSE) #don't plot acf
-  } #end function
 
   #Simulating LR over the parameter space
   simLR = function(mlehp,mlehd) {
      optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
      if(any(is.na(mlehp$fit$phiSigma)) || any(is.na(mlehd$fit$phiSigma)) ) return();
-     print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
-     log10LR <- (contLikMCMC(mlehp,optlist$niter,optlist$delta)$postlogL - contLikMCMC(mlehd,optlist$niter,optlist$delta)$postlogL)/log(10)
+     print("Sampling under Hp...")
+     hplogL <- doMCMC(mlehp,returnPostLogL=TRUE,showValid=FALSE)
+     print("Sampling under Hd...")
+     hdlogL <- doMCMC(mlehd,returnPostLogL=TRUE,showValid=FALSE)
+     log10LR <- (hplogL - hdlogL)/log(10)
      plot(density(log10LR),xlab="log10 LR",ylab="log10LR distr",main="Distribution of LR over posterior space of parameters")
      qqs <- c(0.01,0.025,0.05,0.25,0.5,0.75,0.95,0.975,0.99)
      LRqq <- quantile(log10LR,qqs)
+     abline(v=LRqq[3],col=4,lty=2)
+     legend("topright",legend=paste0("5% quantile = ",format(LRqq[3],digits=4)),col=4,lty=2)
      print(LRqq)
   }
 
+  #Tippet-analysis frame:
+  doTippet <- function(tipind,set,type="MLE",ntippet=10) { #tipref is index in refData to exchange with random man from population
+     mod <- set$model
+     par <- set$param
+     if(type=="MLE")  opt<- get("optMLE",envir=mmTK) #options when optimizing (nDone,delta)
+     if(type=="INT")  opt<- get("optINT",envir=mmTK) #options when optimizing (nDone,delta) 
 
+     Glist <- getGlist(set$popFreqQ) #get random man-Glist 
+     refData <- set$refDataQ 
+     locs <- names(refData) #loci to evaluate
+     modtipind <- mod$condOrder_hp[tipind] #get position in system of tippet
+     qq <- c(0.01,0.05,0.5,0.95,0.99) #quantiles in non-contr.
+
+     plotTippet <- function(x) {
+      #summary
+      n <- length(x)
+      xbar <- sum(10^x)/n #mean LR
+      print( paste0("Mean of non-contributing LR samples = ", xbar ))
+      empvarLR <- (sum((10^(2*x))) - n*xbar^2)/(n-1)  #emperical variance
+      varxbar <- empvarLR/n
+      print( paste0("Emperical SD of non-contributing LR samples = ",sqrt(varxbar)) )
+      quantiles <- c(min(x),quantile(x,qq),max(x))
+      names(quantiles) <- c("Min",qq,"Max")
+      print(quantiles)
+
+      #plot
+      okLR <- x[!is.infinite(x)]
+      if(length(okLR)>0) {
+       minmax = range(okLR)
+       plot(ecdf(x), main=paste0("Non-contributor ecdf of ",n," samples"),xlab="log10(LR)",xlim=minmax)
+      }
+     }
+
+     print(paste0("Simulating ",ntippet," non-contributors..."))
+     RMLR <- rep(-Inf,ntippet) #vector of tippets
+     for(m in 1:ntippet) { #for each random individual from the population
+      for(loc in locs)  refData[[loc]][[tipind]] <-  Glist[[loc]]$G[ sample(1:length(Glist[[loc]]$Gprob),1,prob=Glist[[loc]]$Gprob),] #Sample random genotypes from popFreqQ
+      if(type=="MLE") { #calculate based on MLE
+         logLhp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,refData,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik 
+         logLhd <- set$mlefit_hd$fit$loglik 
+         if(par$fst>0) logLhd  <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,refData,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik  #re-calculate only necessary once if fst>0 
+         RMLR[m] <- (logLhp - logLhd)/log(10)
+      } else { #calculate based on INT
+       bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
+       bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
+       Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL 
+       Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL
+       RMLR[m] <- log10(Lhp) - log10(Lhd)
+      }
+      if(m%%(ntippet/10)==0) {
+        print(paste0(m/ntippet*100,"% finished..."))
+        plotTippet(RMLR[1:m])
+      }
+     }
+  } #end Tippet function
+ 
   refreshTabMLE = function(type) { 
     #type={"EVID","DB","DC"}
     visible(mainwin) <- FALSE
@@ -1763,7 +1809,6 @@ efm = function(envirfile=NULL) {
     #helpfunction to print msg to screen
     modelfitmsg =function() gmessage(message="The one-sample Kolmogorov-Smirnov test\nrejected the peak height model assumption\n(with significance level 0.05)",title="Rejection of model assumption",icon="info")
 
-
     #GUI:
     tabmleA = glayout(spacing=0,container=(tabMLEtmp[1,1] <- gframe("Estimates under Hd",container=tabMLEtmp))) 
     tableMLE(mlefit_hd$fit,tabmleA)
@@ -1788,6 +1833,10 @@ efm = function(envirfile=NULL) {
     #We show weight-of-evidence
     tabmleD = glayout(spacing=5,container=(tabMLEtmp[2,1] <-gframe("Further evaluation",container=tabMLEtmp))) 
     tabmleD[1,1] <- gbutton(text="Optimize model more",container=tabmleD,handler=function(h,...) { refreshTabMLE(type)  } )
+ 
+    tabmleE = glayout(spacing=0,container=(tabMLEtmp[2,2] <-gframe("Save results to file",container=tabMLEtmp))) 
+    tabmleE[1,1] <- gbutton(text="All results",container=tabmleE,handler=f_savetableALL,action=type)
+
     if(type=="EVID") {
      logLRmle <- mlefit_hp$fit$loglik - mlefit_hd$fit$loglik
      LRmle <- exp(logLRmle)
@@ -1820,12 +1869,27 @@ efm = function(envirfile=NULL) {
      }
      tabmleD[2,1] <- gbutton(text="Continuous LR\n(Integrated Likelihood based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
      tabmleD[3,1] <- gbutton(text="Simulate LR distribution",container=tabmleD,handler=function(h,...) { simLR(mlefit_hp,mlefit_hd) } ) 
+     tabmleE[2,1] <- gbutton(text="Only LR results",container=tabmleE,handler=f_savetableEVID)
+ 
+     #postanalysis
+     tabmleF = glayout(spacing=0,container=(tabMLEtmp[2,3] <-gframe("Non-contributor analysis",container=tabMLEtmp))) 
+     tippets <- set$model$knownref_hd #known non-contributors under Hd
+     ntippet <- get("optLRMIX",envir=mmTK)$ntippets
+     if(!is.null(tippets)) {
+      tN <- names(set$refData[[1]][tippets]) #tippet names
+      tabmleF[1,1] <- glabel( "Select reference to\nreplace with non-contributor:",container=tabmleF)
+      tabmleF[2,1] <- gcombobox( items=tN ,container=tabmleF)
+      tabmleF[3,1] <- gbutton(text="Sample maximum based",container=tabmleF,handler=function(x) { 
+	  doTippet(tipind=tippets[which(tN==svalue(tabmleF[2,1]))],set,type="MLE",ntippet)  #get tip-index in refData
+	})
+      tabmleF[4,1] <- gbutton(text="Sample integrated based",container=tabmleF,handler=function(x) { 
+	  doTippet(tipind=tippets[which(tN==svalue(tabmleF[2,1]))],set,type="INT",ntippet)  #get tip-index in refData
+	})
+     }
     } #end if EVID or START
     if(type=="DB") tabmleD[2,1] <- gbutton(text="Search Database",container=tabmleD,handler=function(h,...) { doDB("MLE")} )
-    tabmleE = glayout(spacing=0,container=(tabMLEtmp[2,2] <-gframe("Save results to file",container=tabMLEtmp))) 
-    tabmleE[1,1] <- gbutton(text="All results",container=tabmleE,handler=f_savetableALL,action=type)
-    if(type=="EVID") tabmleE[2,1] <- gbutton(text="Only LR results",container=tabmleE,handler=f_savetableEVID)
- 
+  
+
     visible(mainwin) <- TRUE
     focus(mainwin) #focus window after calculations are done
   } #end refresh tab-frame of MLE-fit
@@ -2032,6 +2096,7 @@ efm = function(envirfile=NULL) {
     optLRMIX <- get("optLRMIX",envir=mmTK) 
     nsample <- optLRMIX$nsample
     alpha <- optLRMIX$alpha
+    qq <- c(alpha,0.5,1-alpha) #Dropout quantiles to consider 
     totA <-  sapply(  set$samples, function(x) sum(sapply(x,function(y) length(y$adata)) ) ) #number of alleles for each samples
     print("Total number of observed alleles for sample(s):")
     print(totA)
@@ -2041,28 +2106,29 @@ efm = function(envirfile=NULL) {
 
   
     for(ss in 1:nS) { #for each sample (do dropout calculation)
+     qq <- alpha
      print(paste0("For evidence ",names(set$samples)[[ss]],":"))
      print("Estimating quantiles from allele dropout distribution under Hp...")
      Msamp <- 1000 #number of samples for each vectorization
      DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hp,popFreq=set$popFreq,refData=refHp,minS=nsample,prC=par$prC,M=Msamp)
      if(length(DOdist)==0) noSamples("Hp",Msamp)
-     qqhp <- quantile(DOdist ,c(alpha,1-alpha)) #get quantiles
+     qqhp <- quantile(DOdist ,qq) #get estimated quantiles
      print(qqhp)
      print("Estimating quantiles from allele dropout distribution under Hd...")
      DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hd,popFreq=set$popFreq,refData=refHd,minS=nsample,prC=par$prC,M=Msamp)
      if(length(DOdist)==0) noSamples("Hd",Msamp)
-     qqhd <- quantile(DOdist ,c(alpha,1-alpha)) #get quantiles
+     qqhd <- quantile(DOdist ,qq) #get estimated quantiles
      print(qqhd)
      if(ss==1) consDO <- rbind(qqhp,qqhd)
      if(ss>1) {
       if(qqhp[1]<consDO[1,1]) consDO[1,1] <- qqhp[1]
-      if(qqhp[2]>consDO[1,2]) consDO[1,2] <- qqhp[2]
+      if(qqhp[2]>consDO[1,2]) consDO[1,2] <- qqhp[3]
       if(qqhd[1]<consDO[2,1]) consDO[2,1] <- qqhd[1]
-      if(qqhd[2]>consDO[2,2]) consDO[2,2] <- qqhd[2]
+      if(qqhd[2]>consDO[2,2]) consDO[2,2] <- qqhd[3]
      }
     }
     consDO <- signif(consDO,2) #2 significant numbers to use
-    print(consDO) #print out
+    print(consDO) #print out drop-out values
 
     #calculate corresponding LR's
     consLRi <- Vectorize(doLR) (c(consDO))
@@ -2127,10 +2193,10 @@ efm = function(envirfile=NULL) {
      }
      minmax = range(RMLR[!is.infinite(RMLR)])
      xbar <- sum(10^RMLR)/ntippet #mean LR
-     print( paste0("Mean of samples = ", xbar ))
+     print( paste0("Mean of non-contributing LR samples = ", xbar ))
      empvarLR <- (sum((10^(2*RMLR))) - ntippet*xbar^2)/(ntippet-1)  #emperical variance
      varxbar <- empvarLR/ntippet
-     print( paste0("Standard Error of samples = ",sqrt(varxbar)) )
+     print( paste0("Emperical SD of non-contributing LR samples = ",sqrt(varxbar)) )
      quantiles<-quantile(RMLR,c(0.01,0.05,0.5,0.95,0.99))
      print(quantiles)
      if(ntippet>5e6) stop("Number of non-contributors was above 5mill. This is too large to plot!")

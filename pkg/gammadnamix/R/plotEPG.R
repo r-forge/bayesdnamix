@@ -637,7 +637,6 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 	# Reduce the spacing between the plots.
 	# c(bottom, left, top, right) is the number of lines of margin to be specified on the four sides of the plot.
 	# The default is c(5, 4, 4, 2) + 0.1
-#	par(mar = c(3, 4, 2, 2) + 0.1)
 	par(mar = c(2.3, 4, 1.5, 1) + 0.1)
 
 	# Define lower and upper bound for the x axis.
@@ -749,7 +748,10 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
 			}
 		}
 	}
- par(mfrow = c(1, 1)) #
+ dev.new()
+ op <- par(no.readonly = TRUE)
+ dev.off()
+ par(op)
 } #end plot function
 
  #START FUNCTION
@@ -807,6 +809,7 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
       for(loc in missloc) {
        	adata[loc] = "" 
             hdata[loc] = 1 #default is binary signal (below detection threshold)
+            cdata[loc] = ""
       }
 	adata <- adata[kitlocs] 
 	hdata <- hdata[kitlocs] 
