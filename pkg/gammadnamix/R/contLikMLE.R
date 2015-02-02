@@ -44,7 +44,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   }
  }
  mu0 <- mean(sapply(samples,function(x) mean(sapply(x, function(y) sum(as.numeric(y$hdata)))))/2) #expected amount of DNA
- maxITER <- 500 #number of possible times to be INF or not valid optimum before any acceptance
+ maxITER <- 100 #number of possible times to be INF or not valid optimum before any acceptance
  np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
  maxL <- -Inf #
  nOK <- 0 #number of times for reaching optimum
@@ -72,6 +72,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
          if(verbose) print(paste0(maxPhi,collapse=","))
         }
 	  if(verbose) print(paste0("Done with ",nOK,"/",nDone," optimizations"))
+        flush.console()
        } else { #NOT ACCEPTED
      	  nITER <- nITER + 1 
        }

@@ -8,11 +8,12 @@
 #' @param mlefit Fitted object using contLikMLE function.
 #' @param alpha Required sum of the listed posterior probabilities.
 #' @param maxlist The ranked deconvolved profile list will not exceed this number (used to avoid endless search).
+#' @param unknownonly A boolean whether table should only contain the unknown genotypes or both known and unknown genotypes.
 #' @return ret A list(table1,rankG,pG) where rankG is the ranked genotypes with corresponding probabilities in pG. table1 is a formated version of these two.
 #' @export
 #' @references Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
 #' @keywords deconvolution
-deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
+deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
  theta <- mlefit$fit$thetahat #condition on mle parameter
  model <- mlefit$model #take out assumed model with given data
  locs <- names(model$popFreq)
@@ -75,6 +76,9 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
  pG <- rankGlist$pG
  Gset  <- rankGlist$rankG
 
+ kvec <- 1:nC
+ if(unknownonly) kvec <- uind  
+
  #Step 3) Convert rank-list to list with allele-names
  Glist <- getGlist(model$popFreq) #get genotype list with genotypes and corresponding frequencies
  deconvlist <- list()
@@ -85,14 +89,16 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
   for(k in 1:nC) { #for each contributor
    if(k%in%uind) { #if unknown contributor
     geno <- Glist[[locs[i]]]$G[rankgeno[,which(k==uind)],] #get allele named genotype
-   } else { #if known contributors (they are given in reference) 
+   } else if(!unknownonly) { #if known contributors in addition(they are given in reference) 
     geno <- sort(model$refData[[locs[i]]][[which(model$condOrder==k)]])
     geno <- matrix( rep(geno,nrow(rankgeno)),ncol=2,byrow=TRUE)
+   } else {
+    next #skip to next contributor
    }
    geno <- paste0(geno[,1],"/",geno[,2])
    rankgenos <- cbind(rankgenos,geno)
   }
-  colnames(rankgenos) <- paste0("g",1:nC)
+  colnames(rankgenos) <- paste0("g",kvec)
   deconvlist[[locs[i]]] <- rankgenos 
  }
 
@@ -102,6 +108,6 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000){
   table1 <- cbind(table1,deconvlist[[loc]])
  }
  table1 <-  cbind(table1,pG)
- colnames(table1) <- c(paste0(c(t(replicate(nC,locs))),"_g",1:nC),"posterior")
+ colnames(table1) <- c(paste0(c(t(replicate(length(kvec),locs))),"_g",kvec),"posterior")
  return(list(table1=table1,rankG=deconvlist,pG=pG))
 } #end function

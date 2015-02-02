@@ -1,6 +1,6 @@
 #' @title simDOdistr
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
-#' @description MC Allele dropout distribution sampler based on total number of alleles in an evidence.
+#' @description MCMC Allele dropout distribution sampler based on total number of alleles in an evidence.
 #' @export
 #' @details simDOdistr samples from the drop-out distribution based on total number of alleles in evidence under a specified prepositions. It returns if no samples was accepted in first iteration
 #' @param totA Total number of allele-observations in evidence.
@@ -144,7 +144,6 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
    uH[i] <- nC - length(refs) #number of unrestricted unknowns  
   }
  }
- names(refvec) <- locs
  if(any(uH<0)) { print("There was more references than contributors"); return(NULL) }
 
  #import LR-models elements

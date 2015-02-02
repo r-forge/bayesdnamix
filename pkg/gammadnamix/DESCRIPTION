@@ -1,8 +1,8 @@
 Package: gammadnamix
 Type: Package
 Title: Package for intepretation of quantitative STR DNA mixtures
-Version: 0.8.7
-Date: 2015-01-13
+Version: 0.8.9
+Date: 2015-02-02
 Author: Oyvind Bleka <Oyvind.Bleka@fhi.no>
 Maintainer: Oyvind Bleka <Oyvind.Bleka@fhi.no>
 Description: gammadnamix contains procedures for optimization, integration and

@@ -45,9 +45,9 @@ efm = function(envirfile=NULL) {
 
   #Toolbar options: can be changed any time by using toolbar
   assign("optFreq",list(freqsize=0,wildsize=7),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
-  assign("optMLE",list(nDone=3,delta=10,dec=4),envir=mmTK) #options when optimizing (nDone,delta)
+  assign("optMLE",list(nDone=3,delta=10,dec=4,obsLR=NULL),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
-  assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1,obsLR=NULL),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05,ntippets=1e3),envir=mmTK)  #options when doing database search (maxDB)
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05),envir=mmTK) #options when doing LRmix
@@ -231,14 +231,13 @@ efm = function(envirfile=NULL) {
      if(length(keep)>0) {
       if(length(A_ind)>0) Y[[s]][[loc]]$adata = as.character(X[xind,A_ind][keep])
       if(length(H_ind)>0) Y[[s]][[loc]]$hdata = as.numeric(as.character(X[xind,H_ind][keep]))
+     } else {
+      Y[[s]][[loc]]$adata = as.character() #keep locus if missing
      }
    }
   }
   return(Y)
  }
-
-  
-
 
 ###################################################################
 ###########################GUI#####################################
@@ -357,7 +356,7 @@ efm = function(envirfile=NULL) {
  #helpfunction to plot tippet
  plotTippet <- function(x,type,lr0=NULL) {
       qq <- c(0.5,0.95,0.99) #quantiles in non-contr.
-      dg <- 3
+      dg <- 2
       #summary
       n <- length(x)
       xbar <- sum(10^x)/n #mean LR
@@ -365,40 +364,51 @@ efm = function(envirfile=NULL) {
       empstdLR <- sqrt(empvarLR)
       quantiles <- c(quantile(x,qq),max(x))
       names(quantiles) <- c(qq,"Max")
-      print( paste0("Mean of non-contributing LR samples = ", format(xbar,digits=dg)))
-      print( paste0("Emperical Std. of non-contributing LR samples = ",format(empstdLR,digits=dg)) )
+      okLR <- x[!is.infinite(x)]
+      n2 <- length(okLR)
+      posLR <- n2/n #ratio of positive LRs
+      poslogLR <- sum(x>0)/n #ratio of positive logLRs
+
+      qqn <- length(quantiles)
+      txt1 <- paste0(names(quantiles[-qqn]),"-quantile")
+      txt1 <- c(txt1,names(quantiles[qqn]))
+      txt1 <- paste0(txt1,"=",format(quantiles,digits=dg))
+
+      txt2 <- c("rate(LR>0)","rate(LR>1)","Mean LR","Std LR")
+      txtval <- format(c(posLR,poslogLR,xbar,empstdLR),digits=dg)
+      txt2 <- paste0(txt2 ,"=",txtval)
+      txt <- c(txt1,txt2)  
+      sapply(txt,print)
       print(quantiles)
-      if(n>5e6) {
-       print("Number of non-contributors was above 5mill. This is too large to plot. Look printed values instead.")
-      } else {
-       okLR <- x[!is.infinite(x)]
-       if(length(okLR)>0) {
+
+      if(!is.null(lr0)) {
+       rateLR <- sum(x>lr0)/n
+       txt3 <- paste0(c("v=Obs.log10LR","rate(LR>=v)"),"=",format(c(lr0,sum(x>=lr0)/n),digits=dg))
+       print(txt3)
+      }
+      if(n2>5e6) {
+       print ("Number of values to plot was above 5mill. This is too large to plot. Look printed values instead.")
+      } else if(n2>0) {
         minmax = range(okLR)
         if(!is.null(lr0)) {
           if(lr0>minmax[2]) minmax[2] <- lr0
           if(lr0<minmax[1]) minmax[1] <- lr0
         }
-        plot(ecdf(x), main=paste0("Non-contributor ecdf of ",n," samples"),xlab="log10(LR)",xlim=minmax)
+        plot(ecdf(x), main=paste0("Non-contributor ecdf of ",n," LR samples"),xlab="log10(LR)",xlim=minmax)
         for(q in qq) abline(h=q,col="gray",lty=3)
+        abline(v=0,col="gray",lty=3)
         mtext(paste0(type,"-based"))
-        qqn <- length(quantiles)
-        txt <- quantiles[-qqn]
-        txt <- paste0(names(txt),"-quantile=",format(txt,digits=dg))
-        txt <- c(txt,paste0(names(quantiles[qqn]),"=",format(quantiles[qqn],digits=dg)))
-        txt <- c(txt, paste0(c("Mean LR","Std LR"),"=", format(c(xbar,empstdLR),digits=dg) ) )
         if(!is.null(lr0)) { #plot observed LR
-         txt <- c(txt, paste0("Obs. LR=",format(lr0,digits=dg)))
          points(lr0,1,pch=10,col="blue")
          lines(rep(lr0,2),c(1,0),lty=1,col="blue",lwd=0.5)
          print(paste0("Discriminatory metric (log10(LR) - q99) = ",format(lr0 - quantiles[qqn-1],digits=dg) ))
+         legend("topleft",legend=paste0(txt3,"  "),lty=NULL, bg="white",cex=1)
         }
-        legend("bottomright",legend=txt,lty=NULL,bg="white")
-       } else {
+       legend("bottomright",legend=paste0(txt,"  "),lty=NULL, bg="white",cex=1)
+      } else {
         print("No positive LR has been simulated")
-       } 
-      }
+      } 
  }
-
 
 ###########GUI WINDOW STARTS#########
  
@@ -871,6 +881,8 @@ efm = function(envirfile=NULL) {
       rownames(tab) <- locs
       colnames(tab) <- refSel 
       for(loc in  locs) { #for each locus
+        if( length(grep("AM",loc))>0) next
+        if( length(subD[[loc]]$adata)==0) next
         for(rsel in refSel) {
           refA <- refD[[rsel]][[loc]]$adata
           if(!is.null(refA)) tab[which(loc==locs),which(rsel==refSel)] <- sum(refA%in%subD[[loc]]$adata)
@@ -1505,7 +1517,7 @@ efm = function(envirfile=NULL) {
          keep = GP[2,]>=GP[1,] #unique genotypes
          G <- G[,keep]  #store genotypes
          GP <- GP[1,keep]*GP[2,keep] #get prime product
-         G[!G%in%names(popFreqQ[[loc]])] <- "99"         #Rename missing alleles in popFreqQ to "99":
+         G[!G%in%names(popFreqQ[[loc]])] <- "99" #Rename missing alleles in popFreqQ to "99":
          G0 <- paste0(G[1,],paste0("/",G[2,])) #make db-ref in one vector only
   
          newRow <- rep(NA,length(indD))  
@@ -1523,20 +1535,20 @@ efm = function(envirfile=NULL) {
            } 
            macD[rowind] = macD[rowind] + tmpmac #add match counter  
            nlocs[rowind] <- nlocs[rowind] + 1 #counted only once!
-          } #end for each genotype
-          subD[,which(loc==dblocs)] <- newRow #force insertion of genotype-names
-        } #end for each locus
+         } #end for each genotype
+         subD[,which(loc==dblocs)] <- newRow #force insertion of genotype-names
+       } #end for each locus
 
-        #determine individuals which will with LR=0 when pC=0 (i.e. no peak explained by unknowns or stutter)
-        #can combine it to calculate qualitative LR
-        LR0bool <- rep(FALSE,nrow(subD)) #boolean for reference which is not necessary to calculate for contLR
-        LR1 <- rep(1,nrow(subD)) #LRmix vec
-        nU_hp <- mod$nC_hp - sum(mod$condOrder_hp>0) #number of unknowns under Hp                    
-        nU_hd <- mod$nC_hd - sum(mod$condOrder_hd>0) #number of unknowns under Hd                    
-        if(ITYPE!="QUAL") pC <- opt$QUALpC #get drop-in parameter from option
-        if(ITYPE=="QUAL") pC <- par$prC #get drop-in parameter from GUI
+       #determine individuals which will with LR=0 when pC=0 for cases xi>0 and xi=0 (i.e. no peak explained by unknowns or stutter)
+       #can combine it to calculate qualitative LR
+       LR0bool <- rep(FALSE,nrow(subD)) #boolean for reference which is not necessary to calculate for contLR (TRUE means likelihood equal 0)
+       LR1 <- rep(1,nrow(subD)) #LRmix vec
+       nU_hp <- mod$nC_hp - sum(mod$condOrder_hp>0) #number of unknowns under Hp                    
+       nU_hd <- mod$nC_hd - sum(mod$condOrder_hd>0) #number of unknowns under Hd                    
+       if(ITYPE!="QUAL") pC <- opt$QUALpC #get drop-in parameter from option
+       if(ITYPE=="QUAL") pC <- par$prC #get drop-in parameter from GUI
 
-        for(loc in dblocs ) { #for each locus in db 
+       for(loc in dblocs ) { #for each locus in db 
           if(is.null(popFreq[[loc]])) next #skip to next locus
               evidlist <- lapply( set$samples, function(x) x[[loc]]$adata ) #take out sample data:
               condR <- unlist(refData[[loc]][mod$condOrder_hp] ) #take out known refs under Hp 
@@ -1556,18 +1568,11 @@ efm = function(envirfile=NULL) {
                 Evid <- NULL
                 for(ss in length(evidlist)) { #for each evidence
                   Ei <- evidlist[[ss]]	
-                  if(par$prC==0) {
-                   Ei2 <- Ei[!Ei%in%ref0] #set of unknown alleles (not explained by ref0) 
-	             Ei3 <- Ei2[!as.numeric(Ei2)%in%(as.numeric(ref0)-1)] #set of unknown al leles (after explained by being stutter from ref0)
-                   Ei4 <- Ei3[(as.numeric(Ei3)-1)%in%as.numeric(Ei3)] #set of unknown alleles (after explaining possible stutter from unknown)
-                   Ei5 <- unique(c(Ei4,Ei3[!as.numeric(Ei3)%in%(as.numeric(Ei3)-1)])) #Alleles to explain removed stutter 
-                   if(length(Ei5)>(2*nU_hp)) LR0bool[dbind] <- TRUE #if more alleles than unknown
-                  } #end case of no drop-in
+                  if(par$prC==0 && any(LR0bool[dbind]==FALSE))  LR0bool[dbind] <- LR0bool[dbind] | iszerolik(Ei,ref0,nU_hp,par$xi) #determine if likelihood under hp is 0
                   if(ss>1) Ei <- c(Ei,"0") #insert zero
                   Evid <- c(Evid,Ei)
                 } #end for each evidence
                 hp0 <- likEvid( Evid,T=ref0,V=NULL,x=nU_hp,theta=par$fst, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
-
                 if(ITYPE!="QUAL") th0 <- 0
                 if(ITYPE=="QUAL") th0 <- par$fst
                 if(th0>0 | j==1) hd0 <- likEvid( Evid,T=condR,V=undbR[j,],x=nU_hd,theta=th0, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
@@ -1684,7 +1689,6 @@ efm = function(envirfile=NULL) {
    saveTable(txt, "txt") 
   } #end savetableALL
 
-
   #helpfunction ran when call deconvolution
   doDC <- function(mleobj) {
      dcopt <- get("optDC",envir=mmTK) #options when Deconvolution
@@ -1728,41 +1732,62 @@ efm = function(envirfile=NULL) {
   }
 
   #Tippet-analysis frame:
-  doTippet <- function(tipind,set,type) { #tipref is index in refData to exchange with random man from population
+  doTippet <- function(tipind,set,type,lr0=NULL) { #tipref is index in refData to exchange with random man from population
      mod <- set$model
      par <- set$param
      if(type=="MLE")  opt<- get("optMLE",envir=mmTK) #options when optimizing (nDone,delta)
      if(type=="INT")  opt<- get("optINT",envir=mmTK) #options when optimizing (nDone,delta) 
      ntippet <- get("optDB",envir=mmTK)$ntippets
-
+     nU_hp <- mod$nC_hp - sum(mod$condOrder_hp>0) #number of unknowns under Hp                    
+ 
      Glist <- getGlist(set$popFreqQ) #get random man-Glist 
      refData <- set$refDataQ 
      locs <- names(refData) #loci to evaluate
-     modtipind <- mod$condOrder_hp[tipind] #get position in system of tippet
+     refind <- which(mod$condOrder_hp>0) #conditional references under Hp
+     refind <- refind[!refind%in%tipind] #remove tippet-ref  
 
      print(paste0("Simulating ",ntippet," non-contributors..."))
      RMLR <- rep(-Inf,ntippet) #vector of tippets
+     hpZero  <- rep(FALSE,ntippet) #boolean whether likelihood is zero under hp
+     Gsim <- list()
+     for(loc in locs) { #sample random individuals and check if they give Lik=0
+       condR <- unlist(refData[[loc]][refind] ) #take out known refs under Hp 
+       Gsim[[loc]] <-  Glist[[loc]]$G[ sample(1:length(Glist[[loc]]$Gprob),ntippet,prob=Glist[[loc]]$Gprob,replace=TRUE) ,] #Sample random genotypes from popFreqQ
+       if(ntippet==1) unGsim <- t(Gsim[[loc]])
+       if(ntippet>1) unGsim <- unique(Gsim[[loc]]) 
+       for(j in 1:nrow(unGsim)) {
+        ref0 <- c(unGsim[j,],condR) #conditional references
+        simind <-  which(Gsim[[loc]][,1]==unGsim[j,1] & Gsim[[loc]][,2]==unGsim[j,2]) #get index of matching genotypes
+        for(ss in names(set$samples)) {
+          evid0 <- set$samples[[ss]][[loc]]$adata
+          if(par$prC==0 && any(hpZero[simind]==FALSE) ) hpZero[simind] <- hpZero[simind] | iszerolik(evid0,ref0,nU_hp,par$xi) #if no drop-in assumed
+        }
+       }
+     }
+     print(paste0("Optimizing ",sum(!hpZero)," likelihood values..."))
      for(m in 1:ntippet) { #for each random individual from the population
-      for(loc in locs)  refData[[loc]][[tipind]] <-  Glist[[loc]]$G[ sample(1:length(Glist[[loc]]$Gprob),1,prob=Glist[[loc]]$Gprob),] #Sample random genotypes from popFreqQ
-      if(type=="MLE") { #calculate based on MLE
-         logLhp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,refData,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik 
-         logLhd <- set$mlefit_hd$fit$loglik 
-         if(par$fst>0) logLhd  <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,refData,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik  #re-calculate only necessary once if fst>0 
-         RMLR[m] <- (logLhp - logLhd)/log(10)
-      } else { #calculate based on INT
-       bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
-       bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
-       Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL 
-       if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL
-       RMLR[m] <- log10(Lhp) - log10(Lhd)
+       if(!hpZero[m]) {
+        for(loc in locs)  refData[[loc]][[tipind]] <-  Gsim[[loc]][m,]
+        if(type=="MLE") { #calculate based on MLE
+          logLhp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,refData,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik 
+          logLhd <- set$mlefit_hd$fit$loglik 
+          if(par$fst>0) logLhd  <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,refData,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik  #re-calculate only necessary once if fst>0 
+          RMLR[m] <- (logLhp - logLhd)/log(10)
+       } else { #calculate based on INT
+        bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
+        bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
+        Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL 
+        if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL
+        RMLR[m] <- log10(Lhp) - log10(Lhd)
+       }
       }
       if(m%%(ntippet/10)==0) {
         print(paste0(m/ntippet*100,"% finished..."))
-        plotTippet(RMLR[1:m],type)
+        plotTippet(RMLR[1:m],type,lr0)
       }
      }
   } #end Tippet function
- 
+
   refreshTabMLE = function(type) { 
     #type={"EVID","DB","DC"}
     visible(mainwin) <- FALSE
@@ -1907,10 +1932,12 @@ efm = function(envirfile=NULL) {
       tN <- names(set$refData[[1]][tippets]) #tippet names
       tabmleF[1,1] <- glabel( "Select reference to\nreplace with non-contributor:",container=tabmleF)
       tabmleF[2,1] <- gcombobox( items=tN ,container=tabmleF)
-      tabmleF[3,1] <- gbutton(text="Sample maximum based",container=tabmleF,handler=function(x) { 
-	  doTippet(tipind=tippets[which(tN==svalue(tabmleF[2,1]))],set,type="MLE")  #get tip-index in refData
+      tabmleF[3,1] <- gbutton(text="Sample maximum based",container=tabmleF,handler=function(x) {
+       # setValueUser(what1="optMLE",what2="obsLR",txt="Insert observed log10 LR (can be empty):") 
+   	  doTippet(tipind=tippets[which(tN==svalue(tabmleF[2,1]))],set,type="MLE")  #get tip-index in refData
 	})
       tabmleF[4,1] <- gbutton(text="Sample integrated based",container=tabmleF,handler=function(x) { 
+       # setValueUser(what1="optINT",what2="obsLR",txt="Insert observed log10 LR (can be empty):") 
 	  doTippet(tipind=tippets[which(tN==svalue(tabmleF[2,1]))],set,type="INT")  #get tip-index in refData
 	})
      }
@@ -2196,7 +2223,7 @@ efm = function(envirfile=NULL) {
      #calculate LRs directly here: 
      tipsel <- which(tN==tipref) #index of tippet to select
      tipind <- mod$knownref_hd[tipsel] #get tip-ind in refData
-     modtipind <- mod$condOrder_hp[tipind] #get position in system of tippet
+     modtipind <- mod$condOrder_hp[tipind] #get position in system of tippet. Necessary for QUAL model
      pDhp <- rep(pD,mod$nC_hp)
      pDhd <- rep(pD,mod$nC_hd)
      for(loc in locs) { #Calcualte for each locus:

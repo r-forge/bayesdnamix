@@ -769,16 +769,18 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
    hdata <- lapply(Data,function(x) x$hdata)
    cdata <- list() #used to label conditioned references
    for(loc in locs) { #impute missing heights with 1
+    lA <- length(adata[[loc]])
+    if(length(hdata[[loc]])==0 && length(lA>0)) hdata[[loc]] <- rep(1,lA) #impute with height 1
 
     #reference data:
     if(!is.null(refcond)) {
      rdata <- lapply(refcond,function(x) unlist(x[[loc]]))
      unrdata <- unique(unlist(rdata))
-     newA <- unrdata[!unrdata%in%adata[[loc]]] #get new alleles
+     newA <- unrdata[!unrdata%in%adata[[loc]]] #get new alleles not seen in data
      nA <- length(newA)
      if(nA>0) {
       adata[[loc]] <- c(adata[[loc]], newA)
-      hdata[[loc]] <- c(hdata[[loc]], rep(1,nA)) #insert peak heights
+      hdata[[loc]] <- c(hdata[[loc]], rep(1e-6,nA)) #insert peak heights
      }
      cdata[[loc]] <- rep("",length(adata[[loc]]))
      for(rn in names(refcond)) {
@@ -788,9 +790,6 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
        cdata[[loc]][ind][fix] <- paste0(cdata[[loc]][ind][fix],"/")
        cdata[[loc]][ind] <- paste0(cdata[[loc]][ind],ri)
      }
-    }
-    if( length(hdata[[loc]])==0 ) {
-     hdata[[loc]] <- rep(1,length(adata[[loc]]))
     }
    } #end for each loci
 
@@ -808,7 +807,7 @@ getKit<-function(kit=NULL, what=NA, showMessages=FALSE, .kitInfo=NULL, debug=FAL
       missloc <- kitlocs[!kitlocs%in%locs] #get missing loci
       for(loc in missloc) {
        	adata[loc] = "" 
-            hdata[loc] = 1 #default is binary signal (below detection threshold)
+            hdata[loc] = 1e-6 #default is binary signal (below detection threshold)
             cdata[loc] = ""
       }
 	adata <- adata[kitlocs] 
