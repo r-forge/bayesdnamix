@@ -3,8 +3,7 @@
 \alias{contLikMCMC}
 \title{contLikMCMC}
 \usage{
-contLikMCMC(mlefit, uppermu = 10000, uppersigma = 1, upperxi = 1,
-  niter = 10000, delta = 10)
+contLikMCMC(mlefit, niter = 10000, delta = 10, maxxi = 1)
 }
 \arguments{
 \item{mlefit}{Fitted object using contLikMLE}

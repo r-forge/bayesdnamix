@@ -8,11 +8,13 @@
 #' @export
 validMCMC <- function(mcmcfit,trace=TRUE,acf=TRUE) {
  txt <- colnames(mcmcfit$posttheta)
- Ubound <- mcmcfit$Ubound #upper boundaries of parameters
+ #Ubound <- mcmcfit$Ubound #upper boundaries of parameters
+ Ubound <- apply(mcmcfit$posttheta,2,max)
+ Lbound <- apply(mcmcfit$posttheta,2,min)
  p <- length(txt)
  par(mfrow=c(p,1+sum(c(trace,acf)) ),mar = c(1.2,1,1,0.2), mgp = c(0,0.2,0))
  for(i in 1:p) {
-  dens <- density(mcmcfit$posttheta[,i],from=0,to=Ubound[i],n=max(Ubound[i],1024))
+  dens <- density(mcmcfit$posttheta[,i],from=Lbound[i],to=Ubound[i],n=max(Ubound[i],1024))
   xrange <- range(mcmcfit$posttheta[,i])
   mled <-dnorm(dens$x,mcmcfit$MLE[i],sqrt(mcmcfit$Sigma[i,i])) #density of lazy bayes
   plot(dens$x,dens$y,ty="l",main=txt[i],xlab="",ylab="",ylim=c(0,max(mled,dens$y)),xlim=xrange )

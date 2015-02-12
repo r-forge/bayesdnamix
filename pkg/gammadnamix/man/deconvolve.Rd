@@ -3,7 +3,7 @@
 \alias{deconvolve}
 \title{deconvolve}
 \usage{
-deconvolve(mlefit, alpha = 0.95, maxlist = 1000)
+deconvolve(mlefit, alpha = 0.95, maxlist = 1000, unknownonly = TRUE)
 }
 \arguments{
 \item{mlefit}{Fitted object using contLikMLE function.}
@@ -11,6 +11,8 @@ deconvolve(mlefit, alpha = 0.95, maxlist = 1000)
 \item{alpha}{Required sum of the listed posterior probabilities.}
 
 \item{maxlist}{The ranked deconvolved profile list will not exceed this number (used to avoid endless search).}
+
+\item{unknownonly}{A boolean whether table should only contain the unknown genotypes or both known and unknown genotypes.}
 }
 \value{
 ret A list(table1,rankG,pG) where rankG is the ranked genotypes with corresponding probabilities in pG. table1 is a formated version of these two.

@@ -20,7 +20,7 @@
 #' @references Craiu,R.V. and Rosenthal, J.S. (2014). Bayesian Computation Via Markov Chain Monte Carlo. Annu. Rev. Stat. Appl., 1,179-201.
 #' @keywords continuous, BayesianModels, MCMC, MetropolisHastings, MarginalizedLikelihoodEstimation
 
-contLikMCMC = function(mlefit,uppermu=10000,uppersigma=1,upperxi=1,niter=1e4,delta=10) {
+contLikMCMC = function(mlefit,niter=1e4,delta=10,maxxi=1) {
  #A mlefit object returned from contLikMLE is required to do MCMC!
  loglik0 <-  mlefit$fit$loglik #get maximized likelihood
  model <- mlefit$model
@@ -28,29 +28,30 @@ contLikMCMC = function(mlefit,uppermu=10000,uppersigma=1,upperxi=1,niter=1e4,del
  Sigma0 <- mlefit$fit$thetaSigma
  varnames <- names(mlefit$fit$thetahat) #variable names
  if(!all(length(th0)%in%dim(Sigma0))) stop("Length of th0 and dimension of Sigma was not the same!")
- ret <- prepareC(model$nC,model$samples,model$popFreq,model$refData,model$condOrder,model$knownRef)
+ ret <- prepareC(model$nC,model$samples,model$popFreq,model$refData,model$condOrder,model$knownRef,model$kit)
  nC <- ret$nC
- 
+ np <- length(th0) #number of unknown parameters
+ nodeg <- is.null(model$kit) #check for degradation
+
  if(is.null(model$xi)) {
    loglikYtheta <- function(theta) {   #call c++- function: length(phi)=nC+1
     if(any(theta<0)) return(-Inf) 
-    if(any(theta>Ubound)) return(-Inf) 
-    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-    loglik <- Cval + model$pXi(theta[ret$nC+2]) #weight with prior of tau and 
+    xi1 <- theta[np] #value of xi
+    if(theta[np]>maxxi) return(-Inf) #special case for xi which has a upper boundary
+    if(nodeg) theta <- c(theta[1:(nC+1)],1,xi1)
+    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
+    loglik <- Cval + model$pXi(xi1) #weight with prior of tau and 
     return(loglik) #weight with prior of tau and stutter.
    }
  } else {  
    loglikYtheta <- function(theta2) {   #call c++- function: length(phi)=nC
+    if(nodeg) theta2 <- c(theta2,1)
     theta <- c(theta2,model$xi) #stutter-parameter added as known
     if(any(theta<0)) return(-Inf) 
-    if(any(theta>Ubound)) return(-Inf) 
-    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
+    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
     return(Cval)
    }
  }
- 
- np <- nC + 1 + sum(is.null(model$xi)) #number of unknown parameters
- Ubound <- c(rep(1,nC-1),uppermu,uppersigma,upperxi) #upper boundary of parameters
  C <- chol(delta*Sigma0) #scale variance with a factor 2: ensures broad posterior
  X <- t( t(C)%*%matrix(rnorm(np*niter),ncol=niter,nrow=np)) #proposal values
 
@@ -65,7 +66,7 @@ contLikMCMC = function(mlefit,uppermu=10000,uppersigma=1,upperxi=1,niter=1e4,del
  if(1) { #MCMC by Gelfand and Dey (1994), using h() = Normal(th0,delta*Sigma)
    rlist <- list()
    if(nC>1) rlist[[length(rlist)+1]] <- 1:(nC-1)
-   rlist[[length(rlist)+1]] <- nC:(nC+1)
+   rlist[[length(rlist)+1]] <- nC:(nC+1+!nodeg)
    if(is.null(model$xi))  rlist[[length(rlist)+1]] <- np
    nB <- length(rlist) #number of blocks
    M2 <- nB*niter+1
@@ -105,6 +106,6 @@ contLikMCMC = function(mlefit,uppermu=10000,uppersigma=1,upperxi=1,niter=1e4,del
   margL <- factorial(nU)*margL #get correct ML adjusting for symmetry
  } #end method
  colnames(postth) <- varnames  #save variable names
-  return(list(margL=margL,posttheta=postth,postlogL=postlogL,logpX=logpX,accrat=accrat,MLE=mlefit$fit$thetahat,Sigma=mlefit$fit$thetaSigma,Ubound=Ubound ))
+  return(list(margL=margL,posttheta=postth,postlogL=postlogL,logpX=logpX,accrat=accrat,MLE=mlefit$fit$thetahat,Sigma=mlefit$fit$thetaSigma))
 } #end function
 

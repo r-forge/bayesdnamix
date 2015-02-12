@@ -21,33 +21,36 @@
 #' @param fst is the coancestry coeffecient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
+#' @param kit shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
 #' @return ret A list(margL,deviation,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, deviation is the confidence-interval of margL, nEvals is number of evaluations.
 #' @export 
 #' @references Hahn,T. (2005). CUBA - a library for multidimensional numerical integration. Computer Physics Communications, 168(2),78-95.
 #' @keywords continuous, Bayesian models, Marginalized Likelihood estimation
 
 
-contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1){
+contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1,kit=NULL){
  require(cubature) 
  if(length(lower)!=length(upper)) stop("Length of integral limits differs")
- np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
+ np <- nC + 2 + sum(is.null(xi)) #number of unknown parameters
  if(length(lower)!=np) stop("Length of integral limits differs from number of unknown parameters specified")
- ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef)
+ ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef,kit)
+ nodeg  <- is.null(kit) #boolean whether modeling degradation FALSE=YES, TRUE=NO
 
  if(is.null(xi)) {
    likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-    loglik <- Cval + log(pXi(theta[nC+2])) #weight with prior of tau and 
+    if(nodeg) theta[nC+2] = 1 #force no degradation
+    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
+    loglik <- Cval + log(pXi(theta[nC+3])) #weight with prior of tau and 
     return(exp(loglik)) #weight with prior of tau and stutter.
    }
  } else {  
    likYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
+    if(nodeg) theta2[nC+2] = 1 #force no degradation
     theta <- c(theta2,xi) #stutter-parameter added as known
-    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
+    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
     return(exp(Cval))
    }
  }
- np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
  nU <- nC-ret$nK #number of unknowns
  bisectMx <- (nC==2 && nU==2) #if exact 2 unknown contributors in the hypothesis
  if(bisectMx) lower[1] <- 0.5 #restrict outcome of mixture proportions

@@ -5,7 +5,7 @@
 \usage{
 contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
   knownRef = NULL, xi = NULL, prC = 0, nDone = 1, threshT = 50,
-  fst = 0, lambda = 0, pXi = function(x) 1, delta = 10,
+  fst = 0, lambda = 0, pXi = function(x) 1, delta = 10, kit = NULL,
   verbose = TRUE)
 }
 \arguments{
@@ -36,6 +36,8 @@ contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
 \item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
 
 \item{delta}{Standard deviation of normal distribution when drawing random startpoints. Default is 10.}
+
+\item{kit}{shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}}
 
 \item{verbose}{Boolean whether printing optimization progress. Default is TRUE.}
 }

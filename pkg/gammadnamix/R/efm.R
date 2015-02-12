@@ -10,10 +10,10 @@
 #roxygenize("gammadnamix")
 
 #library(gammadnamix); sessionInfo();efm()
-#setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/euroformix0")
+#setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/gammadnamix2")
 #rm(list=ls())
 #envirfile=NULL
-#source("efm.R");efm()
+#source("efm.R");#efm()
 
 efm = function(envirfile=NULL) {
 
@@ -47,7 +47,7 @@ efm = function(envirfile=NULL) {
   assign("optFreq",list(freqsize=0,wildsize=7),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
   assign("optMLE",list(nDone=3,delta=10,dec=4,obsLR=NULL),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
-  assign("optINT",list(reltol=0.005,maxmu=20000,maxsigma=1,maxxi=1,obsLR=NULL),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optINT",list(reltol=0.01,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05,ntippets=1e3),envir=mmTK)  #options when doing database search (maxDB)
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05),envir=mmTK) #options when doing LRmix
@@ -121,8 +121,8 @@ efm = function(envirfile=NULL) {
   for(i in 1:length(freqfiles)) {
    filename = paste(freqpath,"/",freqfiles[i],sep="")
    tab=tableReader(filename)
-   Anames = tab[,1]
-   tab = tab[,-1]
+   Anames = tab[,1] #first column is allele frequeneies
+   tab = tab[,-1] 
    freqlist = list()
    for(j in 1:ncol(tab)) { #for each locus
      tmp = tab[,j]
@@ -130,7 +130,7 @@ efm = function(envirfile=NULL) {
      names(tmp2) = Anames[!is.na(tmp)]
      freqlist[[j]] = tmp2
    }
-   names(freqlist) = toupper(colnames(tab)) #LOCUS-names are assigned as Upper-case
+   names(freqlist) = toupper(colnames(tab)) #LOCUS-names are assigned as Upper-case! This is important to do!
    kit = unlist(strsplit(freqfiles[i],"_"))[1]
    pop = unlist(strsplit(freqfiles[i],"_"))[2]
    pop = unlist(strsplit(pop,"\\."))[1]
@@ -390,6 +390,8 @@ efm = function(envirfile=NULL) {
        print ("Number of values to plot was above 5mill. This is too large to plot. Look printed values instead.")
       } else if(n2>0) {
         minmax = range(okLR)
+        minmax[2] <- max(minmax[2],5) 
+        minmax[1] <- max(minmax[1],-10) 
         if(!is.null(lr0)) {
           if(lr0>minmax[2]) minmax[2] <- lr0
           if(lr0<minmax[1]) minmax[1] <- lr0
@@ -402,9 +404,9 @@ efm = function(envirfile=NULL) {
          points(lr0,1,pch=10,col="blue")
          lines(rep(lr0,2),c(1,0),lty=1,col="blue",lwd=0.5)
          print(paste0("Discriminatory metric (log10(LR) - q99) = ",format(lr0 - quantiles[qqn-1],digits=dg) ))
-         legend("topleft",legend=paste0(txt3,"  "),lty=NULL, bg="white",cex=1)
+         legend("topleft",legend=paste0(txt3,"   "),lty=NULL, bg="white",cex=1)
         }
-       legend("bottomright",legend=paste0(txt,"  "),lty=NULL, bg="white",cex=1)
+       legend("bottomright",legend=paste0(txt,"  "),lty=NULL, bg="white",cex=0.9)
       } else {
         print("No positive LR has been simulated")
       } 
@@ -860,9 +862,43 @@ efm = function(envirfile=NULL) {
       printEvid(subD)
       if(which(msel==mixSel)>1) dev.new() #create new plot for next EPG
       plotEPG(Data=subD,kitname,sname=msel,refcond=refD[refSel]) #plot epg's
-     }
-     print("------------------------------------")
-     focus(mainwin)
+
+      #Plot degradation:
+      kitinfo <- getKit(kitname)
+      if(is.na(kitinfo)) next
+      dev.new() 
+      dyes <- unique(kitinfo$Color)
+      srange <- range(kitinfo$Size)
+      xz <- seq(srange[1],srange[2],l=1000)     
+      plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum peak height",xlab="Average size",main=paste0("Degradation summaries for ",msel))
+      reglist <- list()
+      for(dye in dyes) {
+        regdata <- numeric()
+        locs <- toupper(unique(subset(kitinfo$Marker,kitinfo$Color==dye)))
+        for(loc in locs) {
+          if(length(grep("AM",loc))>0) next
+          subK <- subset(kitinfo,kitinfo$Color==dye & toupper(kitinfo$Marker)==loc) 
+          mid <- mean(subK$Size[subK$Allele%in%subD[[loc]]$adata])
+          regdata <- cbind(regdata, c(sum(subD[[loc]]$hdata),mid))
+        }
+        reglist[[dye]] <- regdata 
+        fit <- lm(log(regdata[1,])~regdata[2,])
+        col <- dye
+        if(col=="yellow") col="orange"
+        points(regdata[2,],regdata[1,],col=col,pch=16)
+        lines(xz,exp(fit$coef[1]+xz*fit$coef[2]),col=col,lty=2) 
+      }
+      yd <- unlist(lapply(reglist,function(x) x[1,]))
+      xd <- unlist(lapply(reglist,function(x) x[2,]))
+      fit <- lm(log(yd)~xd)
+      lines(xz,exp(fit$coef[1]+xz*fit$coef[2]))       
+      legend("topright",c("Average degradation","Degradation per dye"),lty=1:2)
+    }
+    print("------------------------------------")
+    focus(mainwin)
+
+
+
   }
 
   if(h$action=="ref") { #print tables only
@@ -1086,14 +1122,15 @@ efm = function(envirfile=NULL) {
   #helpfunction to get boundary from Toolbar:
   getboundary = function(nC,xi=NULL) {
     optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
-    lower <- rep(0,nC+2)
-    upper <- rep(1,nC+2)
+    np <- nC+3 #number of param: mk,mu,sigma,beta,xi
+    lower <- rep(0,np)
+    upper <- rep(1,np)
     upper[nC] <- optint$maxmu
     upper[nC+1] <- optint$maxsigma
-    upper[nC+2] <- optint$maxxi
+    upper[nC+3] <- optint$maxxi
     if(!is.null(xi)) { #must remove stutter rate if known
-     lower <- lower[-(nC+2)]
-     upper <- upper[-(nC+2)]
+     lower <- lower[-np]
+     upper <- upper[-np]
     }
     return(bound=list(lower=lower,upper=upper))
   }
@@ -1117,10 +1154,10 @@ efm = function(envirfile=NULL) {
 
        #integrate:
        print("Calculates under Hp...")
-       int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
+       int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit) 
        print(paste0("Lik=",int_hp$margL))
        print("Calculates under Hd...")
-       int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
+       int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit) 
        print(paste0("Lik=",int_hd$margL))
        LR <- int_hp$margL/int_hd$margL
        dev <- range(c(int_hp$deviation/int_hd$deviation,int_hp$deviation/rev(int_hd$deviation))) #get deviation interval of LR
@@ -1201,11 +1238,15 @@ efm = function(envirfile=NULL) {
    if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
 
    tabmodelA5[2,1] <- glabel(text="Stutter rate (xi): ",container=tabmodelA5)
-   tabmodelA5[2,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=edwith)
+   tabmodelA5[2,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=2*edwith)
    tabmodelA5[3,1] <- glabel(text="Probability of drop-in: ",container=tabmodelA5)
-   tabmodelA5[3,2] <- gedit(text="0",container=tabmodelA5,width=edwith)
+   tabmodelA5[3,2] <- gedit(text="0",container=tabmodelA5,width=2*edwith)
    tabmodelA5[4,1] <- glabel(text="Drop-in peak height \n hyperparam (lambda):",container=tabmodelA5)
-   tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=edwith)
+   tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=2*edwith)
+   tabmodelA5[5,1] <- glabel(text="Prior density of xi: \n function(x)=",container=tabmodelA5)
+   tabmodelA5[5,2] <- gedit(text="dbeta(x,1,1)",container=tabmodelA5,width=2*edwith)
+   tabmodelA5[6,1] <- glabel(text="Degradation:",container=tabmodelA5)
+   tabmodelA5[6,2] <- gradio(items=c("YES","NO"), selected = 1, horizontal = TRUE,container=tabmodelA5)
 
    if(type=="GEN") { #deactivate options for generation:
     enabled(tabmodelA4[2,2]) <- FALSE #deactivate fst-correction
@@ -1300,12 +1341,14 @@ efm = function(envirfile=NULL) {
       xi <- svalue(tabmodelA5[2,2]) #stutter rate
       prC <-  as.numeric(svalue(tabmodelA5[3,2])) #dropin probability
       lambda <-   as.numeric(svalue(tabmodelA5[4,2])) #lambda is hyperparameter to dropin-peak height model
-      pXi = function(x)1  #eval(parse(text="expression"))
+      pXi = eval(parse(text= paste("function(x)",svalue(tabmodelA5[5,2])) )) 
+      beta <-  svalue(tabmodelA5[6,2]) #lambda is hyperparameter to dropin-peak height model
+      if(beta=="YES") kit <- get("selPopKitName",envir=mmTK)[1] #get selected kit
+      if(beta=="NO") kit <- NULL #degradation will not be modelled (i.e. kitname not used)
 
       #CHECK VARIABLES:
       checkPositive(threshT,"Threshold")
       checkProb(prC,"Allele drop-in probability")
-#      checkPositive(lambda,"Drop-in peak height hyperparameter")
       if(prC>0 && lrtype=="CONT") checkPositive(lambda,"Drop-in peak height hyperparameter",strict=TRUE)
       checkProb(fst,"fst-correction")
       if(xi=="") {
@@ -1372,7 +1415,7 @@ efm = function(envirfile=NULL) {
 
       #get input to list: note: "fit_hp" and "fit_hd" are list-object from fitted model
       model <- list(nC_hp=nC_hp,nC_hd=nC_hd,condOrder_hp=condOrder_hp,condOrder_hd=condOrder_hd,knownref_hp=knownref_hp,knownref_hd=knownref_hd) #proposition
-      param <- list(xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi) 
+      param <- list(xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi,kit=kit) 
       set <- list(samples=samples,refData=refData,popFreq=popFreq,model=model,param=param,refDataQ=refDataQ,popFreqQ=popFreqQ)     
       if(type=="DB") set$dbSel <- dbSel #store name of selected databases
       assign(paste0("set",type),set,envir=mmTK) #store setup for relevant type
@@ -1608,16 +1651,16 @@ efm = function(envirfile=NULL) {
           
           if(ITYPE=="MLE") { #calculate with MLE
             logLi_hdeval <- logLi_hd[locevalind] #take out relevant values
-            mlefit_hp <- contLikMLE(mod$nC_hp+1,samples,popFreqQ[loceval],refData2,condOrder_hp,mod$knownref_hp,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi,verbose=FALSE)
+            mlefit_hp <- contLikMLE(mod$nC_hp+1,samples,popFreqQ[loceval],refData2,condOrder_hp,mod$knownref_hp,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi,kit=par$kit,verbose=FALSE)
             if(par$fst>0) { #must calculate Hd once again (assume Rj is known)
-             mlefit_hdj <- contLikMLE(mod$nC_hd,samples,popFreqQ[loceval],refData2,condOrder_hd,nR,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi,verbose=FALSE)
+             mlefit_hdj <- contLikMLE(mod$nC_hd,samples,popFreqQ[loceval],refData2,condOrder_hd,nR,par$xi,par$prC,mleopt$nDone,par$threshT,par$fst,par$lambda,delta=mleopt$delta,pXi=par$pXi,kit=par$kit,verbose=FALSE)
              LRD[rind] <- exp(mlefit_hp$fit$loglik - mlefit_hdj$fit$loglik) #insert calculated LR adjusted by fst-correction
             } else {
              LRD[rind] <- exp(mlefit_hp$fit$loglik - sum(logLi_hdeval)) #insert calculated LR:
             }  
           } #END DB WITH TYPE MLE
           if(ITYPE=="INT") { #Calculate with INT
-            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi)     
+            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)     
             hd0INT <- numeric()
             if(par$fst==0 && length(hd0stored)>0) { #If any previous calculated values
               if(par$fst==0) { #can use stored value if fst=0
@@ -1628,7 +1671,7 @@ efm = function(envirfile=NULL) {
               }
             }
             if(length(hd0INT)==0) { #calculate and store
-              int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi) 
+              int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit) 
               hd0INT <- int_hd$margL
               hd0stored[[length(hd0stored) + 1]] <- c(hd0INT,loceval)
             }
@@ -1704,11 +1747,12 @@ efm = function(envirfile=NULL) {
   #helpfunction ran when call MCMC
   doMCMC <- function(mleobj,returnPostLogL=FALSE,showValid=TRUE) { 
      optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
-     optint <- get("optINT",envir=mmTK) #get boundaries
+     #optint <- get("optINT",envir=mmTK) #get boundaries
      if(any(is.na(mleobj$fit$thetaSigma))) return();
      print(paste0("Sampling ",optlist$niter," samples with variation ",optlist$delta,". This could take a while... "))
      print("Note: You can change default number of iterations in toolbar menu.")
-     mcmcfit <- contLikMCMC(mleobj,uppermu=optint$maxmu,uppersigma=optint$maxsigma,upperxi=optint$maxxi,optlist$niter,optlist$delta)
+#     mcmcfit <- contLikMCMC(mleobj,uppermu=optint$maxmu,uppersigma=optint$maxsigma,upperxi=optint$maxxi,optlist$niter,optlist$delta)
+     mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
      print(paste0("Sampling acceptance rate=",round(mcmcfit$accrat,2),". This should be around 0.2"))
      if(showValid) validMCMC(mcmcfit,acf=FALSE) #don't plot acf
      if(returnPostLogL) return(mcmcfit$postlogL)
@@ -1769,15 +1813,15 @@ efm = function(envirfile=NULL) {
        if(!hpZero[m]) {
         for(loc in locs)  refData[[loc]][[tipind]] <-  Gsim[[loc]][m,]
         if(type=="MLE") { #calculate based on MLE
-          logLhp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,refData,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik 
+          logLhp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,refData,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,kit=par$kit,verbose=FALSE)$fit$loglik 
           logLhd <- set$mlefit_hd$fit$loglik 
-          if(par$fst>0) logLhd  <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,refData,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,verbose=FALSE)$fit$loglik  #re-calculate only necessary once if fst>0 
+          if(par$fst>0) logLhd  <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,refData,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,kit=par$kit,verbose=FALSE)$fit$loglik  #re-calculate only necessary once if fst>0 
           RMLR[m] <- (logLhp - logLhd)/log(10)
        } else { #calculate based on INT
         bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
         bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
-        Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL 
-        if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi)$margL
+        Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL 
+        if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL
         RMLR[m] <- log10(Lhp) - log10(Lhd)
        }
       }
@@ -1821,8 +1865,7 @@ efm = function(envirfile=NULL) {
 #     tabmleX2[3,1] =  glabel(text="Laplace P(E)=",container=tabmleX2)
 #     tabmleX2[3,2] =  glabel(text=format(exp(fit$logmargL),digits=sig),container=tabmleX2)
     }
-
-    if(type=="START") { #loads already calculated results if program starts
+     if(type=="START") { #loads already calculated results if program starts
      set <- get("setEVID",envir=mmTK) #get setup for EVID
      mlefit_hd <- set$mlefit_hd
      mlefit_hp <- set$mlefit_hp
@@ -1838,7 +1881,7 @@ efm = function(envirfile=NULL) {
 
      #fit under hp: (only for evidence)
      if(type=="EVID") {
-      time <- system.time({     mlefit_hp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)     })[3]
+      time <- system.time({     mlefit_hp <- contLikMLE(mod$nC_hp,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hp,mod$knownref_hp,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,kit=par$kit)     })[3]
       print(paste0("Optimizing under Hp took ",format(time,digits=5),"s"))
       if(!is.null(set$mlefit_hp) && set$mlefit_hp$fit$loglik>mlefit_hp$fit$loglik )  mlefit_hp <- set$mlefit_hp #the old model was better
      } else {
@@ -1846,7 +1889,7 @@ efm = function(envirfile=NULL) {
      }
    
      #fit under hd: (does it for all methods)
-     time <- system.time({     mlefit_hd <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi)    })[3]
+     time <- system.time({     mlefit_hd <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,set$refDataQ,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,kit=par$kit)    })[3]
      print(paste0("Optimizing under Hd took ",format(time,digits=5),"s"))
      if(!is.null(set$mlefit_hd) && set$mlefit_hd$fit$loglik>mlefit_hd$fit$loglik )  mlefit_hd <- set$mlefit_hd #the old model was better
 
@@ -2239,16 +2282,54 @@ efm = function(envirfile=NULL) {
         Glist[[loc]]$LR[j] <- hp0/hd0 #store LR
        }
      } #end for each locus
-     ntippet <- get("optDB",envir=mmTK)$ntippets #get number of tippets to simulate
-     print(paste0("Simulating ",ntippet," non-contributors..."))
-     RMLR <- rep(0,ntippet) #vector of tippets
-     for(loc in locs) {
-      RMLR <- RMLR + sample(log10(Glist[[loc]]$LR),ntippet,replace=TRUE,prob=Glist[[loc]]$Gprob)
-     }
+     nT <- get("optDB",envir=mmTK)$ntippets #get number of tippets to simulate
+     maxmem <-  memory.limit() #get maximum memory limit
+     maxN <- (10^(floor(log10(maxmem*1e6))-1))/2 #max length of a numeric-vector
+     print(paste0("Simulating ",nT," non-contributors..."))
+     print(paste0("(memory handles maximum ",format(maxN,digits=5)," non-contributors)"))
      lr0 <- NULL #log10 LR
      LRi <- get("resEVIDLRMIX",envir=mmTK) #get EVID calculations when GUI starts
      if(!is.null(LRi))  lr0 <- sum(log10(LRi))
-     plotTippet(RMLR,type="Qualitative",lr0)    
+
+     #summary statistics:
+     xmax <- -Inf #max LR
+     xbar <- 0 #mean LR
+     xsqsum <- 0 #squared LR sum
+     fp <- 0 #false-positives
+     nB <- ceiling(nT/maxN) #number of sim-bunches needed
+     for(b in 1:nB) {
+      print(paste0( round((b-1)/nB*100,2),"% complete"))
+      if(b==nB) {
+        nT2 <- nT
+        if(b>1) nT2 <- nT%%maxN #the rest of samples
+      } else {
+        nT2 <- maxN 
+      }
+      RMLR <- rep(0,nT2) #vector of tippets
+      for(loc in locs) {
+       if(all(round(Glist[[loc]]$LR,8)==1)) next #skip if only LR=1
+       RMLR <- RMLR + sample(log10(Glist[[loc]]$LR),nT2,replace=TRUE,prob=Glist[[loc]]$Gprob)
+      }
+      #keep information
+      mmax <- max(RMLR)
+      if(mmax>xmax) xmax <- mmax 
+      xbar <- xbar + sum(10^RMLR)/nT
+      xsqsum <- xsqsum + sum(10^(2*RMLR))
+      if(!is.null(lr0))  fp <- fp + sum(RMLR>lr0)/nT
+     }
+     print("100% complete")
+     if(nB>1) { #if too many samples to handle plot:
+      empvarLR <- (xsqsum  - nT*xbar^2)/(nT-1) 
+      print(paste0("Mean LR=",format(xbar,digits=5)))
+      print(paste0("Std LR=",format(sqrt(empvarLR),digits=5)))
+      print(paste0("Max log10LR=",format(xmax,digits=5)))
+      if(!is.null(lr0)) {
+       print(paste0("v=Obs.log10LR=",format(lr0,digits=5)))
+       print(paste0("rate(LR>=v)=",format(fp,digits=5)))
+      }
+     } else {
+      plotTippet(RMLR,type="Qualitative",lr0)    
+     } 
    }) #end TIPPET BUTTON
   } #end if not tippet possible
   visible(mainwin) <- TRUE

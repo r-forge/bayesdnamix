@@ -43,7 +43,7 @@ noncontrMLE <- function(mlefit,tipind=NULL,ntippet=100) {
      for(m in 1:ntippet) { #for each random individual from the population
        if(!hpZero[m]) {
         for(loc in locs)  refData[[loc]][[tipind]] <-  Gsim[[loc]][m,]
-        logL[m] <- contLikMLE(mod$nC,mod$samples,mod$popFreq,refData,mod$condOrder,mod$knownref,mod$xi,mod$prC,mlefit$nDone,mod$threshT,mod$fst,mod$lambda,delta=mlefit$delta,pXi=mod$pXi,verbose=FALSE)$fit$loglik 
+        logL[m] <- contLikMLE(mod$nC,mod$samples,mod$popFreq,refData,mod$condOrder,mod$knownref,mod$xi,mod$prC,mlefit$nDone,mod$threshT,mod$fst,mod$lambda,delta=mlefit$delta,pXi=mod$pXi,kit=mod$kit,verbose=FALSE)$fit$loglik 
        }
        if(m%%(ntippet/10)==0) print(paste0(m/ntippet*100,"% finished..."))
      }

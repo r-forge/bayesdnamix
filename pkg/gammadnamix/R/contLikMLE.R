@@ -22,37 +22,43 @@
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
 #' @param delta Standard deviation of normal distribution when drawing random startpoints. Default is 10.
+#' @param kit shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
 #' @param verbose Boolean whether printing optimization progress. Default is TRUE.
 #' @return ret A list(fit,model,nDone,delta) where fit is Maximixed likelihood elements for given model.
 #' @export
 #' @references Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
 #' @keywords continuous model, Maximum Likelihood Estimation
-contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10,verbose=TRUE){
- ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef)
+contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,nDone=1,threshT=50,fst=0,lambda=0,pXi=function(x)1,delta=10,kit=NULL,verbose=TRUE){
+ ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef,kit)
+ nodeg  <- is.null(kit) #boolean whether modeling degradation FALSE=YES, TRUE=NO
 
  if(is.null(xi)) {
   negloglikYphi <- function(phi) {   #call c++- function: length(theta)=nC+1
-   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(phi),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
-   loglik <- Cval + log(pXi(1/(1+exp(-theta[nC+2])))) #weight with prior of tau and 
+   if(nodeg) phi <- c(phi[1:(nC+1)],0,phi[nC+2])
+   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(phi),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.numeric(ret$bp),as.integer(1),PACKAGE="gammadnamix")[[1]]
+   loglik <- Cval + log(pXi(1/(1+exp(-phi[nC+3])))) #weight with prior of tau and 
    return(-loglik) #weight with prior of tau and stutter.
   }
  } else {  
   negloglikYphi <- function(phi2) {   #call c++- function: length(theta)=nC
+   if(nodeg) phi2 <- c(phi2,0)
    phi<- c(phi2,xi) #stutter-parameter added as known
-   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(phi),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.integer(1),PACKAGE="gammadnamix")[[1]]
+   if(nodeg) phi[nC+2] = 0 #force no degradation
+   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(phi),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.numeric(ret$bp),as.integer(1),PACKAGE="gammadnamix")[[1]]
    return(-Cval)
   }
  }
- mu0 <- mean(sapply(samples,function(x) mean(sapply(x, function(y) sum(as.numeric(y$hdata)))))/2) #expected amount of DNA
- maxITER <- 100 #number of possible times to be INF or not valid optimum before any acceptance
- np <- nC + 1 + sum(is.null(xi)) #number of unknown parameters
+ alpha0 <- mean(sapply(samples,function(x) mean(sapply(x, function(y) sum(as.numeric(y$hdata)))))/2) #mean peak height
+ maxITER <- 300 #number of possible times to be INF or not valid optimum before any acceptance
+ np2 <- np <- nC + 2 + sum(is.null(xi)) #number of unknown parameters (including degeneration param)
+ if(nodeg) np2 <- np2 - 1
  maxL <- -Inf #
  nOK <- 0 #number of times for reaching optimum
  nITER <- 0 #number of times beeing INF
  suppressWarnings({
   while(nOK<nDone) {
-    p0 <- rnorm(np,sd=delta) #generate random start value on Real
-    p0[nC] <- rnorm(1,log(mu0),sd=delta) #generate random start value for mu
+    p0 <- rnorm(np2,sd=delta) #generate random start value on Real
+    p0[nC] <- rnorm(1,log(alpha0),sd=delta) #generate random start value for mu
     likval <- negloglikYphi(p0)  
     if(is.infinite(likval)) { #if it was infinite
 	 nITER <- nITER + 1	 
@@ -86,6 +92,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
     }
   } #end while loop
  })
+ 
  #transfer back: 
  mx <- numeric()
  if(nC>1) {
@@ -96,11 +103,16 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
    }
   }
  }
- musigma <- exp(maxPhi[nC:(nC+1)]) #inverse-log
- thetahat <- c(mx,musigma) #last index is removed. This could again be a known contributor
- thetahat2 <- c(mx,1-sum(mx),musigma) #last index is removed. This could again be a known contributor
+ tmp <- exp(maxPhi[nC:(nC+1)]) #inverse-log
+ thetahat <- c(mx,tmp) #last index is removed. This could again be a known contributor
+ thetahat2 <- c(mx,1-sum(mx),tmp) #last index is removed. This could again be a known contributor
+ if(!nodeg) {
+  tmp <- exp(maxPhi[nC+2])
+  thetahat <- c(thetahat,tmp) #add beta to parameters
+  thetahat2 <- c(thetahat2,tmp) #add beta to parameters
+ }
  if(is.null(xi)) {
-  tmp <- 1/(1+exp(-maxPhi[nC+2]))
+  tmp <- 1/(1+exp(-maxPhi[np2])) #inverse-logit
   thetahat <- c(thetahat,tmp) #add xi to parameters
   thetahat2 <- c(thetahat2,tmp) #add xi to parameters
  }
@@ -126,9 +138,10 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   J[1:(nC-1),1:(nC-1)] <- DmDm
   }
   for(i in nC:(nC+1)) J[i,i] <- exp(phi[i])
+  if(!nodeg) J[nC+2,nC+2] <- exp(phi[nC+2])
   if(is.null(xi)) {
-   tmp <- exp(-phi[nC+2])
-   J[nC+2,nC+2] <- tmp*(1+tmp)^(-2)
+   tmp <- exp(-phi[np2])
+   J[np2,np2] <- tmp*(1+tmp)^(-2)
   }
   return(J)
  } #end jacobian
@@ -137,31 +150,36 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  #Sigma <- (J%*%maxSigma%*%t(J))/sqrt(np) #this formula is not correct
 
  #get extended Sigma (all parameters)
- Sigma2 <- matrix(NA,nrow=np+1,ncol=np+1) #extended covariance matrix also including mx[nC]
- Sigma2[nC:np+1,nC:np+1] <- Sigma[nC:np,nC:np] 
- Sigma2[nC:np+1,nC:np+1] <- Sigma[nC:np,nC:np] 
+ Sigma2 <- matrix(NA,nrow=np2+1,ncol=np2+1) #extended covariance matrix also including mx[nC]
+ Sigma2[nC:np2+1,nC:np2+1] <- Sigma[nC:np2,nC:np2] 
+ Sigma2[nC:np2+1,nC:np2+1] <- Sigma[nC:np2,nC:np2] 
  if(nC>1) {
-  Sigma2[nC:np+1,1:(nC-1)] <- Sigma[nC:np,1:(nC-1)] 
+  Sigma2[nC:np2+1,1:(nC-1)] <- Sigma[nC:np2,1:(nC-1)] 
   Sigma2[1:(nC-1),1:(nC-1)] <- Sigma[1:(nC-1),1:(nC-1)] 
-  Sigma2[1:(nC-1),nC:np+1] <- Sigma[1:(nC-1),nC:np] 
+  Sigma2[1:(nC-1),nC:np2+1] <- Sigma[1:(nC-1),nC:np2] 
   Sigma2[nC,nC] <- sum(Sigma[1:(nC-1),1:(nC-1)])
-  for(k in (1:(np+1))[-nC]) {
+  for(k in (1:(np2+1))[-nC]) {
    Sigma2[nC,k] <- Sigma2[k,nC] <- -sum(Sigma[1:(nC-1),k-sum(k>nC)]) 
   }
  } else {
-  Sigma2[1,1:(np+1)] <- Sigma2[1:(np+1),1] <- 0 #no uncertainty
+  Sigma2[1,1:(np2+1)] <- Sigma2[1:(np2+1),1] <- 0 #no uncertainty
  }
  #Standard error for theta:
  thetaSE <- sqrt(diag(Sigma2))
 
- phinames <- c("log(mu)","log(sigma)")
- thetanames <- c("mu","sigma")
+
+ thetanames0 <- c("mu","sigma")
+ if(!nodeg) thetanames0 <- c(thetanames0,"beta")
+ phinames <- paste0("log(",thetanames0,")")
+
  if(nC>1) {
   phinames  <- c(paste0("nu",1:(nC-1)),phinames)
-  thetanames <- c(paste0("mx",1:(nC-1)),thetanames)
+  thetanames <- c(paste0("mx",1:(nC-1)),thetanames0)
+ } else {
+  thetanames <- thetanames0
  }
- thetanames2 <- c(paste0("mx",1:nC),"mu","sigma")
- if(np==(nC+2)) {
+ thetanames2 <- c(paste0("mx",1:nC),thetanames0)
+ if(np==(nC+3)) {
   phinames <- c(phinames,"logit(xi)")
   thetanames <- c(thetanames,"xi") 
   thetanames2 <- c(thetanames2,"xi") 
@@ -182,7 +200,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  }
  fit <- list(phihat=maxPhi,thetahat=thetahat,thetahat2=thetahat2,phiSigma=maxSigma,thetaSigma=Sigma,thetaSigma2=Sigma2,loglik=maxL,thetaSE=thetaSE,logmargL=logmargL)
  #store model:
- model <- list(nC=nC,samples=samples,popFreq=popFreq,refData=refData,condOrder=condOrder,knownRef=knownRef,xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi)
+ model <- list(nC=nC,samples=samples,popFreq=popFreq,refData=refData,condOrder=condOrder,knownRef=knownRef,xi=xi,prC=prC,threshT=threshT,fst=fst,lambda=lambda,pXi=pXi,kit=kit)
  ret <- list(fit=fit,model=model,nDone=nDone,delta=delta)
  return(ret)
 } #end function

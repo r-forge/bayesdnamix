@@ -14,22 +14,23 @@
 #' @references Cowell,R.G. et.al. (2014). Analysis of forensic DNA mixtures with artefacts. Applied Statistics, 64(1),1-32.
 #' @keywords deconvolution
 deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
- theta <- mlefit$fit$thetahat #condition on mle parameter
+ theta2 <- theta <- mlefit$fit$thetahat #condition on mle parameter
  model <- mlefit$model #take out assumed model with given data
  locs <- names(model$popFreq)
  nL <- length(locs)
  nC <- model$nC
+ xi <- model$xi
  np <- length(theta)#number of unknown parameters
  loglikYtheta <- function() {   #call c++- function: length(theta)=nC+1
-   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-   return(Cval + log(model$pXi(theta[ret$nC+2]))) #weight with prior of tau and 
+   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
+   return(Cval) #weight with prior of tau and 
  }
- if(!is.null(model$xi)) {
-  theta <- c(theta,model$xi)
-  loglikYtheta <- function() {   #call c++- function: length(theta)=nC
-   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(model$prC), ret$condRef,as.numeric(model$threshT),as.numeric(model$fst),ret$mkvec,ret$nkval,as.numeric(model$lambda),as.integer(0),PACKAGE="gammadnamix")[[1]]
-   return(Cval)
-  }
+ nodeg <- is.null(model$kit) #check for degradation
+ if(nodeg) theta <- c(theta[1:(nC+1)],1) #insert beta variable equal 1
+ if(!is.null(xi)) {
+  theta <- c(theta,as.numeric(xi))
+ } else {
+  if(nodeg) theta <- c(theta,theta2[np])
  }
 
  #Using information in ret to try out different genotypes:
@@ -39,7 +40,7 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
  GClist <- list()
  for(loc in locs) {
   samples <- lapply(model$samples,function(x) x[loc])
-  ret <- prepareC(nC=nC,samples,popFreq=model$popFreq[loc],refData=model$refData[loc],condOrder=model$condOrder,knownRef=model$knownRef)
+  ret <- prepareC(nC=nC,samples,popFreq=model$popFreq[loc],refData=model$refData[loc],condOrder=model$condOrder,knownRef=model$knownRef,kit=model$kit)
   uind <- which(ret$condRef==-1) #unknown genotype indices
   nU <- length(uind) #number of unknowns
   if(nU==0) stop("There was no unknown genotype profiles to estimate. The evaluation will not be done!")
@@ -72,7 +73,9 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
  }
 
  #Step 2) Combine markers to create full profiles (this is it's own function):
- rankGlist <- combineRank(dlist,loghdval=mlefit$fit$loglik,alpha=alpha,maxsearch=maxlist)
+ loghdval <- mlefit$fit$loglik 
+ if(is.null(xi)) loghdval <- loghdval - log(model$pXi(theta2[np])) #reported likval has taken pXi into account
+ rankGlist <- combineRank(dlist,loghdval=loghdval,alpha=alpha,maxsearch=maxlist)
  pG <- rankGlist$pG
  Gset  <- rankGlist$rankG
 

@@ -6,7 +6,7 @@
 contLikINT(nC, samples, popFreq, lower, upper, refData = NULL,
   condOrder = NULL, knownRef = NULL, xi = NULL, prC = 0,
   reltol = 0.001, threshT = 50, fst = 0, lambda = 0, pXi = function(x)
-  1)
+  1, kit = NULL)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -38,6 +38,8 @@ contLikINT(nC, samples, popFreq, lower, upper, refData = NULL,
 \item{lambda}{Parameter in modeled peak height shifted exponential model. Default is 0.}
 
 \item{pXi}{Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.}
+
+\item{kit}{shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}}
 }
 \value{
 ret A list(margL,deviation,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, deviation is the confidence-interval of margL, nEvals is number of evaluations.

@@ -8,10 +8,11 @@
 #' @param refData Reference objects with list element [[s]][[i]]. The list element has reference-list with list-element 's' having a loci-list adata with list-element 'i storing qualitative data.
 #' @param condOrder Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!
 #' @param knownRef Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.
+#' @param kit shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
 #' @return ret A list of data input to call the C-code with
 #' @export 
 
-prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL){
+prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL,kit=NULL){
  #Note: Supports Invariant order of markers and caseletters!!
  #Supports replicates in the samples. 
  #should support to have zero contribution in some markers (all dropped out)-> all y=0
@@ -38,6 +39,23 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
   if( any( sort(tmp,decreasing=FALSE)!=(1:nK)) ) stop("Please condition references starting from 1. position")
  }
  
+ #get kit-info and find size of alleles
+ slist <- list() #size list used for degeneration
+ if(!is.null(kit)) { 
+   kitinfo <- getKit(kit)
+   for(loc in locs) { #for each dyes
+     slist[[loc]] <- numeric()
+     subkit <- subset(kitinfo,toupper(kitinfo$Marker)==loc) #control on dyer
+     Avec <- names(popFreq[[loc]])
+     for(an in Avec) { 
+       ind <- which(subkit$Allele==an)
+       if(length(ind)==0) ind <- which.min(abs(as.numeric(subkit$Allele) - as.numeric(an))) #nearest neighbour (in allele name)
+       size <- subkit$Size[ind]
+       slist[[loc]] <- c(slist[[loc]],size) #include size
+     }
+   }
+   if( any(sapply(slist,length)==0) ) stop("Wrong kit specified! It didn't contain all markers given in data")
+ }
  #convertion of values in popFreq, mixData and Glist$G:
  #loci-order follows as in mixData: "locs". Rearrange names:
  popFreq <- popFreq[locs] #order popFreq to mixData-order
@@ -115,7 +133,7 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  } #end for each marker
  #fix genotypes:
 
- #Encode allel-names in Gset: NB: BE CAREFUL!
+ #Encode allel-names in Gset: NB: BE CAREFUL USE TEMP-VARIABLES!
  Gset2 <- Gset #keep an old version!
  for(loc in locs) { #for each marker
   oldnames<-names(popFreq[[loc]])
@@ -139,14 +157,15 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  nG <- sapply(Gprob,length) #number of genotype combinations
  CnG <- c(0,cumsum(nG))
  CnG2 <- c(0,cumsum(nG*2)) #note: 2 columns for each genotype!!
- pG <- unlist(Gprob) #vectorize over all loci
+ bp <- (unlist(slist)-100)/100 #vectorize allele base pair size over all loci, diff and scale with 100
+ pG <- unlist(Gprob) #vectorize genotype probabilities over all loci
  Gvec <- as.integer(rbind(unlist(Gset))) #vectorize a big matrix (loci are put chronologic)
  condRef <- c(condM) #vectorized over all loci
  nAall <- sapply(popFreq,length) #Number of population-alleles on each loci
  CnAall <- c(0,cumsum(nAall)) #cumulative number of alleles
  pA <- unlist(popFreq) #need each allele probability for drop-in probabilities
 
- retlist <- list(nC=as.integer(nC),nK=as.integer(nK),nL=as.integer(nL),nA=as.integer(nA), obsY=as.numeric(obsY),obsA=as.integer(obsA),CnA=as.integer(CnA),allAbpind=as.integer(allAbpind),nAall=as.integer(nAall),CnAall=as.integer(CnAall),Gvec=as.integer(Gvec),nG=as.integer(nG),CnG=as.integer(CnG),CnG2=as.integer(CnG2),pG=as.numeric(pG),pA=as.numeric(pA), condRef=as.integer(condRef),mkvec=as.integer(mkvec),nkval=as.integer(nkval),nS=as.integer(nS))
+ retlist <- list(nC=as.integer(nC),nK=as.integer(nK),nL=as.integer(nL),nA=as.integer(nA), obsY=as.numeric(obsY),obsA=as.integer(obsA),CnA=as.integer(CnA),allAbpind=as.integer(allAbpind),nAall=as.integer(nAall),CnAall=as.integer(CnAall),Gvec=as.integer(Gvec),nG=as.integer(nG),CnG=as.integer(CnG),CnG2=as.integer(CnG2),pG=as.numeric(pG),pA=as.numeric(pA), condRef=as.integer(condRef),mkvec=as.integer(mkvec),nkval=as.integer(nkval),nS=as.integer(nS),bp=as.numeric(bp))
  return(retlist)
 } #end function
 

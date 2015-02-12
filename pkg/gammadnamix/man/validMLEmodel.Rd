@@ -3,14 +3,10 @@
 \alias{validMLEmodel}
 \title{validMLEmodel}
 \usage{
-validMLEmodel(mlefit, plotYdistr = FALSE, plotDdistr = FALSE)
+validMLEmodel(mlefit)
 }
 \arguments{
 \item{mlefit}{Fitted object using contLikMLE}
-
-\item{plotYdistr}{A boolean whether to plot the model fitted peak height density for each contributors}
-
-\item{plotDdistr}{A boolean whether to plot the model fitted heterozygote dropout probabilities as a function of amount of DNA(mu) for each contributors}
 }
 \value{
 ret A vector for each marker with cumulative probabilities

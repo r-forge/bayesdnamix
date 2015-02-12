@@ -4,7 +4,7 @@
 \title{prepareC}
 \usage{
 prepareC(nC, samples, popFreq, refData = NULL, condOrder = NULL,
-  knownRef = NULL)
+  knownRef = NULL, kit = NULL)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -18,6 +18,8 @@ prepareC(nC, samples, popFreq, refData = NULL, condOrder = NULL,
 \item{condOrder}{Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!}
 
 \item{knownRef}{Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.}
+
+\item{kit}{shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}}
 }
 \value{
 ret A list of data input to call the C-code with
