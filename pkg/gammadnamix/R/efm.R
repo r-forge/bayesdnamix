@@ -10,16 +10,17 @@
 #roxygenize("gammadnamix")
 
 #library(gammadnamix); sessionInfo();efm()
+#setwd("D:/Dropbox/Forensic/MixtureProj/myDev/quantLR/gammadnamix2")
 #setwd("C:/Users/oebl/Dropbox/Forensic/MixtureProj/myDev/quantLR/gammadnamix2")
 #rm(list=ls())
 #envirfile=NULL
-#source("efm.R");#efm()
+#source("efm.R");efm()
 
 efm = function(envirfile=NULL) {
 
  #size of main window
- mwH <- 1000
- mwW <- 1500
+ mwH <- 800
+ mwW <- 1000
 
  #Required for GUI:
  require(gWidgetstcltk) #requires only gWidgets.
@@ -35,13 +36,18 @@ efm = function(envirfile=NULL) {
 
  #NUMBER OF MAX LOCI TO VISUALIZE:
  maxloc <- 30 #REQUIRE LESS OR EQUAL THAN 30 loci to be able to select!
-
+ 
+ #Spacing between widgets
+ spc <- 10
 
  #####################
  #create environment #
  #####################
  if(is.null(envirfile)) {
   mmTK = new.env() #create new envornment object
+  pgkPath <- path.package("gammadnamix", quiet = FALSE) # Get package path.
+ .sep <- .Platform$file.sep # Platform dependent path separator. 
+  deffreq <- paste(pgkPath ,"tutorialdata","FreqDatabases",sep=.sep)
 
   #Toolbar options: can be changed any time by using toolbar
   assign("optFreq",list(freqsize=0,wildsize=7),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
@@ -53,8 +59,9 @@ efm = function(envirfile=NULL) {
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05),envir=mmTK) #options when doing LRmix
 
   #initializing environment variables
+
   assign("workdir",NULL,envir=mmTK) #assign working directory to mmTK-environment
-  assign("freqfolder",NULL,envir=mmTK) #assign freqfolder to mmTK-environment
+  assign("freqfolder",deffreq,envir=mmTK) #assign freqfolder to mmTK-environment
   assign("kits",NULL,envir=mmTK) #assign kitList to mmTK-environment
   assign("selPopKitName",NULL,envir=mmTK) #selected kit and population for popFreq
 
@@ -458,7 +465,7 @@ efm = function(envirfile=NULL) {
    'Set maximum of sigma-parameter'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="maxsigma",txt="Set upper boundary of mu parameter:") 
     }),
-   'Set maximum of stutter-rate'=list(handler=function(h,...) {  
+   'Set maximum of stutter proportion'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="maxxi",txt="Set upper boundary of xi parameter:") 
     })
   ),
@@ -506,7 +513,6 @@ efm = function(envirfile=NULL) {
  if(!is.null(wd)) setwd(wd)
  
  #Main window:
- spc <- 20
  mainwin <- gwindow(softname, visible=FALSE, width=mwW,height=mwH)
  gmenu(mblst,container=mainwin)
  nb = gnotebook(container=mainwin)
@@ -540,7 +546,7 @@ efm = function(envirfile=NULL) {
   }
   f_saveprof = function(h,...) {
     Data <- list(getDataFromGUI(h$action)) #get data from GUI
-    if(h$action==0) names(Data) <- "generated"
+    if(h$action==0) names(Data) <- paste0("stain",sample(100,1))
     if(h$action>0) names(Data) <- paste0("ref",h$action)
     Data = sample_listToTable(Data) #convert from table to list
     saveTable(Data,"csv")
@@ -580,10 +586,11 @@ efm = function(envirfile=NULL) {
   }
 
   #layout: 
-  tabGENa = glayout(spacing=0,container=(tabGENtmp[1,1] <-gframe("Parameters",container=tabGENtmp))) 
   tabGENb = glayout(spacing=0,container=(tabGENtmp[2,1] <-gframe("Edit",container=tabGENtmp))) 
   tabGENc = glayout(spacing=3,container=(tabGENtmp[3,1] <-gframe("Import/Export profile",container=tabGENtmp)))  
-  tabGENd = glayout(spacing=3,container=(tabGENtmp[4,1] <-gframe("Further action",container=tabGENtmp))) 
+  tabGENtop = glayout(spacing=3,container=(tabGENtmp[1,1] <-glayout(spacing=3,container=tabGENtmp))) 
+  tabGENa = glayout(spacing=0,container=(tabGENtop[1,1] <-gframe("Parameters",container=tabGENtop))) 
+  tabGENd = glayout(spacing=3,container=(tabGENtop[1,2] <-gframe("Further action",container=tabGENtop))) 
 
   #number of contributors
   set <- get("setGEN",envir=mmTK) #get stored setup
@@ -599,7 +606,7 @@ efm = function(envirfile=NULL) {
   tabGENa[1,2] <- gedit(thlist$mu,container=tabGENa,width=10)
   tabGENa[2,1] <- glabel("sigma (coeffecient of variation)",container=tabGENa)
   tabGENa[2,2] <- gedit(thlist$sigma,container=tabGENa,width=10)
-  tabGENa[3,1] <- glabel("xi (stutter rate)",container=tabGENa)
+  tabGENa[3,1] <- glabel("xi (stutter proportion)",container=tabGENa)
   tabGENa[3,2] <- gedit(thlist$xi,container=tabGENa,width=10)
   for(k in 1:nC) { #for each contributors
    tabGENa[k+3,1] <- glabel( paste0("mx",k," (mix-proportion contr. ",k,")") ,container=tabGENa)
@@ -1128,7 +1135,7 @@ efm = function(envirfile=NULL) {
     upper[nC] <- optint$maxmu
     upper[nC+1] <- optint$maxsigma
     upper[nC+3] <- optint$maxxi
-    if(!is.null(xi)) { #must remove stutter rate if known
+    if(!is.null(xi)) { #must remove stutter proportion if known
      lower <- lower[-np]
      upper <- upper[-np]
     }
@@ -1193,8 +1200,10 @@ efm = function(envirfile=NULL) {
 
    tabmodelA = glayout(spacing=5,container=(tabmodeltmp[1,1] <-gframe("Model specification",container=tabmodeltmp))) 
    tabmodelB = glayout(spacing=0,container=(tabmodeltmp[1,2] <-gframe("Data selection",container=tabmodeltmp))) 
-   tabmodelC = glayout(spacing=0,container=(tabmodeltmp[2,1] <-gframe("Show selected data",container=tabmodeltmp)))  
-   tabmodelD = glayout(spacing=5,container=(tabmodeltmp[2,2] <-gframe("Calculations",container=tabmodeltmp)))  
+   tabmodelCC = glayout(spacing=10,container=(tabmodeltmp[1,3] <-glayout(spacing=10,container=tabmodeltmp)))  
+
+   tabmodelC = glayout(spacing=0,container=(tabmodelCC[1,1] <-gframe("Show selected data",container=tabmodelCC)))  
+   tabmodelD = glayout(spacing=5,container=(tabmodelCC[2,1] <-gframe("Calculations",container=tabmodelCC)))  
 
    #Hypothesis selection: subframe of A
    txt <- "Contributor(s) under Hp:"
@@ -1237,7 +1246,7 @@ efm = function(envirfile=NULL) {
    tabmodelA5[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE) #checked only if not generating
    if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
 
-   tabmodelA5[2,1] <- glabel(text="Stutter rate (xi): ",container=tabmodelA5)
+   tabmodelA5[2,1] <- glabel(text="Stutter proportion (xi): ",container=tabmodelA5)
    tabmodelA5[2,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=2*edwith)
    tabmodelA5[3,1] <- glabel(text="Probability of drop-in: ",container=tabmodelA5)
    tabmodelA5[3,2] <- gedit(text="0",container=tabmodelA5,width=2*edwith)
@@ -1246,12 +1255,12 @@ efm = function(envirfile=NULL) {
    tabmodelA5[5,1] <- glabel(text="Prior density of xi: \n function(x)=",container=tabmodelA5)
    tabmodelA5[5,2] <- gedit(text="dbeta(x,1,1)",container=tabmodelA5,width=2*edwith)
    tabmodelA5[6,1] <- glabel(text="Degradation:",container=tabmodelA5)
-   tabmodelA5[6,2] <- gradio(items=c("YES","NO"), selected = 1, horizontal = TRUE,container=tabmodelA5)
+   tabmodelA5[6,2] <- gradio(items=c("YES","NO"), selected = 2, horizontal = TRUE,container=tabmodelA5)
 
    if(type=="GEN") { #deactivate options for generation:
     enabled(tabmodelA4[2,2]) <- FALSE #deactivate fst-correction
     enabled(tabmodelA5[1,1]) <- FALSE #deactivate Q-assignation fst-correction
-    enabled(tabmodelA5[2,2]) <- FALSE #deactivate stutter rate
+    enabled(tabmodelA5[2,2]) <- FALSE #deactivate stutter proportion
    }
 
    #Data selection
@@ -1338,7 +1347,7 @@ efm = function(envirfile=NULL) {
       #READ FROM GUI:
       threshT <- as.numeric(svalue(tabmodelA4[1,2])) #threshold
       fst <-  as.numeric(svalue(tabmodelA4[2,2])) #correction
-      xi <- svalue(tabmodelA5[2,2]) #stutter rate
+      xi <- svalue(tabmodelA5[2,2]) #stutter proportion
       prC <-  as.numeric(svalue(tabmodelA5[3,2])) #dropin probability
       lambda <-   as.numeric(svalue(tabmodelA5[4,2])) #lambda is hyperparameter to dropin-peak height model
       pXi = eval(parse(text= paste("function(x)",svalue(tabmodelA5[5,2])) )) 
@@ -1352,10 +1361,10 @@ efm = function(envirfile=NULL) {
       if(prC>0 && lrtype=="CONT") checkPositive(lambda,"Drop-in peak height hyperparameter",strict=TRUE)
       checkProb(fst,"fst-correction")
       if(xi=="") {
-       xi <- NULL #assume unknown stutter rate
+       xi <- NULL #assume unknown stutter proportion
       } else {
        xi <- as.numeric(xi)
-       checkProb(xi,"Stutter rate (xi)")
+       checkProb(xi,"Stutter proportion (xi)")
       }
 
       #prepare data for function in gammadnamix! Data-object must have correct format!
@@ -1998,7 +2007,7 @@ efm = function(envirfile=NULL) {
 ##############################################################
 ###############Tab 5: Deconvolution results:##################
 ##############################################################
- tabDCtmp <- glayout(spacing=30,container=tabDC)
+ tabDCtmp <- glayout(spacing=spc,container=tabDC)
 
  f_savetableDC = function(h,...) {
    DCtable <- get("resDC",envir=mmTK) #get deconvolved result 
@@ -2024,7 +2033,7 @@ efm = function(envirfile=NULL) {
 ###############Tab 6: Database search:########################
 ##############################################################
 
- tabDBtmp <- glayout(spacing=15,container=tabDB) #grid-layout
+ tabDBtmp <- glayout(spacing=spc,container=tabDB) #grid-layout
 
  f_savetableDB = function(h,...) {
    DBsearch <-get("resDB",envir=mmTK) #load results from environment
