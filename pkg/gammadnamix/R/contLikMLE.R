@@ -16,13 +16,13 @@
 #' @param knownRef Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.
 #' @param xi A numeric giving stutter-ratio if it is known. Default is NULL, meaning it is integrated out.
 #' @param prC A numeric for allele drop-in probability. Default is 0.
-#' @param nDone Maxumum number of random evaluations nlm-optimizing routing. Default is 1.
+#' @param nDone Maximum number of random evaluations nlm-optimizing routing. Default is 1.
 #' @param threshT The detection threshold given. Used when considering probability of allele drop-outs.
-#' @param fst is the coancestry coeffecient. Default is 0.
+#' @param fst The co-ancestry coefficient. Default is 0.
 #' @param lambda Parameter in modeled peak height shifted exponential model. Default is 0.
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
 #' @param delta Standard deviation of normal distribution when drawing random startpoints. Default is 10.
-#' @param kit shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
+#' @param kit Used to model degradation. Must be one of the shortnames of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}. 
 #' @param verbose Boolean whether printing optimization progress. Default is TRUE.
 #' @return ret A list(fit,model,nDone,delta) where fit is Maximixed likelihood elements for given model.
 #' @export
@@ -32,24 +32,27 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef,kit)
  nodeg  <- is.null(kit) #boolean whether modeling degradation FALSE=YES, TRUE=NO
 
- if(is.null(xi)) {
-  negloglikYphi <- function(phi) {   #call c++- function: length(theta)=nC+1
-   if(nodeg) phi <- c(phi[1:(nC+1)],0,phi[nC+2])
-   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(phi),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.numeric(ret$bp),as.integer(1),PACKAGE="gammadnamix")[[1]]
-   loglik <- Cval + log(pXi(1/(1+exp(-phi[nC+3])))) #weight with prior of tau and 
-   return(-loglik) #weight with prior of tau and stutter.
+ #function for calling on C-function:
+ negloglikYphi <- function(phi) {   
+  phi2 <- phi[1:(nC+1)] #take out mx,mu,sigma
+  if(nodeg) {
+    phi2 <- c(phi2,0) #add beta=0 to parameters
+  } else {
+    phi2 <- c(phi2,phi[nC+2]) #add beta to parameters
   }
- } else {  
-  negloglikYphi <- function(phi2) {   #call c++- function: length(theta)=nC
-   if(nodeg) phi2 <- c(phi2,0)
-   phi<- c(phi2,xi) #stutter-parameter added as known
-   if(nodeg) phi[nC+2] = 0 #force no degradation
-   Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(phi),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.numeric(ret$bp),as.integer(1),PACKAGE="gammadnamix")[[1]]
-   return(-Cval)
+  if(is.null(xi)) {  #if xi uknown
+    phi2 <- c(phi2,phi[np2]) #add xi param to parameters
+  } else { #if xi known
+    phi2 <- c(phi2,xi) #add xi param to parameters
   }
+  loglik <- .C("loglikgammaC",as.numeric(0),as.numeric(phi2),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.numeric(ret$bp),as.integer(1),PACKAGE="gammadnamix")[[1]]
+  if(is.null(xi))  loglik <- loglik + log(pXi(1/(1+exp(-phi[np2])))) #weight with prior of tau and 
+  return(-loglik) #weight with prior of tau and stutter.
  }
- alpha0 <- mean(sapply(samples,function(x) mean(sapply(x, function(y) sum(as.numeric(y$hdata)))))/2) #mean peak height
- maxITER <- 300 #number of possible times to be INF or not valid optimum before any acceptance
+ if(nodeg) alpha0 <- mean(sapply(samples,function(x) mean(sapply(x, function(y) sum(as.numeric(y$hdata)))))/(2*nC)) #mean het. allele. peak height averaged on all markers used when no degradation
+ if(!nodeg) alpha0 <- mean(sapply(samples,function(x) max(sapply(x, function(y) sum(as.numeric(y$hdata)))))/(2*nC)) #mean het. allele. peak height at largest marker when degradation
+
+ maxITER <- 100 #number of possible times to be INF or not valid optimum before any acceptance
  np2 <- np <- nC + 2 + sum(is.null(xi)) #number of unknown parameters (including degeneration param)
  if(nodeg) np2 <- np2 - 1
  maxL <- -Inf #
@@ -58,7 +61,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  suppressWarnings({
   while(nOK<nDone) {
     p0 <- rnorm(np2,sd=delta) #generate random start value on Real
-    p0[nC] <- rnorm(1,log(alpha0),sd=delta) #generate random start value for mu
+    p0[nC] <- rnorm(1,log(alpha0),sd=delta) #generate random start value for mu with mean alpha0
     likval <- negloglikYphi(p0)  
     if(is.infinite(likval)) { #if it was infinite
 	 nITER <- nITER + 1	 
@@ -87,8 +90,8 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
     if(nOK==0 && nITER>maxITER) {
      nOK <- nDone #finish loop
      maxL <- -Inf #maximized likelihood
-     maxPhi <- rep(NA,np) #Set as NA
-     maxSigma <- matrix(NA,np,np)#Set as NA
+     maxPhi <- rep(NA,np2) #Set as NA
+     maxSigma <- matrix(NA,np2,np2)#Set as NA
     }
   } #end while loop
  })
@@ -164,6 +167,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
  } else {
   Sigma2[1,1:(np2+1)] <- Sigma2[1:(np2+1),1] <- 0 #no uncertainty
  }
+
  #Standard error for theta:
  thetaSE <- sqrt(diag(Sigma2))
 
@@ -179,11 +183,11 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   thetanames <- thetanames0
  }
  thetanames2 <- c(paste0("mx",1:nC),thetanames0)
- if(np==(nC+3)) {
+ if(is.null(xi)) {
   phinames <- c(phinames,"logit(xi)")
   thetanames <- c(thetanames,"xi") 
   thetanames2 <- c(thetanames2,"xi") 
- } 
+ }
  colnames(maxSigma) <- rownames(maxSigma) <- phinames 
  colnames(Sigma) <- rownames(Sigma) <- thetanames
  colnames(Sigma2) <- rownames(Sigma2) <- thetanames2

@@ -41,11 +41,15 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  
  #get kit-info and find size of alleles
  slist <- list() #size list used for degeneration
+ mlist <- list() #mean of fragment size for each markers
+ minMeanSize <- 0 #minimum average fragment size of each markers
  if(!is.null(kit)) { 
    kitinfo <- getKit(kit)
-   for(loc in locs) { #for each dyes
+   if(!any(is.na(kitinfo))) {
+    for(loc in locs) { #for each dyes
      slist[[loc]] <- numeric()
      subkit <- subset(kitinfo,toupper(kitinfo$Marker)==loc) #control on dyer
+     mlist[[loc]] <- mean(subkit$Size)
      Avec <- names(popFreq[[loc]])
      for(an in Avec) { 
        ind <- which(subkit$Allele==an)
@@ -53,9 +57,15 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
        size <- subkit$Size[ind]
        slist[[loc]] <- c(slist[[loc]],size) #include size
      }
+     if( any(sapply(slist,length)==0) ) stop("Wrong kit specified! It didn't contain all markers given in data.")
+    }
+    minMeanSize <- min(unlist(slist))  
+   } else {
+    stop("Wrong kit name specified! It was not recognized by getKit().")
    }
-   if( any(sapply(slist,length)==0) ) stop("Wrong kit specified! It didn't contain all markers given in data")
  }
+
+
  #convertion of values in popFreq, mixData and Glist$G:
  #loci-order follows as in mixData: "locs". Rearrange names:
  popFreq <- popFreq[locs] #order popFreq to mixData-order
@@ -157,7 +167,8 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  nG <- sapply(Gprob,length) #number of genotype combinations
  CnG <- c(0,cumsum(nG))
  CnG2 <- c(0,cumsum(nG*2)) #note: 2 columns for each genotype!!
- bp <- (unlist(slist)-100)/100 #vectorize allele base pair size over all loci, diff and scale with 100
+# bp <- (unlist(slist)-minMeanSize)/100 #vectorize allele base pair size over all loci, diff with minimum average bs for each marker and scale with 100 always
+ bp <- (unlist(slist)-125)/100 #vectorize allele base pair size over all loci, diff with minimum average bs for each marker and scale with 100 always
  pG <- unlist(Gprob) #vectorize genotype probabilities over all loci
  Gvec <- as.integer(rbind(unlist(Gset))) #vectorize a big matrix (loci are put chronologic)
  condRef <- c(condM) #vectorized over all loci

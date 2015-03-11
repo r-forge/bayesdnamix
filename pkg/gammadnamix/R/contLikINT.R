@@ -28,33 +28,42 @@
 #' @keywords continuous, Bayesian models, Marginalized Likelihood estimation
 
 
-contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.001,threshT=50,fst=0,lambda=0,pXi=function(x)1,kit=NULL){
+contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.01,threshT=50,fst=0,lambda=0,pXi=function(x)1,kit=NULL){
  require(cubature) 
  if(length(lower)!=length(upper)) stop("Length of integral limits differs")
- np <- nC + 2 + sum(is.null(xi)) #number of unknown parameters
+ np2 <- np <- nC + 2 + sum(is.null(xi)) #number of unknown parameters
  if(length(lower)!=np) stop("Length of integral limits differs from number of unknown parameters specified")
  ret <- prepareC(nC,samples,popFreq,refData,condOrder,knownRef,kit)
  nodeg  <- is.null(kit) #boolean whether modeling degradation FALSE=YES, TRUE=NO
+ if(nodeg) {
+   np2 <- np2 - 1
+   if(length(lower)>np2) {
+    lower <- lower[-(nC+2)] #remove beta boundary
+    upper <- upper[-(nC+2)] #remove beta boundary
+   }
 
- if(is.null(xi)) {
-   likYtheta <- function(theta) {   #call c++- function: length(theta)=nC+1
-    if(nodeg) theta[nC+2] = 1 #force no degradation
-    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
-    loglik <- Cval + log(pXi(theta[nC+3])) #weight with prior of tau and 
-    return(exp(loglik)) #weight with prior of tau and stutter.
-   }
- } else {  
-   likYtheta <- function(theta2) {   #call c++- function: length(theta)=nC
-    if(nodeg) theta2[nC+2] = 1 #force no degradation
-    theta <- c(theta2,xi) #stutter-parameter added as known
-    Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
-    return(exp(Cval))
-   }
+ }
+ if(length(lower)!=np2) stop("The length integral limits was not the same as number of parameters!")
+ liktheta <- function(theta) {   
+  theta2 <- theta[1:(nC+1)] #take out mx,mu,sigma
+  if(nodeg) {
+    theta2 <- c(theta,1) #add beta=1 to parameters
+  } else {
+    theta2 <- c(theta2,theta[nC+2]) #add beta to parameters
+  }
+  if(is.null(xi)) {  #if xi unknown
+    theta2 <- c(theta2,theta[np2]) #add xi param to parameters
+  } else { #if xi known
+    theta2 <- c(theta2,xi) #add xi param to parameters
+  }
+  Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta2),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
+  if(is.null(xi)) Cval <- Cval + log(pXi(theta2[np2])) #weight with prior
+  return(exp(Cval)) #weight with prior of tau and stutter.
  }
  nU <- nC-ret$nK #number of unknowns
  bisectMx <- (nC==2 && nU==2) #if exact 2 unknown contributors in the hypothesis
  if(bisectMx) lower[1] <- 0.5 #restrict outcome of mixture proportions
- foo <- adaptIntegrate(likYtheta, lowerLimit = lower , upperLimit = upper , tol = reltol)
+ foo <- adaptIntegrate(liktheta, lowerLimit = lower , upperLimit = upper , tol = reltol)
  val <- foo$integral
  dev <- val + c(-1,1)*foo$error
  nEvals <- foo[[3]]

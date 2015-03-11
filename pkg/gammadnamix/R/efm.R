@@ -872,12 +872,12 @@ efm = function(envirfile=NULL) {
 
       #Plot degradation:
       kitinfo <- getKit(kitname)
-      if(is.na(kitinfo)) next
+      if(any(is.na(kitinfo))) next
       dev.new() 
       dyes <- unique(kitinfo$Color)
       srange <- range(kitinfo$Size)
       xz <- seq(srange[1],srange[2],l=1000)     
-      plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum peak height",xlab="Average size",main=paste0("Degradation summaries for ",msel))
+      plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum peak height",xlab="Average fragment length",main=paste0("Degradation summaries for ",msel))
       reglist <- list()
       for(dye in dyes) {
         regdata <- numeric()
@@ -1358,7 +1358,7 @@ efm = function(envirfile=NULL) {
       #CHECK VARIABLES:
       checkPositive(threshT,"Threshold")
       checkProb(prC,"Allele drop-in probability")
-      if(prC>0 && lrtype=="CONT") checkPositive(lambda,"Drop-in peak height hyperparameter",strict=TRUE)
+      if(prC>0 && lrtype=="CONT") checkPositive(lambda,"Drop-in peak height hyperparameter",strict=FALSE)
       checkProb(fst,"fst-correction")
       if(xi=="") {
        xi <- NULL #assume unknown stutter proportion
@@ -1375,10 +1375,10 @@ efm = function(envirfile=NULL) {
       for(loc in sellocs) { #for each selected locus in popFreq
        for(msel in mixSel) { #for each mixture samples
          subD <- mixD[[msel]][[loc]] #get selected data
-         if(lrtype=="CONT" && is.null(subD$hdata)) { #peak height not found!
-            gmessage(message=paste0("The evidence ",msel," didn't contain peak heights for locus ",loc,". Please unselect locus"),title="Wrong input",icon="error")
-            stop("Unselect loci which does not have peak heights.")
-         }
+#         if(lrtype=="CONT" && is.null(subD$hdata)) { #peak height not found!
+#            gmessage(message=paste0("The evidence ",msel," didn't contain peak heights for locus ",loc,". Please unselect locus"),title="Wrong input",icon="error")
+#            stop("Unselect loci which does not have peak heights.")
+#         }
          if(!is.null(subD$hdata)) {
           keep <- subD$hdata>=threshT #allele to keep (above threshold)
           subD$hdata <- subD$hdata[keep]
@@ -1421,6 +1421,8 @@ efm = function(envirfile=NULL) {
        popFreqQ <- ret$popFreq
        refDataQ <- ret$refData
       }
+#      samples <<- samples
+#      ret <<- ret
 
       #get input to list: note: "fit_hp" and "fit_hd" are list-object from fitted model
       model <- list(nC_hp=nC_hp,nC_hd=nC_hd,condOrder_hp=condOrder_hp,condOrder_hd=condOrder_hd,knownref_hp=knownref_hp,knownref_hd=knownref_hd) #proposition
@@ -1826,19 +1828,19 @@ efm = function(envirfile=NULL) {
           logLhd <- set$mlefit_hd$fit$loglik 
           if(par$fst>0) logLhd  <- contLikMLE(mod$nC_hd,set$samples,set$popFreqQ,refData,mod$condOrder_hd,mod$knownref_hd,par$xi,par$prC,opt$nDone,par$threshT,par$fst,par$lambda,delta=opt$delta,pXi=par$pXi,kit=par$kit,verbose=FALSE)$fit$loglik  #re-calculate only necessary once if fst>0 
           RMLR[m] <- (logLhp - logLhd)/log(10)
-       } else { #calculate based on INT
-        bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
-        bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
-        Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL 
-        if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL
-        RMLR[m] <- log10(Lhp) - log10(Lhd)
+        } else { #calculate based on INT
+         bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
+         bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
+         Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL 
+         if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL
+         RMLR[m] <- log10(Lhp) - log10(Lhd)
        }
       }
       if(m%%(ntippet/10)==0) {
         print(paste0(m/ntippet*100,"% finished..."))
         plotTippet(RMLR[1:m],type,lr0)
       }
-     }
+    } #for each tippet
   } #end Tippet function
 
   refreshTabMLE = function(type) { 
@@ -1913,7 +1915,7 @@ efm = function(envirfile=NULL) {
     }
 
     #helpfunction to print msg to screen
-    modelfitmsg =function() gmessage(message="The one-sample Kolmogorov-Smirnov test\nrejected the peak height model assumption\n(with significance level 0.05)",title="Rejection of model assumption",icon="info")
+    #modelfitmsg =function() gmessage(message="The one-sample Kolmogorov-Smirnov test\nrejected the peak height model assumption\n(with significance level 0.05)",title="Rejection of model assumption",icon="info")
 
     #GUI:
     tabmleA = glayout(spacing=0,container=(tabMLEtmp[1,1] <- gframe("Estimates under Hd",container=tabMLEtmp))) 
@@ -1921,9 +1923,7 @@ efm = function(envirfile=NULL) {
     tabmleA3 = glayout(spacing=0,container=(tabmleA[3,1] <-gframe("Further Action",container=tabmleA))) 
     tabmleA3[1,1] <- gbutton(text="MCMC simulation",container=tabmleA3,handler=function(h,...) { doMCMC(mlefit_hd) } )
     tabmleA3[2,1] <- gbutton(text="Deconvolution",container=tabmleA3,handler=function(h,...) { doDC(mlefit_hd) }  )
-    tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { 
-     if(validMLEmodel(mlefit_hd)<0.05) modelfitmsg()
-    } )
+    tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { validMLEmodel(mlefit_hd) } )
 
     if(type=="EVID" || type=="START") { #used only for weight-of-evidence
      tabmleB = glayout(spacing=0,container=(tabMLEtmp[1,2] <-gframe("Estimates under Hp",container=tabMLEtmp))) 
@@ -1931,9 +1931,7 @@ efm = function(envirfile=NULL) {
      tabmleB3 = glayout(spacing=0,container=(tabmleB[3,1] <-gframe("Further Action",container=tabmleB))) 
      tabmleB3[1,1] <- gbutton(text="MCMC simulation",container=tabmleB3,handler=function(h,...) { doMCMC(mlefit_hp) } )
      tabmleB3[2,1] <- gbutton(text="Deconvolution",container=tabmleB3,handler=function(h,...) {  doDC(mlefit_hp) }  )
-     tabmleB3[3,1] <- gbutton(text="Model validation",container=tabmleB3,handler=function(h,...) { 
-      if(validMLEmodel(mlefit_hp)<0.05) modelfitmsg()
-     } )
+     tabmleB3[3,1] <- gbutton(text="Model validation",container=tabmleB3,handler=function(h,...) { validMLEmodel(mlefit_hp) } )
     }
 
     #We show weight-of-evidence
@@ -1948,6 +1946,7 @@ efm = function(envirfile=NULL) {
      LRmle <- exp(logLRmle)
      LRlap <- exp(mlefit_hp$fit$logmargL - mlefit_hd$fit$logmargL)
      LRi <- exp(logLiki(mlefit_hp)-logLiki(mlefit_hd))
+     print(prod(LRi))
      resEVID <- list(LRmle=LRmle,LRlap=LRlap,LRi=LRi) 
      assign("resEVID",resEVID,envir=mmTK) #store EVID calculations
     } 

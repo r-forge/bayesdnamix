@@ -40,7 +40,7 @@ if(is.null(model$xi)) { #stutter is unknown
   }
 }
 
-  alpha <- 0.01 
+  alpha <- 0.001 
   alpha2 <- alpha/sum(sapply(model$samples,function(x) sapply(x,function(y) length(y$adata)))) #"bonferroni outlier"
   maxYobs <- max(sapply(model$samples,function(x) sapply(x,function(y) max(y$hdata)))) #max observation
   maxYexp <- qgamma(1-alpha2,1/sigma^2,scale=2*mu*sigma^2) #max observation in theory
@@ -65,13 +65,13 @@ if(is.null(model$xi)) { #stutter is unknown
   cumunif <-  punif((1:N)-0.5,0,N)
 
   #Goodness of fit test
-  pval <- ks.test(cumprobi, "punif")$p.value
-  txt <- paste0("p-value from Goodness-of-fit test = ",format(pval,digits=3))
-  print(txt)
+  #pval <- ks.test(cumprobi, "punif")$p.value
+  #txt <- paste0("p-value from Goodness-of-fit test = ",format(pval,digits=3))
+  #print(txt)
   qqplot(cumunif,cumprobi,xlim=0:1,ylim=0:1,main="PP-plot between fitted model and theoretical model",xlab="Expected: Unif(0,1)",ylab="Observed: (Pr(Yj<=yj|Y_{-j}<=y_{-j},Yj>=thresh,model))")
   abline(0,1)
-  mtext(txt)
-  return(pval)
+  #mtext(txt)
+  return(cumunif)
 }
 
 
