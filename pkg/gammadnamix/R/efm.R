@@ -50,10 +50,10 @@ efm = function(envirfile=NULL) {
   deffreq <- paste(pgkPath ,"tutorialdata","FreqDatabases",sep=.sep)
 
   #Toolbar options: can be changed any time by using toolbar
-  assign("optFreq",list(freqsize=0,wildsize=7),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
+  assign("optFreq",list(freqsize=0,wildsize=5),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
   assign("optMLE",list(nDone=3,delta=10,dec=4,obsLR=NULL),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
-  assign("optINT",list(reltol=0.01,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optINT",list(reltol=0.1,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05,ntippets=1e3),envir=mmTK)  #options when doing database search (maxDB)
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05),envir=mmTK) #options when doing LRmix
@@ -1161,10 +1161,12 @@ efm = function(envirfile=NULL) {
 
        #integrate:
        print("Calculates under Hp...")
-       int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit) 
+       time <- system.time({     int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)  })[3]
+       print(paste0("Integration under Hp took ",format(time,digits=5),"s"))
        print(paste0("Lik=",int_hp$margL))
        print("Calculates under Hd...")
-       int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit) 
+       time <- system.time({     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)  })[3]
+       print(paste0("Integration under Hd took ",format(time,digits=5),"s"))
        print(paste0("Lik=",int_hd$margL))
        LR <- int_hp$margL/int_hd$margL
        dev <- range(c(int_hp$deviation/int_hd$deviation,int_hp$deviation/rev(int_hd$deviation))) #get deviation interval of LR
@@ -1243,7 +1245,7 @@ efm = function(envirfile=NULL) {
    tabmodelA4[2,2] <- gedit(text="0",container=tabmodelA4,width=edwith)
 
    #Advanced parameters:
-   tabmodelA5[1,1] <- gcheckbox(text="Q-assignation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE) #checked only if not generating
+   tabmodelA5[1,1] <- gcheckbox(text="Q-designation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE) #checked only if not generating
    if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
 
    tabmodelA5[2,1] <- glabel(text="Stutter proportion (xi): ",container=tabmodelA5)
@@ -1259,7 +1261,7 @@ efm = function(envirfile=NULL) {
 
    if(type=="GEN") { #deactivate options for generation:
     enabled(tabmodelA4[2,2]) <- FALSE #deactivate fst-correction
-    enabled(tabmodelA5[1,1]) <- FALSE #deactivate Q-assignation fst-correction
+    enabled(tabmodelA5[1,1]) <- FALSE #deactivate Q-designation fst-correction
     enabled(tabmodelA5[2,2]) <- FALSE #deactivate stutter proportion
    }
 
@@ -1416,7 +1418,7 @@ efm = function(envirfile=NULL) {
       #get model parameters:
       popFreqQ <- popFreq
       refDataQ <- refData
-      if(svalue(tabmodelA5[1,1])) { #if Q-assignation
+      if(svalue(tabmodelA5[1,1])) { #if Q-designation
        ret <- Qassignate(samples, popFreq, refData) #call function in gammadnamix
        popFreqQ <- ret$popFreq
        refDataQ <- ret$refData
@@ -1551,17 +1553,70 @@ efm = function(envirfile=NULL) {
      pDvec <- rep(pDhat,max(mod$nC_hp+1,mod$nC_hd))
      #Dropout estimation finished 
 
-     DBtab <- numeric()  #used to store table when searched
-     for(dsel in set$dbSel) { #for each selected databases
-       subD <- getData("db",dsel)[[dsel]] #get selected database
-       dblocs <- toupper(colnames(subD)) #get database locs
-       indD <- rownames(subD) #get individual names in database
-       macD <- rep(0,length(indD)) #matching allele counter for each reference
-       LRD <- rep(0,length(indD)) #Continuous LR for each reference
-       nlocs <- rep(0,length(indD)) #Number of loci which are used for calculating score - Note: Require that reference in DB has a genotype
 
-       #convert allele-names of elements in database to one in popFreq
-       for(loc in dblocs) { #for each locus in db     
+     nU_hp <- mod$nC_hp - sum(mod$condOrder_hp>0) #number of unknowns under Hp                    
+     nU_hd <- mod$nC_hd - sum(mod$condOrder_hd>0) #number of unknowns under Hd                    
+     DBtab <- numeric()  #used to store table when searched
+     locevid <- unlist(unlist(lapply( set$samples, function(x) names(x) ))) #get locus names
+     for(dsel in set$dbSel) { #for each selected databases
+        subD <- getData("db",dsel)[[dsel]] #get selected database
+        dblocs <- toupper(colnames(subD)) #get database locs
+        indD <- rownames(subD) #get individual names in database
+        macD <- rep(0,length(indD)) #matching allele counter for each reference
+        nlocs <- rep(0,length(indD)) #Number of loci which are used for calculating score - Note: Require that reference in DB has a genotype
+        LR1 <- rep(1,nrow(subD)) #LRmix vec
+        dblocs <- locevid[locevid%in%dblocs] #consider only loci within sample
+
+        #########################################
+        if(ITYPE=="QUAL") {   #CONT LR calculation for each reference in table: FOR each database: calculate LR for each samples 
+         pC <- par$prC #get drop-in parameter from GUI
+         th0 <- par$fst
+
+         for(loc in dblocs) { #for each locus in db      
+          if(is.null(popFreq[[loc]])) next #skip to next locus
+          Ainfo <- names(unlist(popFreq[[loc]])) #extract allele-info of frequncies
+          #translate database to original genotypes
+          Pinfo <- prim[1:length(Ainfo)] #Prime-info in popFreq
+
+          G = t(as.matrix(expand.grid(rep(list(Ainfo,Ainfo )))))
+          GP = t(as.matrix(expand.grid(rep(list(Pinfo,Pinfo )))))
+          keep = GP[2,]>=GP[1,] #unique genotypes
+          G <- G[,keep]  #store genotypes
+          GP <- GP[1,keep]*GP[2,keep] #get prime product
+
+          #for each genotype: calculate Lp and Ld:
+          evidlist <- lapply( set$samples, function(x) x[[loc]]$adata ) #take out sample data:
+          condR <- unlist(refData[[loc]][mod$condOrder_hp] ) #take out known refs under Hp 
+          dbR <- subD[,which(loc==dblocs)] #take out DB-refs
+          isNA <- is.na(dbR) #take out missing references
+          if(all(isNA)) next #skipt locus if none to calculate
+          dbR2 <- dbR[!isNA] #keep non-NA
+          undbR <- unique(dbR2) #get unique genotypes
+          Evid <- NULL
+          for(ss in length(evidlist)) { #for each evidence
+            Ei <- evidlist[[ss]]	
+            if(ss>1) Ei <- c(Ei,"0") #insert zero
+            Evid <- c(Evid,Ei)
+          } #end for each evidence
+          for(unG in undbR) {
+             dbind <-  which(dbR2==unG) #get index of matching genotypes
+             ref0 <- Ainfo[unG%%Pinfo==0]
+             if(length(ref0)==1) ref0 <- rep(ref0,2)
+             ref1 <- c(ref0,condR ) #conditional references
+             hp0 <- likEvid( Evid,T=ref1,V=NULL,x=nU_hp,theta=th0, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
+             if(th0>0 | which(undbR==unG)==1) hd0 <- likEvid( Evid,T=condR,V=ref0,x=nU_hd,theta=th0, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
+             LR1[dbind] <- LR1[dbind]*hp0/hd0   #if more alleles than unknown
+             nlocs[dbind] <- nlocs[dbind] + 1 #counted only once!
+             macD[dbind] = macD[dbind] + sum(ref0%in%unlist(evidlist))
+          }#end for each genotypes
+         } #end for each locus
+       } #end for qual LR only
+ 
+       if(ITYPE!="QUAL") {   #CONT LR calculation for each reference in table: FOR each database: calculate LR for each samples 
+        LRD <- rep(0,length(indD)) #Continuous LR for each reference
+
+        #step 1) convert allele-names of elements in database to one in popFreq
+        for(loc in dblocs) { #for each locus in db     
          if(is.null(popFreq[[loc]])) next #skip to next locus
          Ainfo <- names(unlist(popFreq[[loc]])) #extract allele-info of frequncies
          #translate database to original genotypes
@@ -1591,18 +1646,14 @@ efm = function(envirfile=NULL) {
            nlocs[rowind] <- nlocs[rowind] + 1 #counted only once!
          } #end for each genotype
          subD[,which(loc==dblocs)] <- newRow #force insertion of genotype-names
-       } #end for each locus
+        } #end for each locus
 
-       #determine individuals which will with LR=0 when pC=0 for cases xi>0 and xi=0 (i.e. no peak explained by unknowns or stutter)
-       #can combine it to calculate qualitative LR
-       LR0bool <- rep(FALSE,nrow(subD)) #boolean for reference which is not necessary to calculate for contLR (TRUE means likelihood equal 0)
-       LR1 <- rep(1,nrow(subD)) #LRmix vec
-       nU_hp <- mod$nC_hp - sum(mod$condOrder_hp>0) #number of unknowns under Hp                    
-       nU_hd <- mod$nC_hd - sum(mod$condOrder_hd>0) #number of unknowns under Hd                    
-       if(ITYPE!="QUAL") pC <- opt$QUALpC #get drop-in parameter from option
-       if(ITYPE=="QUAL") pC <- par$prC #get drop-in parameter from GUI
-
-       for(loc in dblocs ) { #for each locus in db 
+        #step 2) determine individuals which will with LR=0 when pC=0 for cases xi>0 and xi=0 (i.e. no peak explained by unknowns or stutter)
+        #can combine it to calculate qualitative LR
+        LR0bool <- rep(FALSE,nrow(subD)) #boolean for reference which is not necessary to calculate for contLR (TRUE means likelihood equal 0)
+        LR1 <- rep(1,nrow(subD)) #LRmix vec
+        pC <- opt$QUALpC #get drop-in parameter from option
+        for(loc in dblocs ) { #for each locus in db 
           if(is.null(popFreq[[loc]])) next #skip to next locus
               evidlist <- lapply( set$samples, function(x) x[[loc]]$adata ) #take out sample data:
               condR <- unlist(refData[[loc]][mod$condOrder_hp] ) #take out known refs under Hp 
@@ -1626,16 +1677,12 @@ efm = function(envirfile=NULL) {
                   if(ss>1) Ei <- c(Ei,"0") #insert zero
                   Evid <- c(Evid,Ei)
                 } #end for each evidence
-                hp0 <- likEvid( Evid,T=ref0,V=NULL,x=nU_hp,theta=par$fst, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
-                if(ITYPE!="QUAL") th0 <- 0
-                if(ITYPE=="QUAL") th0 <- par$fst
-                if(th0>0 | j==1) hd0 <- likEvid( Evid,T=condR,V=undbR[j,],x=nU_hd,theta=th0, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
+                hp0 <- likEvid( Evid,T=ref0,V=NULL,x=nU_hp,theta=0, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
+                if(j==1) hd0 <- likEvid( Evid,T=condR,V=undbR[j,],x=nU_hd,theta=0, prDHet=pDvec, prDHom=pDvec^2, prC=pC, freq=popFreqQ[[loc]])
                 LR1[dbind] <- LR1[dbind]*hp0/hd0   #if more alleles than unknown
               }#end for each genotypes
-        } #end for each locus
+         } #end for each locus
 
-        #CONT LR calculation for each reference in table:  
-        if(ITYPE!="QUAL") { 
          print(paste0("Calculating continuous LR for ",sum(!LR0bool)," individual(s) in database ",dsel,"..."))
          #unsubD <- unique( subD ) #get unique values. Not in use
          for(rind in 1:length(indD)) { #for each individual in database
@@ -1657,7 +1704,7 @@ efm = function(envirfile=NULL) {
            condOrder_hd <- c(mod$condOrder_hd,0) #put conditional-index to model 
           }
           nR <- length(condOrder_hp) #number of references in refData2
-          for(loc in loceval) refData2[[loc]]$ref99 <- unlist(strsplit(Dind[ which(loc==dblocs) ], "/"))  #insert data into a new ref
+          for(loc in loceval) refData2[[loc]]$ijoisdjskwa <- unlist(strsplit(Dind[ which(loc==dblocs) ], "/"))  #insert data into a new ref
           samples <- lapply( set$samples, function(x) x[loceval] ) #take only relevant mixture data:
           
           if(ITYPE=="MLE") { #calculate with MLE
@@ -1690,7 +1737,8 @@ efm = function(envirfile=NULL) {
           } #END DB WITH TYPE INT
           if(rind%%50==0) print(paste0(round(rind/length(indD)*100),"% finished"))
          } #end for each individual
-        } #end type QUAL
+       } #end type !QUAL
+       
         print(paste0(100,"% finished for database ",dsel))
         if(ITYPE=="QUAL") LRD <- rep(NA,length(LR1))
         DBtab <- rbind(DBtab , cbind(indD,LRD,LR1,macD,nlocs) ) #add to DBtab
@@ -1946,7 +1994,6 @@ efm = function(envirfile=NULL) {
      LRmle <- exp(logLRmle)
      LRlap <- exp(mlefit_hp$fit$logmargL - mlefit_hd$fit$logmargL)
      LRi <- exp(logLiki(mlefit_hp)-logLiki(mlefit_hd))
-     print(prod(LRi))
      resEVID <- list(LRmle=LRmle,LRlap=LRlap,LRi=LRi) 
      assign("resEVID",resEVID,envir=mmTK) #store EVID calculations
     } 
@@ -2346,6 +2393,4 @@ efm = function(envirfile=NULL) {
 
  visible(mainwin) <- TRUE
  focus(mainwin)
-
 } #end funcions
-
