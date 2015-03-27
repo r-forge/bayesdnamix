@@ -1245,7 +1245,9 @@ efm = function(envirfile=NULL) {
    tabmodelA4[2,2] <- gedit(text="0",container=tabmodelA4,width=edwith)
 
    #Advanced parameters:
-   tabmodelA5[1,1] <- gcheckbox(text="Q-designation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE) #checked only if not generating
+   tabmodelA5[1,1] <- gcheckbox(text="Q-designation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE, handler=function(h,...) {
+     if(svalue(h$obj)==FALSE) gmessage(message="Q-designation: Non-observed alleles are compound to one single allele.\nTurning it off is not recommanded in practice!",title="Q-designation",icon="info")
+   })
    if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
 
    tabmodelA5[2,1] <- glabel(text="Stutter proportion (xi): ",container=tabmodelA5)

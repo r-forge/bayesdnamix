@@ -1,20 +1,23 @@
 Package: gammadnamix
 Type: Package
-Title: Package for intepretation of quantitative STR DNA mixtures
-Version: 0.9.3
-Date: 2015-03-20
+Title: Package for intepretation of quantitative DNA mixtures
+Version: 0.9.4
+Date: 2015-03-27
 Author: Oyvind Bleka <Oyvind.Bleka@fhi.no>
 Maintainer: Oyvind Bleka <Oyvind.Bleka@fhi.no>
-Description: gammadnamix contains procedures for optimization, integration and
+Description: gammadnamix contains procedures for maximization, integration and
     MCMC of likelihoods of a continuous model for replicated STR DNA mixtures
-    for a general specifications of hypotheses. It also does deconvolution with
-    the optimized model to take care of drop-out, drop-in, stutters and
-    degradation. It also contains a graphical layer EuroForMix.
+    for a general specifications of hypotheses. It also does deconvolution
+    condition on the continuous model. The continuous model takes care of
+    drop-out, drop-in, stutters and degradation. It also contains the graphical
+    layer EuroForMix.
 License: GPL(>=2)
 Depends:
-    R (>= 3.0.1)
+    R (>= 3.1.0)
 LinkingTo: Rcpp, RcppArmadillo, BH
 Imports:
-    cubature,gWidgetstcltk,forensim
+    gWidgets,gWidgetstcltk,Rcpp,
+    RcppArmadillo,
+    BH
 Suggests:
-    cubature,gWidgetstcltk,forensim
+    cubature,forensim

@@ -25,11 +25,11 @@ contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
 
 \item{prC}{A numeric for allele drop-in probability. Default is 0.}
 
-\item{nDone}{Maxumum number of random evaluations nlm-optimizing routing. Default is 1.}
+\item{nDone}{Maximum number of random evaluations nlm-optimizing routing. Default is 1.}
 
 \item{threshT}{The detection threshold given. Used when considering probability of allele drop-outs.}
 
-\item{fst}{is the coancestry coeffecient. Default is 0.}
+\item{fst}{The co-ancestry coefficient. Default is 0.}
 
 \item{lambda}{Parameter in modeled peak height shifted exponential model. Default is 0.}
 
@@ -37,7 +37,7 @@ contLikMLE(nC, samples, popFreq, refData = NULL, condOrder = NULL,
 
 \item{delta}{Standard deviation of normal distribution when drawing random startpoints. Default is 10.}
 
-\item{kit}{shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}}
+\item{kit}{Used to model degradation. Must be one of the shortnames of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}.}
 
 \item{verbose}{Boolean whether printing optimization progress. Default is TRUE.}
 }

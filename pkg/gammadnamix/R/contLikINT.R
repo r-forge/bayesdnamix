@@ -9,8 +9,8 @@
 #' @param nC Number of contributors in model.
 #' @param samples A List with samples which for each samples has locus-list elements with list elements adata and hdata. 'adata' is a qualitative (allele) data vector and 'hdata' is a quantitative (peak heights) data vector.
 #' @param popFreq A list of allele frequencies for a given population.
-#' @param lower Lower bounds of parameters
-#' @param upper Upper bounds of parameters
+#' @param lower Lower bounds of parameters. Must be in following order: mx1,..,mx_(nC-1),mu,sigma,beta,xi.
+#' @param upper Upper bounds of parameters. Must be in following order: mx1,..,mx_(nC-1),mu,sigma,beta,xi.
 #' @param refData Reference objects has locus-list element [[i]] with a list element 'r' which contains a 2 long vector with alleles for each references.
 #' @param condOrder Specify conditioning references from refData (must be consistent order). For instance condOrder=(0,2,1,0) means that we restrict the model such that Ref2 and Ref3 are respectively conditioned as 2. contributor and 1. contributor in the model. condOrder=-1 means the reference is known-non contributor!
 #' @param knownRef Specify known references from refData (index). For instance knownRef=(1,2) means that reference 1 and 2 is known allele samples in the hypothesis. This is affected by fst-correction.
@@ -41,13 +41,12 @@ contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL
     lower <- lower[-(nC+2)] #remove beta boundary
     upper <- upper[-(nC+2)] #remove beta boundary
    }
-
  }
  if(length(lower)!=np2) stop("The length integral limits was not the same as number of parameters!")
  liktheta <- function(theta) {   
   theta2 <- theta[1:(nC+1)] #take out mx,mu,sigma
   if(nodeg) {
-    theta2 <- c(theta,1) #add beta=1 to parameters
+    theta2 <- c(theta2,1) #add beta=1 to parameters
   } else {
     theta2 <- c(theta2,theta[nC+2]) #add beta to parameters
   }

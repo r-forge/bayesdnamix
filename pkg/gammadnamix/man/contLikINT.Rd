@@ -5,7 +5,7 @@
 \usage{
 contLikINT(nC, samples, popFreq, lower, upper, refData = NULL,
   condOrder = NULL, knownRef = NULL, xi = NULL, prC = 0,
-  reltol = 0.001, threshT = 50, fst = 0, lambda = 0, pXi = function(x)
+  reltol = 0.01, threshT = 50, fst = 0, lambda = 0, pXi = function(x)
   1, kit = NULL)
 }
 \arguments{
@@ -15,9 +15,9 @@ contLikINT(nC, samples, popFreq, lower, upper, refData = NULL,
 
 \item{popFreq}{A list of allele frequencies for a given population.}
 
-\item{lower}{Lower bounds of parameters}
+\item{lower}{Lower bounds of parameters. Must be in following order: mx1,..,mx_(nC-1),mu,sigma,beta,xi.}
 
-\item{upper}{Upper bounds of parameters}
+\item{upper}{Upper bounds of parameters. Must be in following order: mx1,..,mx_(nC-1),mu,sigma,beta,xi.}
 
 \item{refData}{Reference objects has locus-list element [[i]] with a list element 'r' which contains a 2 long vector with alleles for each references.}
 
