@@ -14,11 +14,14 @@ iszerolik <- function(evid,ref,nU,xi=0) {
    if(!is.null(xi) && xi==0) return(TRUE) #too many unexplained alleles
    #case of assuming stutters:
    Ei3 <- Ei2[!as.character(Ei2)%in%as.character(as.numeric(ref)-1)] #set of unknown alleles (after explained by being stutter from ref0)
-   Ei4 <- Ei3[as.character(as.numeric(Ei3)-1)%in%Ei3] #set of unknown alleles (after explaining possible stutter from unknown)
-   Ei5 <- unique(c(Ei4,Ei3[!Ei3%in%as.character(as.numeric(Ei3)-1)])) #Alleles to explain removed stutter 
-   if(length(Ei5)>(2*nU)) {
-    return(TRUE)  #too many unexplained alleles
-   } else {
-    return(FALSE) #the alleles can be explained
+   avec <- sort(as.numeric(Ei3),decreasing=TRUE) #sort allele names in decreasing order
+   c <- 0 #counter of number of alleles required to explain with stutter:
+   while(1) {
+    if(length(avec)==0) break #stop loop when done
+    a <- avec[1]
+    avec <- avec[!as.character(avec)%in%as.character(c(a,a-1))] #sequential remove alleles explainable as stutters
+    c <- c+1
+    if(c>(2*nU)) return(TRUE)  #too many unexplained alleles
    }
+   return(FALSE) #the alleles can be explained
 }
