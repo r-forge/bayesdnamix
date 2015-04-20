@@ -45,7 +45,7 @@ contLikMLE = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NU
   } else { #if xi known
     phi2 <- c(phi2,xi) #add xi param to parameters
   }
-  loglik <- .C("loglikgammaC",as.numeric(0),as.numeric(phi2),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.numeric(ret$bp),as.integer(1),PACKAGE="gammadnamix")[[1]]
+  loglik <- .C("loglikgammaC",as.numeric(0),as.numeric(phi2),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),as.numeric(ret$bp),as.integer(1),PACKAGE="euroformix")[[1]]
   if(is.null(xi))  loglik <- loglik + log(pXi(1/(1+exp(-phi[np2])))) #weight with prior of tau and 
   return(-loglik) #weight with prior of tau and stutter.
  }

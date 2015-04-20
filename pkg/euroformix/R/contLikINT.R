@@ -55,7 +55,7 @@ contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL
   } else { #if xi known
     theta2 <- c(theta2,xi) #add xi param to parameters
   }
-  Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta2),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),ret$bp,as.integer(0),PACKAGE="gammadnamix")[[1]]
+  Cval  <- .C("loglikgammaC",as.numeric(0),as.numeric(theta2),as.integer(np),ret$nC,ret$nK,ret$nL,ret$nS,ret$nA,ret$obsY,ret$obsA,ret$CnA,ret$allAbpind,ret$nAall,ret$CnAall,ret$Gvec,ret$nG,ret$CnG,ret$CnG2,ret$pG,ret$pA, as.numeric(prC), ret$condRef,as.numeric(threshT),as.numeric(fst),ret$mkvec,ret$nkval,as.numeric(lambda),ret$bp,as.integer(0),PACKAGE="euroformix")[[1]]
   if(is.null(xi)) Cval <- Cval + log(pXi(theta2[np2])) #weight with prior
   return(exp(Cval)) #weight with prior of tau and stutter.
  }
