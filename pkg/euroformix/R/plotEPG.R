@@ -529,6 +529,7 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
        locs[AMind] <- AMELname
        names(adata)[AMind] <- AMELname
        names(hdata)[AMind] <- AMELname
+       names(cdata)[AMind] <- AMELname
       }
       #Insert missing loci:
       missloc <- kitlocs[!kitlocs%in%locs] #get missing loci
