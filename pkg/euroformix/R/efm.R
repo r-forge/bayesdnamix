@@ -1866,7 +1866,6 @@ efm = function(envirfile=NULL) {
         for(ss in names(set$samples)) {
           evid0 <- set$samples[[ss]][[loc]]$adata
           val <- iszerolik(evid0,ref0,nU_hp,par$xi)
-          if(val) stop()
           if(par$prC==0 && any(hpZero[simind]==FALSE) ) hpZero[simind] <- hpZero[simind] | val #if no drop-in assumed
         }
        }
