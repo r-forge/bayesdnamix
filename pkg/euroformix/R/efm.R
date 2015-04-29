@@ -1246,7 +1246,7 @@ efm = function(envirfile=NULL) {
 
    #Advanced parameters:
    tabmodelA5[1,1] <- gcheckbox(text="Q-designation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE, handler=function(h,...) {
-     if(svalue(h$obj)==FALSE) gmessage(message="Q-designation: Non-observed alleles are compound to one single allele.\nTurning it off is not recommanded in practice!",title="Q-designation",icon="info")
+     if(svalue(h$obj)==FALSE) gmessage(message="Q-designation: Non-observed alleles are compound to one single allele.\nTurning it off will increase timeusage drastically!",title="Q-designation",icon="info")
    })
    if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
 
@@ -1255,7 +1255,7 @@ efm = function(envirfile=NULL) {
    tabmodelA5[3,1] <- glabel(text="Probability of drop-in: ",container=tabmodelA5)
    tabmodelA5[3,2] <- gedit(text="0",container=tabmodelA5,width=2*edwith)
    tabmodelA5[4,1] <- glabel(text="Drop-in peak height \n hyperparam (lambda):",container=tabmodelA5)
-   tabmodelA5[4,2] <- gedit(text="0",container=tabmodelA5,width=2*edwith)
+   tabmodelA5[4,2] <- gedit(text="0.01",container=tabmodelA5,width=2*edwith)
    tabmodelA5[5,1] <- glabel(text="Prior density of xi: \n function(x)=",container=tabmodelA5)
    tabmodelA5[5,2] <- gedit(text="dbeta(x,1,1)",container=tabmodelA5,width=2*edwith)
    tabmodelA5[6,1] <- glabel(text="Degradation:",container=tabmodelA5)
@@ -1420,13 +1420,12 @@ efm = function(envirfile=NULL) {
       #get model parameters:
       popFreqQ <- popFreq
       refDataQ <- refData
-      if(svalue(tabmodelA5[1,1])) { #if Q-designation
-       ret <- Qassignate(samples, popFreq, refData) #call function in euroformix
+      if(!isSNP) { 
+       stutt <- is.null(xi) || xi>0 #boolean whether stutter is assumed in model
+       ret <- Qassignate(samples, popFreq, refData,doQ=svalue(tabmodelA5[1,1]),incS=stutt,incR=stutt) #call function in euroformix
        popFreqQ <- ret$popFreq
        refDataQ <- ret$refData
       }
-#      samples <<- samples
-#      ret <<- ret
 
       #get input to list: note: "fit_hp" and "fit_hd" are list-object from fitted model
       model <- list(nC_hp=nC_hp,nC_hd=nC_hd,condOrder_hp=condOrder_hp,condOrder_hd=condOrder_hd,knownref_hp=knownref_hp,knownref_hd=knownref_hd) #proposition
@@ -1917,7 +1916,12 @@ efm = function(envirfile=NULL) {
      tabmleX2 = glayout(spacing=0,container=(tabmleX[2,1] <-gframe("Maximum Likelihood value",container=tabmleX))) 
      mle <- cbind(mlefit$thetahat2,sqrt(diag(mlefit$thetaSigma2)))
      log10LR <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
-     tab <- cbind(rownames(mle),format(mle,digits=dec))
+     pnames <- pnames2 <- rownames(mle) #parameter names
+#     pnames2[pnames=="mu"] <- bquote(mu)
+#     pnames2[pnames=="beta"] <- expression(beta)
+#     pnames2[pnames=="sigma"] <- expression(sigma)
+#     pnames2[pnames=="xi"] <- expression(xi)
+     tab <- cbind(pnames2,format(mle,digits=dec))
      colnames(tab) <- c("param","MLE","Std.Err.")
      tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=200,height=nrow(tab)*26)#,noRowsVisible=TRUE) #add to frame
      tabmleX2[1,1] =  glabel(text="log10lik=",container=tabmleX2)

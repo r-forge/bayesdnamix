@@ -61,22 +61,24 @@ LRmle <- exp(hpmle$fit$loglik - hdmle$fit$loglik) #MLE LR = prod(LRmlei)
 #MCMC Metropolis Hasting sampling:#
 ##Used to explore parameter space##
 ###################################
+niter <- 1e4 #number of posterior-samples
 #Under Hd
-niter <- 1e3 #number of posterior-samples
-delta <- 5 #try find a good behaved delta such that acceptance rate is around 0.25 and acf low
+delta <- 15 #try find a good behaved delta such that acceptance rate is around 0.25 and acf low
 hdmcmc <- contLikMCMC(hdmle,niter,delta)
 print(hdmcmc$accrat) #acceptance rate of sampler
 validMCMC(hdmcmc)
 
-
 #Under Hp
-niter <- 1e4 #number of posterior-samples
-delta <- 20 #try find a good behaved delta such that acceptance rate is around 0.25 and acf low
+delta <- 15 #try find a good behaved delta such that acceptance rate is around 0.25 and acf low
 hpmcmc <- contLikMCMC(hpmle,niter,delta)
 print(hpmcmc$accrat) #acceptance rate of sampler
 validMCMC(hpmcmc)
 
 LRmcmc <- hpmcmc$margL/hdmcmc$margL #get estimated LR based on MCMC simulations
+#dp <- density(hpmcmc$postlogL)
+#dd <- density(hdmcmc$postlogL)
+#matplot(cbind(dp$x,dd$x),cbind(dp$y,dd$y),ty="l")
+#plot(density((hpmcmc$postlogL - hdmcmc$postlogL)/log(10)))
 
 #######################
 #Numerical Integration#
@@ -84,13 +86,14 @@ LRmcmc <- hpmcmc$margL/hdmcmc$margL #get estimated LR based on MCMC simulations
 #specify parameter limits of the integral (we consider it after the MCMC exploring)
 #From posterior plot we assume: mu inside [400,800], sigma in [0,0.3]
 #theta=(mx1,mu,sigma,xi) is the order of the parameters
-hdL <- hpL <- c(rep(0,nC-1),0,0,0)
-hdU <- hpU <- c(rep(1,nC-1),2000,0.5,0.4) #assume upper limit of stutter ratio as 0.4
-reltol <- 0.05 #required relative error of the integration estimate
+hdL <- hpL <- c(rep(0,nC-1),0,0,0,0)
+hdU <- hpU <- c(rep(1,nC-1),2000,0.5,1,0.4) #assume upper limit of stutter ratio as 0.4
+reltol <- 0.1 #required relative error of the integration estimate
 hpint <- contLikINT(nC,samples,popFreq,lower=hpL,upper=hpU,refData=refData,condOrder=hpH,threshT=threshT,reltol=reltol)
 hdint <- contLikINT(nC,samples,popFreq,lower=hdL,upper=hdU,refData=refData,condOrder=hdH,threshT=threshT,reltol=reltol)
 LRint <- hpint$margL/hdint$margL #The LR weight-of-evidence based on integrated likelihood
 LRdev <- c(hpint$dev[1]/hdint$dev[2],hpint$dev[2]/hdint$dev[1]) #error-interval of the integrated based LR
 
-
+tab <- log10(rbind(LRmle,LRint,LRmcmc))
+colnames(tab) <- "log10LR"
 
