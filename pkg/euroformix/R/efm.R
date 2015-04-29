@@ -53,7 +53,7 @@ efm = function(envirfile=NULL) {
   assign("optFreq",list(freqsize=0,wildsize=5),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
   assign("optMLE",list(nDone=3,delta=10,dec=4,obsLR=NULL),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
-  assign("optINT",list(reltol=0.1,maxmu=20000,maxsigma=1,maxxi=1),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optINT",list(reltol=0.1,maxmu=20000,maxsigma=1,maxxi=0.5),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05,ntippets=1e3),envir=mmTK)  #options when doing database search (maxDB)
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05),envir=mmTK) #options when doing LRmix
@@ -873,33 +873,53 @@ efm = function(envirfile=NULL) {
       #Plot degradation:
       kitinfo <- getKit(kitname)
       if(any(is.na(kitinfo))) next
-      dev.new() 
       dyes <- unique(kitinfo$Color)
       srange <- range(kitinfo$Size)
       xz <- seq(srange[1],srange[2],l=1000)     
-      plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum peak height",xlab="Average fragment length",main=paste0("Degradation summaries for ",msel))
-      reglist <- list()
+      regdata <- numeric()
       for(dye in dyes) {
-        regdata <- numeric()
         locs <- toupper(unique(subset(kitinfo$Marker,kitinfo$Color==dye)))
         for(loc in locs) {
           if(length(grep("AM",loc))>0) next
           subK <- subset(kitinfo,kitinfo$Color==dye & toupper(kitinfo$Marker)==loc) 
-          mid <- mean(subK$Size[subK$Allele%in%subD[[loc]]$adata])
-          regdata <- cbind(regdata, c(sum(subD[[loc]]$hdata),mid))
-        }
-        reglist[[dye]] <- regdata 
-        fit <- lm(log(regdata[1,])~regdata[2,])
-        col <- dye
-        if(col=="yellow") col="orange"
-        points(regdata[2,],regdata[1,],col=col,pch=16)
-        lines(xz,exp(fit$coef[1]+xz*fit$coef[2]),col=col,lty=2) 
+          dat <- subK$Size[subK$Allele%in%subD[[loc]]$adata] #sizedata for alleles
+          regdata <- rbind(regdata, c(sum(subD[[loc]]$hdata),mean(dat),dye)) #use average for each locus
+        } 
+	}
+      dev.new() 
+      plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum peak height",xlab="Average fragment length",main=paste0("Peak height summaries for ",msel))
+      for(dye in dyes) {
+       subdata <- regdata[regdata[,3]==dye,]
+       fit <- lm(log(as.numeric(subdata[,1]))~as.numeric(subdata[,2]))
+       col <- dye
+       if(col=="yellow") col="orange"
+       points(as.numeric(subdata[,2]),as.numeric(subdata[,1]),col=col,pch=16)
+       lines(xz,exp(fit$coef[1]+xz*fit$coef[2]),col=col,lty=2) 
       }
-      yd <- unlist(lapply(reglist,function(x) x[1,]))
-      xd <- unlist(lapply(reglist,function(x) x[2,]))
-      fit <- lm(log(yd)~xd)
-      lines(xz,exp(fit$coef[1]+xz*fit$coef[2]))       
-      legend("topright",c("Average degradation","Degradation per dye"),lty=1:2)
+      yd <- as.numeric(regdata[,1]) #M data
+      zd <- log(yd)
+      xd <- as.numeric(regdata[,2])
+      xd <- (xd - 125)/100 #scale degradation
+      Fd <- factor(regdata[,3]) 
+
+      #Test for models: Largest score wins
+      AIC <- function(x) 2*(logLik(x)-length(x$coef))
+      BIC <- function(x) 2*logLik(x)-log(length(x$res))*length(x$coef)
+#      mn <- c("global intercept + no deg","global intercept + global deg","dyer intercept  + no deg","dyer intercept + global deg","global intercept + dyer deg","dyer intercept + dyer deg")
+      mn <- c("intercept","intercept + degradation","intercept:dyer","intercept:dyer + degradation","intercept + degradation:dyer ","intercept:dyer + degradation:dyer")   
+      fits <- list()
+      fits[[1]] <- lm(zd~1) #global intercept + no deg
+      fits[[2]] <- lm(zd~xd) #global intercept + global deg
+      fits[[3]] <- lm(zd~Fd-1) #dyer intercept  + no deg
+      fits[[4]] <- lm(zd~Fd+xd-1) #dyer intercept + global deg
+      fits[[5]] <- lm(zd~xd:Fd) #global intercept + dyer deg 
+      fits[[6]] <- lm(zd~Fd + xd:Fd-1) #dyer intercept + dyer deg 
+      aic <- sapply(fits,AIC)
+      bic <- sapply(fits,BIC)
+      postP <- exp(0.5*bic)
+      postP  <- postP/sum(postP)
+      ltxt <- paste0("Pr(",mn,")=",format(postP,digits=2)) #legend text
+      legend("topright",legend=ltxt[order(postP,decreasing=TRUE)],cex=0.9)
     }
     print("------------------------------------")
     focus(mainwin)
@@ -1421,7 +1441,8 @@ efm = function(envirfile=NULL) {
       popFreqQ <- popFreq
       refDataQ <- refData
       if(!isSNP) { 
-       stutt <- is.null(xi) || xi>0 #boolean whether stutter is assumed in model
+       stutt <- is.null(xi) || xi>0  #boolean whether stutter is assumed in model
+       if(lrtype=="QUAL") stutt <- FALSE #no stutter for qualitative model
        ret <- Qassignate(samples, popFreq, refData,doQ=svalue(tabmodelA5[1,1]),incS=stutt,incR=stutt) #call function in euroformix
        popFreqQ <- ret$popFreq
        refDataQ <- ret$refData

@@ -529,18 +529,18 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
        locs[AMind] <- AMELname
        names(adata)[AMind] <- AMELname
        names(hdata)[AMind] <- AMELname
-       names(cdata)[AMind] <- AMELname
+       if(!is.null(refcond)) names(cdata)[AMind] <- AMELname
       }
       #Insert missing loci:
       missloc <- kitlocs[!kitlocs%in%locs] #get missing loci
       for(loc in missloc) {
        	adata[loc] = "" 
-            hdata[loc] = 1e-6 #default is binary signal (below detection threshold)
-            cdata[loc] = ""
+        hdata[loc] = 1e-6 #default is binary signal (below detection threshold)
+        if(!is.null(refcond)) cdata[loc] = ""
       }
 	adata <- adata[kitlocs] 
 	hdata <- hdata[kitlocs] 
-	cdata <- cdata[kitlocs] 
+	if(!is.null(refcond)) cdata <- cdata[kitlocs] 
    } else {
     kitlocs <- locs
    }
