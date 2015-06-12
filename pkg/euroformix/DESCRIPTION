@@ -1,8 +1,8 @@
 Package: euroformix
 Type: Package
 Title: Package for intepretation of quantitative DNA mixtures
-Version: 0.2.1
-Date: 2015-04-29
+Version: 0.2.3
+Date: 2015-05-04
 Author: Oyvind Bleka <Oyvind.Bleka@fhi.no>
 Maintainer: Oyvind Bleka <Oyvind.Bleka@fhi.no>
 Description: euroformix contains procedures for maximization, integration and

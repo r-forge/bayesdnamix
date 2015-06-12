@@ -28,6 +28,7 @@ prepareC = function(nC,samples,popFreq,refData=NULL,condOrder=NULL,knownRef=NULL
  names(popFreq) <- toupper(names(popFreq)) #toupper case!
  locs <- locs[locs%in%names(popFreq)] #take intercept with locus in evidence and population-freq
  #print( paste0("Evaluated loci: ", paste0(locs,collapse=",") ) )
+ if(nC<1) stop("Number of contributors was specified as less than 1!")
 
  if(is.null(condOrder)) {
   condOrder <- rep(0,nC) #insert condorder if missing

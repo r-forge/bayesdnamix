@@ -110,7 +110,7 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
  for(loc in locs) { #convert names for each locus
   table1 <- cbind(table1,deconvlist[[loc]])
  }
- table1 <-  cbind(table1,pG)
+ table1 <-  cbind(table1,signif(pG,4))
  colnames(table1) <- c(paste0(c(t(replicate(length(kvec),locs))),"_g",kvec),"posterior")
  return(list(table1=table1,rankG=deconvlist,pG=pG))
 } #end function

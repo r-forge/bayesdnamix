@@ -18,8 +18,8 @@ Qassignate <- function(samples,popFreq,refData=NULL,doQ=TRUE,incS=TRUE,incR=TRUE
   evid0 <- evid <- unique(unlist( lapply(samples,function(x) x[[loc]]$adata) )) #vectorize alleles for all replicates
   if(!is.null(refData) && incR) evid  <- unique(c(evid,unlist(refData[[loc]])))
   if(incS) evid  <- unique(c(evid,as.character(as.numeric(evid)-1)))
-  tmp <- as.character(as.numeric(evid0)+1)
-  if(incS) evid <-  unique(c(evid,tmp[tmp%in%names(popFreq[[loc]])])) #only +1 of observed alleles
+  #tmp <- c(as.character(as.numeric(evid0)+1),as.character(as.numeric(evid0)+2)) #not necessary?
+  #if(incS) evid <-  unique(c(evid,tmp[tmp%in%names(popFreq[[loc]])]))
   #if new alleles in evidence or references not in popFreq
   newa <- evid[!evid%in%names(popFreq[[loc]])]   
   if(length(newa)>0) {

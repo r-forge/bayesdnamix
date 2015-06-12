@@ -908,7 +908,7 @@ efm = function(envirfile=NULL) {
 #      mn <- c("global intercept + no deg","global intercept + global deg","dyer intercept  + no deg","dyer intercept + global deg","global intercept + dyer deg","dyer intercept + dyer deg")
       mn <- c("intercept","intercept + degradation","intercept:dyer","intercept:dyer + degradation","intercept + degradation:dyer ","intercept:dyer + degradation:dyer")   
       fits <- list()
-      fits[[1]] <- lm(zd~1) #global intercept + no deg
+      fits[[1]] <- lm(zd~1,na.action=na.exclude) #global intercept + no deg
       fits[[2]] <- lm(zd~xd) #global intercept + global deg
       fits[[3]] <- lm(zd~Fd-1) #dyer intercept  + no deg
       fits[[4]] <- lm(zd~Fd+xd-1) #dyer intercept + global deg
@@ -1845,15 +1845,25 @@ efm = function(envirfile=NULL) {
      if(any(is.na(mlehp$fit$phiSigma)) || any(is.na(mlehd$fit$phiSigma)) ) return();
      print("Sampling under Hp...")
      hplogL <- doMCMC(mlehp,returnPostLogL=TRUE,showValid=FALSE)
+     dp <- density(hplogL/log(10))
+     layout(matrix(c(1,3,2,3), 2, 2, byrow = FALSE))
+     plot(dp,xlab="log10 P(E|Hp)",ylab="distr",main="Sensitivity under Hp")
+     abline(v=mlehp$fit$loglik/log(10),lty=2)
      print("Sampling under Hd...")
      hdlogL <- doMCMC(mlehd,returnPostLogL=TRUE,showValid=FALSE)
+     dd <- density(hdlogL/log(10))
+     plot(dd,xlab="log10 P(E|Hd)",ylab="distr",main="Sensitivity under Hd")
+     abline(v=mlehd$fit$loglik/log(10),lty=2)
      log10LR <- (hplogL - hdlogL)/log(10)
-     plot(density(log10LR),xlab="log10 LR",ylab="log10LR distr",main="Distribution of LR over posterior space of parameters")
+     d <- density(log10LR)
+     plot(d,xlab="log10 LR",ylab="log10LR distr",main="Sensitivity of LR")
+     abline(v=(mlehp$fit$loglik - mlehd$fit$loglik)/log(10),lty=2)
+     #lines(d$x, dnorm(d$x,mean=mean(log10LR),sd=sd(log10LR)),lty=2,col="gray")
      qqs <- c(0.01,0.025,0.05,0.25,0.5,0.75,0.95,0.975,0.99)
      LRqq <- quantile(log10LR,qqs)
-     abline(v=LRqq[3],col=4,lty=2)
-     legend("topright",legend=paste0("5% quantile = ",format(LRqq[3],digits=4)),col=4,lty=2)
      print(LRqq)
+     #abline(v=LRqq[3],col=4,lty=2)
+     #legend("topright",legend=paste0("5% quantile = ",format(LRqq[3],digits=4)),col=4,lty=2)
   }
 
   #Tippet-analysis frame:
@@ -2048,7 +2058,7 @@ efm = function(envirfile=NULL) {
       }
      }
      tabmleD[2,1] <- gbutton(text="Continuous LR\n(Integrated Likelihood based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
-     tabmleD[3,1] <- gbutton(text="Simulate LR distribution",container=tabmleD,handler=function(h,...) { simLR(mlefit_hp,mlefit_hd) } ) 
+     tabmleD[3,1] <- gbutton(text="LR sensitivity",container=tabmleD,handler=function(h,...) { simLR(mlefit_hp,mlefit_hd) } ) 
      tabmleE[2,1] <- gbutton(text="Only LR results",container=tabmleE,handler=f_savetableEVID)
  
      #postanalysis
