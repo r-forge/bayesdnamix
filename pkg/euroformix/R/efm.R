@@ -29,7 +29,9 @@ efm = function(envirfile=NULL) {
  options(guiToolkit="tcltk")
 
  #version:
- version = 1.0
+ version = 1.1
+
+ #v1.0 -> v1.1: More userfriendly names for parameters.
 
  #software name:
  softname <- paste0("EuroForMix v",version)
@@ -1353,6 +1355,10 @@ efm = function(envirfile=NULL) {
        newA <- numeric()
        for(ss in mixSel) {
         adata <- mixD[[ss]][[loc]]$adata
+        if(length(adata)!=length(unique(adata))) {
+         gmessage(paste0("The sample ", ss," has duplicated alleles in locus ",loc,"\nPlease remove the duplicate from the text-file!"),title="Wrong data input!",icon="error")
+         stop("No evaluation done.")
+        }
         newA <- c(newA, adata[!adata%in%names(tmp)])
        }
        for(rr in refSel) {
@@ -1775,8 +1781,7 @@ efm = function(envirfile=NULL) {
 ##########################################################################################
 ############################Tab 4: MLE estimation:########################################
 ##########################################################################################
-#HERE: WE DO BASICLY MLE-FITTING HERE: 
-#BUT DECONVOLUTION-function AND DATABASE SEARCHING is implemented here (saves memory usage)!
+#WE DO MLE-FITTING HERE, and also DECONVOLUTION-function AND DATABASE SEARCHING is implemented here (saves memory usage)!
 
   f_savetableEVID = function(h,...) { #function for storing LR
    resEVID <- get("resEVID",envir=mmTK) #get EVID calculations when GUI starts
@@ -1948,13 +1953,15 @@ efm = function(envirfile=NULL) {
      mle <- cbind(mlefit$thetahat2,sqrt(diag(mlefit$thetaSigma2)))
      log10LR <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
      pnames <- pnames2 <- rownames(mle) #parameter names
-#     pnames2[pnames=="mu"] <- bquote(mu)
-#     pnames2[pnames=="beta"] <- expression(beta)
-#     pnames2[pnames=="sigma"] <- expression(sigma)
-#     pnames2[pnames=="xi"] <- expression(xi)
+     mxind <- grep("mx",pnames)
+     pnames2[mxind] <- paste0("Mix-prop. C",mxind) #bquote(mu)
+     pnames2[pnames=="mu"] <- "P.H.expectation" #bquote(mu)
+     pnames2[pnames=="sigma"] <- "P.H.variability"#expression(sigma)
+     pnames2[pnames=="beta"] <- "Degrad. slope" #expression(beta)
+     pnames2[pnames=="xi"] <- "Stutter-prop." #expression(xi)
      tab <- cbind(pnames2,format(mle,digits=dec))
      colnames(tab) <- c("param","MLE","Std.Err.")
-     tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=200,height=nrow(tab)*26)#,noRowsVisible=TRUE) #add to frame
+     tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=240,height=nrow(tab)*27)#,noRowsVisible=TRUE) #add to frame
      tabmleX2[1,1] =  glabel(text="log10lik=",container=tabmleX2)
      tabmleX2[1,2] =  glabel(text=format(log10LR,digits=dec),container=tabmleX2)
      tabmleX2[2,1] =  glabel(text="Lik=",container=tabmleX2)
