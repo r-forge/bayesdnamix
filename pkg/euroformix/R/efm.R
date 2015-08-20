@@ -29,9 +29,10 @@ efm = function(envirfile=NULL) {
  options(guiToolkit="tcltk")
 
  #version:
- version = 1.1
+ version = 1.2
 
  #v1.0 -> v1.1: More userfriendly names for parameters.
+ #v1.1 -> v1.2: Integrals handles very small likelihood values
 
  #software name:
  softname <- paste0("EuroForMix v",version)
@@ -41,6 +42,9 @@ efm = function(envirfile=NULL) {
  
  #Spacing between widgets
  spc <- 10
+
+ #scaling of likelihood function used with integration
+ scaleINT <- 700
 
  #####################
  #create environment #
@@ -55,7 +59,7 @@ efm = function(envirfile=NULL) {
   assign("optFreq",list(freqsize=0,wildsize=5),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
   assign("optMLE",list(nDone=3,delta=10,dec=4,obsLR=NULL),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
-  assign("optINT",list(reltol=0.1,maxmu=20000,maxsigma=1,maxxi=0.5),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optINT",list(reltol=0.1,maxmu=20000,maxsigma=0.9,maxxi=0.5),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05,ntippets=1e3),envir=mmTK)  #options when doing database search (maxDB)
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05),envir=mmTK) #options when doing LRmix
@@ -461,14 +465,14 @@ efm = function(envirfile=NULL) {
    'Set relative error requirement'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="reltol",txt="Set relative error:") 
     }),
-   'Set maximum of mu-parameter'=list(handler=function(h,...) {  
-      setValueUser(what1="optINT",what2="maxmu",txt="Set upper boundary of mu parameter:") 
+   'Set maximum of P.H.expectation'=list(handler=function(h,...) {  
+      setValueUser(what1="optINT",what2="maxmu",txt="Set upper boundary of P.H.expectation (mu) parameter:") 
     }),
-   'Set maximum of sigma-parameter'=list(handler=function(h,...) {  
-      setValueUser(what1="optINT",what2="maxsigma",txt="Set upper boundary of mu parameter:") 
+   'Set maximum of P.H.variability'=list(handler=function(h,...) {  
+      setValueUser(what1="optINT",what2="maxsigma",txt="Set upper boundary of P.H.variability (sigma) parameter:") 
     }),
    'Set maximum of stutter proportion'=list(handler=function(h,...) {  
-      setValueUser(what1="optINT",what2="maxxi",txt="Set upper boundary of xi parameter:") 
+      setValueUser(what1="optINT",what2="maxxi",txt="Set upper boundary of stutter proportion (xi) parameter:") 
     })
   ),
   Deconvolution=list(
@@ -885,6 +889,7 @@ efm = function(envirfile=NULL) {
           if(length(grep("AM",loc))>0) next
           subK <- subset(kitinfo,kitinfo$Color==dye & toupper(kitinfo$Marker)==loc) 
           dat <- subK$Size[subK$Allele%in%subD[[loc]]$adata] #sizedata for alleles
+          if(length(dat)==0) next
           regdata <- rbind(regdata, c(sum(subD[[loc]]$hdata),mean(dat),dye)) #use average for each locus
         } 
 	}
@@ -892,18 +897,21 @@ efm = function(envirfile=NULL) {
       plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum peak height",xlab="Average fragment length",main=paste0("Peak height summaries for ",msel))
       for(dye in dyes) {
        subdata <- regdata[regdata[,3]==dye,]
+       if(nrow(subdata)==0) next
        fit <- lm(log(as.numeric(subdata[,1]))~as.numeric(subdata[,2]))
        col <- dye
        if(col=="yellow") col="orange"
        points(as.numeric(subdata[,2]),as.numeric(subdata[,1]),col=col,pch=16)
        lines(xz,exp(fit$coef[1]+xz*fit$coef[2]),col=col,lty=2) 
       }
+      #print(regdata)
       yd <- as.numeric(regdata[,1]) #M data
       zd <- log(yd)
       xd <- as.numeric(regdata[,2])
       xd <- (xd - 125)/100 #scale degradation
       Fd <- factor(regdata[,3]) 
 
+      L <- length(levels(Fd))
       #Test for models: Largest score wins
       AIC <- function(x) 2*(logLik(x)-length(x$coef))
       BIC <- function(x) 2*logLik(x)-log(length(x$res))*length(x$coef)
@@ -912,10 +920,12 @@ efm = function(envirfile=NULL) {
       fits <- list()
       fits[[1]] <- lm(zd~1,na.action=na.exclude) #global intercept + no deg
       fits[[2]] <- lm(zd~xd) #global intercept + global deg
-      fits[[3]] <- lm(zd~Fd-1) #dyer intercept  + no deg
-      fits[[4]] <- lm(zd~Fd+xd-1) #dyer intercept + global deg
-      fits[[5]] <- lm(zd~xd:Fd) #global intercept + dyer deg 
-      fits[[6]] <- lm(zd~Fd + xd:Fd-1) #dyer intercept + dyer deg 
+      if(L>1) {
+       fits[[3]] <- lm(zd~Fd-1) #dyer intercept  + no deg
+       fits[[4]] <- lm(zd~Fd+xd-1) #dyer intercept + global deg
+       fits[[5]] <- lm(zd~xd:Fd) #global intercept + dyer deg 
+       fits[[6]] <- lm(zd~Fd + xd:Fd-1) #dyer intercept + dyer deg 
+      }
       aic <- sapply(fits,AIC)
       bic <- sapply(fits,BIC)
       postP <- exp(0.5*bic)
@@ -1182,14 +1192,17 @@ efm = function(envirfile=NULL) {
        bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
 
        #integrate:
+       scaleINT <- 700 #makes very small integrals calculateable
        print("Calculates under Hp...")
-       time <- system.time({     int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)  })[3]
+       time <- system.time({     int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)  })[3]
        print(paste0("Integration under Hp took ",format(time,digits=5),"s"))
-       print(paste0("Lik=",int_hp$margL))
+       print(paste0("log(Lik)=",log(int_hp$margL)-scaleINT))
+       print(paste0("Lik=",int_hp$margL*exp(-scaleINT)))
        print("Calculates under Hd...")
-       time <- system.time({     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)  })[3]
+       time <- system.time({     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)  })[3]
        print(paste0("Integration under Hd took ",format(time,digits=5),"s"))
-       print(paste0("Lik=",int_hd$margL))
+       print(paste0("log(Lik)=",log(int_hd$margL)-scaleINT))
+       print(paste0("Lik=",int_hd$margL*exp(-scaleINT)))
        LR <- int_hp$margL/int_hd$margL
        dev <- range(c(int_hp$deviation/int_hd$deviation,int_hp$deviation/rev(int_hd$deviation))) #get deviation interval of LR
        res <- list(LR=LR,dev=dev)
@@ -1234,8 +1247,8 @@ efm = function(envirfile=NULL) {
    if(type=="DB") txt <- paste0(txt, "\n(DB-reference already included)")
    if(type%in%c("DB","EVID")) tabmodelA2 = glayout(spacing=0,container=(tabmodelA[2,1] <-gframe(txt,container=tabmodelA))) 
    tabmodelA3 = glayout(spacing=0,container=(tabmodelA[3,1] <-gframe("Contributor(s) under Hd:",container=tabmodelA)))
-   tabmodelA4 = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Model Parameters",container=tabmodelA))) 
-   tabmodelA5 = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Advanced Parameters",container=tabmodelA))) 
+   tabmodelA4 = glayout(spacing=0,container=(tabmodelA[4,1] <-gframe("Model options",container=tabmodelA))) 
+   #tabmodelA5 = glayout(spacing=0,container=(tabmodelA[5,1] <-gframe("Advanced Parameters",container=tabmodelA))) 
 
    #specify references under hypotheses
    for(rsel in refSel) {
@@ -1260,35 +1273,24 @@ efm = function(envirfile=NULL) {
     t0 <- 10
    }
 
-   #Model parameters:
+   #Model parameters: 
    tabmodelA4[1,1] <- glabel(text="Detection threshold: ",container=tabmodelA4)
    tabmodelA4[1,2] <- gedit(text=t0,container=tabmodelA4,width=edwith)
    tabmodelA4[2,1] <- glabel(text="fst-correction: ",container=tabmodelA4)
    tabmodelA4[2,2] <- gedit(text="0",container=tabmodelA4,width=edwith)
+   tabmodelA4[3,1] <- glabel(text="Probability of drop-in: ",container=tabmodelA4)
+   tabmodelA4[3,2] <- gedit(text="0",container=tabmodelA4,width=2*edwith)
+   tabmodelA4[4,1] <- glabel(text="Drop-in peak height \n hyperparam (lambda):",container=tabmodelA4)
+   tabmodelA4[4,2] <- gedit(text="0.01",container=tabmodelA4,width=2*edwith)
+   tabmodelA4[5,1] <- glabel(text="Degradation:",container=tabmodelA4)
+   tabmodelA4[5,2] <- gradio(items=c("YES","NO"), selected = 2, horizontal = TRUE,container=tabmodelA4)
+   tabmodelA4[6,1] <- glabel(text="Stutter:",container=tabmodelA4)
+   tabmodelA4[6,2] <- gradio(items=c("YES","NO"), selected = 2, horizontal = TRUE,container=tabmodelA4)
+   tabmodelA4[7,1] <- glabel(text="Prior: Stutter-prop. \n function(x)=",container=tabmodelA4)
+   tabmodelA4[7,2] <- gedit(text="dbeta(x,1,1)",width=2*edwith,container=tabmodelA4)
 
-   #Advanced parameters:
-   tabmodelA5[1,1] <- gcheckbox(text="Q-designation",container=tabmodelA5,checked=!isSNP,horisontal=TRUE, handler=function(h,...) {
-     if(svalue(h$obj)==FALSE) gmessage(message="Q-designation: Non-observed alleles are compound to one single allele.\nTurning it off will increase timeusage drastically!",title="Q-designation",icon="info")
-   })
-   if(isSNP) enabled(tabmodelA5[1,1]) <- FALSE
-
-   tabmodelA5[2,1] <- glabel(text="Stutter proportion (xi): ",container=tabmodelA5)
-   tabmodelA5[2,2] <- gedit(text=stuttTxt,container=tabmodelA5,width=2*edwith)
-   tabmodelA5[3,1] <- glabel(text="Probability of drop-in: ",container=tabmodelA5)
-   tabmodelA5[3,2] <- gedit(text="0",container=tabmodelA5,width=2*edwith)
-   tabmodelA5[4,1] <- glabel(text="Drop-in peak height \n hyperparam (lambda):",container=tabmodelA5)
-   tabmodelA5[4,2] <- gedit(text="0.01",container=tabmodelA5,width=2*edwith)
-   tabmodelA5[5,1] <- glabel(text="Prior density of xi: \n function(x)=",container=tabmodelA5)
-   tabmodelA5[5,2] <- gedit(text="dbeta(x,1,1)",container=tabmodelA5,width=2*edwith)
-   tabmodelA5[6,1] <- glabel(text="Degradation:",container=tabmodelA5)
-   tabmodelA5[6,2] <- gradio(items=c("YES","NO"), selected = 2, horizontal = TRUE,container=tabmodelA5)
-
-   if(type=="GEN") { #deactivate options for generation:
-    enabled(tabmodelA4[2,2]) <- FALSE #deactivate fst-correction
-    enabled(tabmodelA5[1,1]) <- FALSE #deactivate Q-designation fst-correction
-    enabled(tabmodelA5[2,2]) <- FALSE #deactivate stutter proportion
-   }
-
+   if(type=="GEN") enabled(tabmodelA4[2,2]) <- FALSE #deactivate fst-correction for data-generation
+ 
    #Data selection
    if(length(locs)<=maxloc) { 
     tabmodelB[1,1] <- glabel(text="Loci:",container=tabmodelB)
@@ -1377,25 +1379,22 @@ efm = function(envirfile=NULL) {
       #READ FROM GUI:
       threshT <- as.numeric(svalue(tabmodelA4[1,2])) #threshold
       fst <-  as.numeric(svalue(tabmodelA4[2,2])) #correction
-      xi <- svalue(tabmodelA5[2,2]) #stutter proportion
-      prC <-  as.numeric(svalue(tabmodelA5[3,2])) #dropin probability
-      lambda <-   as.numeric(svalue(tabmodelA5[4,2])) #lambda is hyperparameter to dropin-peak height model
-      pXi = eval(parse(text= paste("function(x)",svalue(tabmodelA5[5,2])) )) 
-      beta <-  svalue(tabmodelA5[6,2]) #lambda is hyperparameter to dropin-peak height model
-      if(beta=="YES") kit <- get("selPopKitName",envir=mmTK)[1] #get selected kit
-      if(beta=="NO") kit <- NULL #degradation will not be modelled (i.e. kitname not used)
+      prC <-  as.numeric(svalue(tabmodelA4[3,2])) #dropin probability
+      lambda <-   as.numeric(svalue(tabmodelA4[4,2])) #lambda is hyperparameter to dropin-peak height model
+      betabool <-  svalue(tabmodelA4[5,2]) #get boolean of degradation
+      xibool <- svalue(tabmodelA4[6,2]) #get boolean of degradation
+      pXi = eval(parse(text= paste("function(x)",svalue(tabmodelA4[7,2])) )) 
+#      pXi = function(x) dbeta(x,1,1)
+      if(betabool=="YES") kit <- get("selPopKitName",envir=mmTK)[1] #get selected kit
+      if(betabool=="NO") kit <- NULL #degradation will not be modelled (i.e. kitname not used)
+      if(xibool=="YES") xi <- NULL #assume unknown stutter proportion
+      if(xibool=="NO") xi <- 0 #assume no stutter proportion
 
       #CHECK VARIABLES:
       checkPositive(threshT,"Threshold")
       checkProb(prC,"Allele drop-in probability")
       if(prC>0 && lrtype=="CONT") checkPositive(lambda,"Drop-in peak height hyperparameter",strict=FALSE)
       checkProb(fst,"fst-correction")
-      if(xi=="") {
-       xi <- NULL #assume unknown stutter proportion
-      } else {
-       xi <- as.numeric(xi)
-       checkProb(xi,"Stutter proportion (xi)")
-      }
 
       #prepare data for function in euroformix! Data-object must have correct format!
       #go through selected data from GUI:
@@ -1448,8 +1447,10 @@ efm = function(envirfile=NULL) {
       refDataQ <- refData
       if(!isSNP) { 
        stutt <- is.null(xi) || xi>0  #boolean whether stutter is assumed in model
+       Qdes <- TRUE
        if(lrtype=="QUAL") stutt <- FALSE #no stutter for qualitative model
-       ret <- Qassignate(samples, popFreq, refData,doQ=svalue(tabmodelA5[1,1]),incS=stutt,incR=stutt) #call function in euroformix
+       if(lrtype=="GEN") Qdes <- FALSE #Q-designation turned off when generating data
+       ret <- Qassignate(samples, popFreq, refData,doQ=Qdes,incS=stutt,incR=stutt) #call function in euroformix
        popFreqQ <- ret$popFreq
        refDataQ <- ret$refData
       }
@@ -1569,18 +1570,21 @@ efm = function(envirfile=NULL) {
      totA <-  sapply(  set$samples, function(x) sum(sapply(x,function(y) length(y$adata)) ) ) #number of alleles for each samples
      refHd <- NULL
      if( any(mod$condOrder_hd>0) ) refHd <- lapply(set$refData ,function(x) x[mod$condOrder_hd]) #must have the original refData!
-     pDhat <- rep(NA,length(totA))
-     print("Estimating allele dropout probability based on MC method...")
-     for(ss in 1:length(totA)) { #for each sample (do dropout estimation) under Hd
-       DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hd,popFreq=popFreq,refData=refHd,minS=nsample,prC=opt$QUALpC)
-       pDhat[ss] <- quantile(DOdist ,0.5) #get quantiles
+     pDhat <- rep(0.1,length(totA))
+     if(ITYPE=="QUAL") {
+      print("Estimating allele dropout probability based on MC method...")
+      for(ss in 1:length(totA)) { #for each sample (do dropout estimation) under Hd
+       Msamp <- max(2000,25*totA[ss]) #number of samples for each vectorization
+       DOdist <- simDOdistr(totA=totA[ss],nC=mod$nC_hd,popFreq=popFreq,refData=refHd,minS=nsample,prC=opt$QUALpC,M=Msamp)
+       pDhat[ss] <- quantile(DOdist ,0.5) #get median
+      }
+      print(paste0("Median(s) is given as pDhat=",pDhat))
+      pDhat[is.na(pDhat)] <- 0.1 #impute 0.1
      }
-     print(paste0("Median(s) is given as pDhat=",pDhat))
      pDhat <- round(mean(pDhat),2) #used pDhat in database search
-     print(paste0("Mean of the medians over each sample was given as pDhat=",pDhat))
+#     print(paste0("Mean of the medians over each sample was given as pDhat=",pDhat))
+     print(paste0("Dropout probability used for DB-search (Qual):",pDhat))
      pDvec <- rep(pDhat,max(mod$nC_hp+1,mod$nC_hd))
-     #Dropout estimation finished 
-
 
      nU_hp <- mod$nC_hp - sum(mod$condOrder_hp>0) #number of unknowns under Hp                    
      nU_hd <- mod$nC_hd - sum(mod$condOrder_hd>0) #number of unknowns under Hd                    
@@ -1746,7 +1750,7 @@ efm = function(envirfile=NULL) {
             }  
           } #END DB WITH TYPE MLE
           if(ITYPE=="INT") { #Calculate with INT
-            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)     
+            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)     
             hd0INT <- numeric()
             if(par$fst==0 && length(hd0stored)>0) { #If any previous calculated values
               if(par$fst==0) { #can use stored value if fst=0
@@ -1757,7 +1761,7 @@ efm = function(envirfile=NULL) {
               }
             }
             if(length(hd0INT)==0) { #calculate and store
-              int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit) 
+              int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT) 
               hd0INT <- int_hd$margL
               hd0stored[[length(hd0stored) + 1]] <- c(hd0INT,loceval)
             }
@@ -1802,13 +1806,14 @@ efm = function(envirfile=NULL) {
 
    printMLE <- function(mlefit,hyp,sig=4,colps="-") {
     mle <- cbind(mlefit$thetahat2,sqrt(diag(mlefit$thetaSigma2))) #standard deviation
-    log10LR <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
+    #log10Lik <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
     txt0 <- paste0("-------Estimates under ",hyp,"---------\n\n")
     txt1 <- paste0(c("param","MLE","Std.Err."),collapse=colps)
     for(i in 1:nrow(mle)) txt1 <- paste0(txt1,"\n",paste0( c(rownames(mle)[i],format(mle[i,],digits=sig)),collapse=colps) )
     txt2 <- "\n\n"
-    txt2 <- paste0(txt2, "log10Lik=",format(log10LR,digits=sig))
-    txt2 <- paste0(txt2, "\nLik=",format(10^log10LR,digits=sig),"\n\n")
+#    txt2 <- paste0(txt2, "log10Lik=",format(log10Lik,digits=sig))
+    txt2 <- paste0(txt2, "logLik=",format(mlefit$loglik,digits=sig))
+    txt2 <- paste0(txt2, "\nLik=",format(exp(mlefit$loglik),digits=sig),"\n\n")
     txt <- paste0(txt0,txt1,txt2)
     return(txt)
    }
@@ -1867,8 +1872,12 @@ efm = function(envirfile=NULL) {
      qqs <- c(0.01,0.025,0.05,0.25,0.5,0.75,0.95,0.975,0.99)
      LRqq <- quantile(log10LR,qqs)
      print(LRqq)
-     #abline(v=LRqq[3],col=4,lty=2)
-     #legend("topright",legend=paste0("5% quantile = ",format(LRqq[3],digits=4)),col=4,lty=2)
+     abline(v=LRqq[3],col=4,lty=2)
+     legend("topright",legend=paste0("5% quantile = ",format(LRqq[3],digits=3)),col=4,lty=2)
+     dev.new()
+     op <- par(no.readonly = TRUE)
+     dev.off()
+     par(op)
   }
 
   #Tippet-analysis frame:
@@ -1917,8 +1926,8 @@ efm = function(envirfile=NULL) {
         } else { #calculate based on INT
          bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
          bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
-         Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL 
-         if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit)$margL
+         Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)$margL 
+         if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)$margL
          RMLR[m] <- log10(Lhp) - log10(Lhd)
        }
       }
@@ -1951,7 +1960,7 @@ efm = function(envirfile=NULL) {
      tabmleX1 = glayout(spacing=0,container=(tabmleX[1,1] <-gframe("Parameter estimates:",container=tabmleX))) 
      tabmleX2 = glayout(spacing=0,container=(tabmleX[2,1] <-gframe("Maximum Likelihood value",container=tabmleX))) 
      mle <- cbind(mlefit$thetahat2,sqrt(diag(mlefit$thetaSigma2)))
-     log10LR <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
+     log10Lik <- mlefit$loglik/log(10) #=log10(exp(mlefit$loglik))
      pnames <- pnames2 <- rownames(mle) #parameter names
      mxind <- grep("mx",pnames)
      pnames2[mxind] <- paste0("Mix-prop. C",mxind) #bquote(mu)
@@ -1961,11 +1970,13 @@ efm = function(envirfile=NULL) {
      pnames2[pnames=="xi"] <- "Stutter-prop." #expression(xi)
      tab <- cbind(pnames2,format(mle,digits=dec))
      colnames(tab) <- c("param","MLE","Std.Err.")
-     tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=240,height=nrow(tab)*27)#,noRowsVisible=TRUE) #add to frame
-     tabmleX2[1,1] =  glabel(text="log10lik=",container=tabmleX2)
-     tabmleX2[1,2] =  glabel(text=format(log10LR,digits=dec),container=tabmleX2)
+     tabmleX1[1,1] <- gtable(tab,container=tabmleX1,width=240,height=nrow(tab)*25)#,noRowsVisible=TRUE) #add to frame
+#     tabmleX2[1,1] =  glabel(text="log10lik=",container=tabmleX2)
+#     tabmleX2[1,2] =  glabel(text=format(log10LR,digits=dec),container=tabmleX2)
+     tabmleX2[1,1] =  glabel(text="logLik=",container=tabmleX2)
+     tabmleX2[1,2] =  glabel(text=format(mlefit$loglik,digits=dec),container=tabmleX2)
      tabmleX2[2,1] =  glabel(text="Lik=",container=tabmleX2)
-     tabmleX2[2,2] =  glabel(text=format(10^log10LR,digits=dec),container=tabmleX2)
+     tabmleX2[2,2] =  glabel(text=format(exp(mlefit$loglik),digits=dec),container=tabmleX2)
 #     tabmleX2[3,1] =  glabel(text="Laplace P(E)=",container=tabmleX2)
 #     tabmleX2[3,2] =  glabel(text=format(exp(fit$logmargL),digits=sig),container=tabmleX2)
     }
@@ -1997,7 +2008,6 @@ efm = function(envirfile=NULL) {
      print(paste0("Optimizing under Hd took ",format(time,digits=5),"s"))
      if(!is.null(set$mlefit_hd) && set$mlefit_hd$fit$loglik>mlefit_hd$fit$loglik )  mlefit_hd <- set$mlefit_hd #the old model was better
 
-
      #store MLE result:
      #store best mle-values once again
      set$mlefit_hp=mlefit_hp #store fitted mle-fit
@@ -2010,13 +2020,15 @@ efm = function(envirfile=NULL) {
     #helpfunction to print msg to screen
     #modelfitmsg =function() gmessage(message="The one-sample Kolmogorov-Smirnov test\nrejected the peak height model assumption\n(with significance level 0.05)",title="Rejection of model assumption",icon="info")
 
+    kit <- get("selPopKitName",envir=mmTK)[1] #get selected kit: Used in modelvalidation
+ 
     #GUI:
     tabmleA = glayout(spacing=0,container=(tabMLEtmp[1,1] <- gframe("Estimates under Hd",container=tabMLEtmp))) 
     tableMLE(mlefit_hd$fit,tabmleA)
     tabmleA3 = glayout(spacing=0,container=(tabmleA[3,1] <-gframe("Further Action",container=tabmleA))) 
     tabmleA3[1,1] <- gbutton(text="MCMC simulation",container=tabmleA3,handler=function(h,...) { doMCMC(mlefit_hd) } )
     tabmleA3[2,1] <- gbutton(text="Deconvolution",container=tabmleA3,handler=function(h,...) { doDC(mlefit_hd) }  )
-    tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { validMLEmodel(mlefit_hd) } )
+    tabmleA3[3,1] <- gbutton(text="Model validation",container=tabmleA3,handler=function(h,...) { validMLEmodel(mlefit_hd,kit) } )
 
     if(type=="EVID" || type=="START") { #used only for weight-of-evidence
      tabmleB = glayout(spacing=0,container=(tabMLEtmp[1,2] <-gframe("Estimates under Hp",container=tabMLEtmp))) 
@@ -2024,7 +2036,7 @@ efm = function(envirfile=NULL) {
      tabmleB3 = glayout(spacing=0,container=(tabmleB[3,1] <-gframe("Further Action",container=tabmleB))) 
      tabmleB3[1,1] <- gbutton(text="MCMC simulation",container=tabmleB3,handler=function(h,...) { doMCMC(mlefit_hp) } )
      tabmleB3[2,1] <- gbutton(text="Deconvolution",container=tabmleB3,handler=function(h,...) {  doDC(mlefit_hp) }  )
-     tabmleB3[3,1] <- gbutton(text="Model validation",container=tabmleB3,handler=function(h,...) { validMLEmodel(mlefit_hp) } )
+     tabmleB3[3,1] <- gbutton(text="Model validation",container=tabmleB3,handler=function(h,...) { validMLEmodel(mlefit_hp,kit) } )
     }
 
     #We show weight-of-evidence
@@ -2283,7 +2295,7 @@ efm = function(envirfile=NULL) {
     checkPosInteger(nTicks, "The number of ticks")  
     pDvec <- seq(1e-6,range,l=nTicks) #set very small dropout probability
     LRivec <- Vectorize(doLR) (pDvec) #return LR(pD,loc)
-    logLR <<- colSums(log10(LRivec)) #joint LR
+    logLR <- colSums(log10(LRivec)) #joint LR
     ylims <- range(logLR[!(is.nan(logLR) | is.infinite(logLR))]) 
     if(ylims[2]>-1) ylims[1] <- -1  #lower limit
     plot(pDvec ,logLR ,xlab="Pr(Dropout)",ylab="log_10(LR)",ylim=ylims + c(0,0.5),main="Sensitivity plot")
