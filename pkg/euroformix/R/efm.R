@@ -29,10 +29,13 @@ efm = function(envirfile=NULL) {
  options(guiToolkit="tcltk")
 
  #version:
- version = 1.2
+ version = 1.5
 
  #v1.0 -> v1.1: More userfriendly names for parameters.
  #v1.1 -> v1.2: Integrals handles very small likelihood values
+ #v1.2 -> v1.3: Show quantiles of fitted gamma model on the sum peak heights. Evalidation plots upgraded.
+ #v1.3 -> v1.4: 1) Markers (due to sum of the peak heights) which are flagged as extremes are rescaled upon question. 2) Startvalues of MLE based on prefitted model.
+ #v1.4 -> v1.5: 1) Replicates possible in Bayesian framework. 2) Max evaluations in Bayesian framework possible to adjust. 3) Degradation model added to genData.
 
  #software name:
  softname <- paste0("EuroForMix v",version)
@@ -59,7 +62,7 @@ efm = function(envirfile=NULL) {
   assign("optFreq",list(freqsize=0,wildsize=5),envir=mmTK) #option when new frequencies are found (size of imported database,minFreq), and missmatch options
   assign("optMLE",list(nDone=3,delta=10,dec=4,obsLR=NULL),envir=mmTK) #options when optimizing (nDone,delta)
   assign("optMCMC",list(delta=10,niter=10000),envir=mmTK) #options when running MCMC-simulations (delta, niter)
-  assign("optINT",list(reltol=0.1,maxmu=20000,maxsigma=0.9,maxxi=0.5),envir=mmTK) #options when integrating (reltol and boundaries)
+  assign("optINT",list(reltol=0.1,maxeval=0,maxmu=20000,maxsigma=0.9,maxxi=0.5),envir=mmTK) #options when integrating (reltol and boundaries)
   assign("optDC",list(alphaprob=0.9999,maxlist=20),envir=mmTK) #options when doing deconvolution (alphaprob, maxlist)
   assign("optDB",list(maxDB=10000,QUALpC=0.05,ntippets=1e3),envir=mmTK)  #options when doing database search (maxDB)
   assign("optLRMIX",list(range=0.6,nticks=31,nsample=2000,alpha=0.05),envir=mmTK) #options when doing LRmix
@@ -233,7 +236,7 @@ efm = function(envirfile=NULL) {
   A_ind = grep("allele",tolower(cn),fixed=TRUE) #allele col-ind
   H_ind = grep("height",tolower(cn),fixed=TRUE) #height col-ind
   locs = unique(toupper(X[,lind])) #locus names: Convert to upper case
-  sn = unique(X[,sind]) #sample names
+  sn = unique(as.character(X[,sind])) #sample names
   Y = list() #insert non-empty characters:
   for(s in sn) { #for each sample in matrix
    Y[[s]] = list() #one list for each sample
@@ -311,14 +314,21 @@ efm = function(envirfile=NULL) {
    visible(sw) <- TRUE
  }
 
+ NAerror <- function(what) {
+  gmessage(message=paste0(what," must be specified as a valid number"),title="Wrong input",icon="error")
+  stop("Wrong user-input")
+ }
+
  #helpfunction which checks that at value is in interval of [0,1]
  checkProb = function(x,what) {
+  if(is.na(x)) NAerror(what)
   if(x < 0 || x>1) {
    gmessage(message=paste0(what," must be specified in interval [0,1] "),title="Wrong input",icon="error")
    stop("Wrong user-input")
   }
  }
  checkPositive = function(x,what,strict=FALSE) {
+  if(is.na(x)) NAerror(what)
   if(x < 0 ) {
    gmessage(message=paste0(what," cannot be a negative number"),title="Wrong input",icon="error")
    stop("Wrong user-input")
@@ -329,7 +339,8 @@ efm = function(envirfile=NULL) {
   }
  }
  checkPosInteger = function(x,what) {
-  if(x < 1 || round(x)!=x ) {
+  if(is.na(x)) NAerror(what)
+  if(x < 1 || round(x)!=x) {
    gmessage(message=paste0(what," must be a positive integer"),title="Wrong input",icon="error")
    stop("Wrong user-input")
   }
@@ -464,6 +475,9 @@ efm = function(envirfile=NULL) {
   Integration=list(
    'Set relative error requirement'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="reltol",txt="Set relative error:") 
+    }),
+   'Set maximum number of evaluations'=list(handler=function(h,...) {  
+      setValueUser(what1="optINT",what2="maxeval",txt="Set maximum number of evaluations for calculating integral:") 
     }),
    'Set maximum of P.H.expectation'=list(handler=function(h,...) {  
       setValueUser(what1="optINT",what2="maxmu",txt="Set upper boundary of P.H.expectation (mu) parameter:") 
@@ -780,7 +794,7 @@ efm = function(envirfile=NULL) {
      assign("popFreq",popFreq,envir=mmTK) #assign updated popFreq
      tabimportB[2,3][] <- names(dbData)
     } #end if popFreq exist
-   } else { 
+   } else { #if not DB
     Data = sample_tableToList(Data) #convert from table to list 
     #get already stored data:
     if(type=="mix") Data2 <- getData("mix") #get data from mmTK-environment
@@ -890,54 +904,85 @@ efm = function(envirfile=NULL) {
           subK <- subset(kitinfo,kitinfo$Color==dye & toupper(kitinfo$Marker)==loc) 
           dat <- subK$Size[subK$Allele%in%subD[[loc]]$adata] #sizedata for alleles
           if(length(dat)==0) next
-          regdata <- rbind(regdata, c(sum(subD[[loc]]$hdata),mean(dat),dye)) #use average for each locus
+          regdata <- rbind(regdata, c(sum(subD[[loc]]$hdata),mean(dat),dye,loc)) #use average for each locus
         } 
 	}
+      regdata[regdata[,3]=="yellow",3] <- "orange"
+      dyes[dyes=="yellow"] <- "orange"
       dev.new() 
-      plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum peak height",xlab="Average fragment length",main=paste0("Peak height summaries for ",msel))
+      plot(0,0,xlim=srange,ylim=c(0, max(sapply(subD,function(x) sum(x$hdata)))),ty="n",ylab="Sum of the peak heights (rfu) per marker",xlab="Average fragment length",main=paste0("Peak height summaries for ",msel))
       for(dye in dyes) {
        subdata <- regdata[regdata[,3]==dye,]
-       if(nrow(subdata)==0) next
+       if(length(subdata)==0) next
+       if(is.null(nrow(subdata))) subdata <- t(subdata)
        fit <- lm(log(as.numeric(subdata[,1]))~as.numeric(subdata[,2]))
        col <- dye
-       if(col=="yellow") col="orange"
        points(as.numeric(subdata[,2]),as.numeric(subdata[,1]),col=col,pch=16)
-       lines(xz,exp(fit$coef[1]+xz*fit$coef[2]),col=col,lty=2) 
+       text(as.numeric(subdata[,2]),as.numeric(subdata[,1]),labels=substr(subdata[,4],0,4),adj=c(0,-0.5),col=col,cex=0.7)
+       #lines(xz,exp(fit$coef[1]+xz*fit$coef[2]),col=col,lty=2) 
       }
       #print(regdata)
       yd <- as.numeric(regdata[,1]) #M data
       zd <- log(yd)
       xd <- as.numeric(regdata[,2])
-      xd <- (xd - 125)/100 #scale degradation
+      xd2 <- (xd - 125)/100 #scale degradation
       Fd <- factor(regdata[,3]) 
-
       L <- length(levels(Fd))
-      #Test for models: Largest score wins
-      AIC <- function(x) 2*(logLik(x)-length(x$coef))
-      BIC <- function(x) 2*logLik(x)-log(length(x$res))*length(x$coef)
-#      mn <- c("global intercept + no deg","global intercept + global deg","dyer intercept  + no deg","dyer intercept + global deg","global intercept + dyer deg","dyer intercept + dyer deg")
-      mn <- c("intercept","intercept + degradation","intercept:dyer","intercept:dyer + degradation","intercept + degradation:dyer ","intercept:dyer + degradation:dyer")   
-      fits <- list()
-      fits[[1]] <- lm(zd~1,na.action=na.exclude) #global intercept + no deg
-      fits[[2]] <- lm(zd~xd) #global intercept + global deg
-      if(L>1) {
-       fits[[3]] <- lm(zd~Fd-1) #dyer intercept  + no deg
-       fits[[4]] <- lm(zd~Fd+xd-1) #dyer intercept + global deg
-       fits[[5]] <- lm(zd~xd:Fd) #global intercept + dyer deg 
-       fits[[6]] <- lm(zd~Fd + xd:Fd-1) #dyer intercept + dyer deg 
+
+      plotquant <- function(th,alpha=0.01) {
+       print(th)
+       lines(xz,qgamma(1-alpha/2,shape=2/th[2]^2*th[3]^((xz-125)/100),scale=th[1]*th[2]^2),col="gray")
+       lines(xz,qgamma(alpha/2,shape=2/th[2]^2*th[3]^((xz-125)/100),scale=th[1]*th[2]^2),col="gray")
+       lines(xz,2*th[1]*th[3]^((xz-125)/100),col="black")
+       legend("topright",legend=c("Expectation",paste0(1-alpha,"-coverage")),col=c("black","gray"),lty=1)
       }
-      aic <- sapply(fits,AIC)
-      bic <- sapply(fits,BIC)
-      postP <- exp(0.5*bic)
-      postP  <- postP/sum(postP)
-      ltxt <- paste0("Pr(",mn,")=",format(postP,digits=2)) #legend text
-      legend("topright",legend=ltxt[order(postP,decreasing=TRUE)],cex=0.9)
-    }
+
+      #fit data based on the gamma-model:
+      fitgammamodel <- function(x,y) {
+       negloglik <- function(th) {
+        th <- exp(th)
+        val <- -sum(dgamma(y,shape=2/th[2]^2*th[3]^((x-125)/100),scale=th[1]*th[2]^2,log=TRUE))
+        if(is.infinite(val)) val <- .Machine$integer.max 
+        return(val)
+       }
+       foo <- nlm(negloglik,log( c(mean(yd),0.4,0.8) ))
+       return(exp(foo$est))
+      } 
+      tryCatch({ plotquant(fitgammamodel(xd,yd)) }, error = function(e) e)
+      suppressWarnings({
+       pvec <- rep(NA,length(yd))
+       for(i in 1:length(yd) ) {
+         tryCatch({
+           th <- fitgammamodel(xd[-i],yd[-i])
+           pvec[i] <- pgamma(yd[i],shape=2/th[2]^2*th[3]^((xd[i]-125)/100),scale=th[1]*th[2]^2) #get probabilities
+         }, error = function(e) e)
+       }
+       pvec[pvec>0.5] <- 1-pvec[pvec>0.5] #make all values smaller than 0.5
+       alpha <- 0.05 #signif level
+       ind <- which(pvec<(alpha/length(pvec))) #find flagged markers which are below bonferroni-corrected signif
+       if(length(ind)>0) {
+        text(xd[ind],yd[ind], labels=format(pvec[ind],digits=2),adj=c(0,1.2),cex=0.7)
+if(0) {       
+        what <- paste0("The sum of the peak heights in the markers\n",paste0(regdata[ind,4],collapse=","),"\nare more extreme than others. \n\nDo you want to rescale them?")
+        bool <- gconfirm(message=what,title="Rescaling sum of the peak heights",icon="question")
+
+        if(bool) {
+         #Rescale marker sum peak heights which are flaged
+         tryCatch({
+          th <- fitgammamodel(xd[-ind],yd[-ind]) #estimates from model without the extreme markers
+          newyd <- rgamma(length(ind),shape=2/th[2]^2*th[3]^((xd[ind]-125)/100),scale=th[1]*th[2]^2) #draw new sum of peak heights 
+          #NB: CHANGING PEAK HEIGHTS IN DATA:
+          for(i in ind) evidD[[msel]][[regdata[i,4]]]$hdata <- evidD[[msel]][[regdata[i,4]]]$hdata/yd[i]*newyd[ind==i] #rescaling peak heights
+         }, error = function(e) e)
+        } #end bool
+}
+       } #end if flaggings
+      }) #end suppress warning
+     } #end for each samples 
+     assign("mixData",evidD,envir=mmTK)  #store updated data again
+
     print("------------------------------------")
     focus(mainwin)
-
-
-
   }
 
   if(h$action=="ref") { #print tables only
@@ -1179,9 +1224,9 @@ efm = function(envirfile=NULL) {
   doINT <- function(type) { #Used either with EVID or DB
     #sig = number of decimals
     set <- get(paste0("set",type),envir=mmTK)
-    if(length(set$samples)>1) {
-       gmessage(message="The LR (integrated Likelihood based) does not handle multiple replicates",icon="error")
-    } else {
+#    if(length(set$samples)>1) {
+#       gmessage(message="The LR (Bayesian based) does not handle multiple replicates",icon="error")
+#    } else {
      if(type=="EVID") {
        optint <- get("optINT",envir=mmTK) #options when integrating (reltol and boundaries)
        par <- set$param
@@ -1192,14 +1237,13 @@ efm = function(envirfile=NULL) {
        bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
 
        #integrate:
-       scaleINT <- 700 #makes very small integrals calculateable
        print("Calculates under Hp...")
-       time <- system.time({     int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)  })[3]
+       time <- system.time({     int_hp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, set$refDataQ, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT,maxEval=optint$maxeval)  })[3]
        print(paste0("Integration under Hp took ",format(time,digits=5),"s"))
        print(paste0("log(Lik)=",log(int_hp$margL)-scaleINT))
        print(paste0("Lik=",int_hp$margL*exp(-scaleINT)))
        print("Calculates under Hd...")
-       time <- system.time({     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)  })[3]
+       time <- system.time({     int_hd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, set$refDataQ, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT,maxEval=optint$maxeval)  })[3]
        print(paste0("Integration under Hd took ",format(time,digits=5),"s"))
        print(paste0("log(Lik)=",log(int_hd$margL)-scaleINT))
        print(paste0("Lik=",int_hd$margL*exp(-scaleINT)))
@@ -1208,10 +1252,10 @@ efm = function(envirfile=NULL) {
        res <- list(LR=LR,dev=dev)
        assign("resEVIDINT",res,envir=mmTK) #assign deconvolved result to environment
        #Print a GUI message:
-       txt <- paste0("The LR (integrated Likelihood based)\nwas calculated as \nLR=",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]\nlog10LR=",format(log10(LR),digits=4)," [",format(log10(dev[1]),digits=4)," , ",format(log10(dev[2]),digits=4),"]")
+       txt <- paste0("The LR (Bayesian based)\nwas calculated as \nLR=",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]\nlog10LR=",format(log10(LR),digits=4)," [",format(log10(dev[1]),digits=4)," , ",format(log10(dev[2]),digits=4),"]")
        cat(txt)
-       gmessage(message=txt,title="Continuous LR (Integrated Likelihood based)",icon="info")
-     } 
+       gmessage(message=txt,title="Continuous LR (Bayesian based)",icon="info")
+#     } 
      if(type=="DB") { #Case of DB-search
        doDB("INT") #do database search with integration
      }
@@ -1384,6 +1428,13 @@ efm = function(envirfile=NULL) {
       betabool <-  svalue(tabmodelA4[5,2]) #get boolean of degradation
       xibool <- svalue(tabmodelA4[6,2]) #get boolean of degradation
       pXi = eval(parse(text= paste("function(x)",svalue(tabmodelA4[7,2])) )) 
+
+      checkPrior <- function() {
+       gmessage("The prior function was wrongly specified.",title="Wrong data input!",icon="error")
+       stop("The prior function was wrongly specified.")
+      }
+      tryCatch({pXi(0.1)}, error = function(e) checkPrior() ) 
+      if(!is.numeric(pXi(0.1))) checkPrior()
 #      pXi = function(x) dbeta(x,1,1)
       if(betabool=="YES") kit <- get("selPopKitName",envir=mmTK)[1] #get selected kit
       if(betabool=="NO") kit <- NULL #degradation will not be modelled (i.e. kitname not used)
@@ -1416,7 +1467,7 @@ efm = function(envirfile=NULL) {
          samples[[msel]][[loc]] <- subD #insert samples
        }
        if(nR>0) refData[[loc]] <- list()
-       for(rsel in refSel) refData[[loc]][[rsel]] <- refD[[rsel]][[loc]]$adata #insert references
+       for(rsel in refSel) refData[[loc]][[rsel]] <- refD[[rsel]][[loc]]$adata #insert references: Note the chaning format!!
       } #end for each locus
 
       #get specified preposition 
@@ -1439,8 +1490,12 @@ efm = function(envirfile=NULL) {
 
       #number of contributors in model:
       nC_hp <- NULL
-      if(!type%in%c("DC","GEN")) nC_hp <-  as.integer(svalue(tabmodelA2[nR+1,2])) + sum(condOrder_hp>0)
+      if(!type%in%c("DC","GEN")) {
+       nC_hp <-  as.integer(svalue(tabmodelA2[nR+1,2])) + sum(condOrder_hp>0)
+       checkPosInteger(nC_hp + sum(type=="DB"),"Number of contributors under Hp")
+      }
       nC_hd <-  as.integer(svalue(tabmodelA3[nR+1,2])) + sum(condOrder_hd>0)
+      checkPosInteger(nC_hd,"Number of contributors under Hd")
 
       #get model parameters:
       popFreqQ <- popFreq
@@ -1516,7 +1571,7 @@ efm = function(envirfile=NULL) {
       svalue(nb) <- 4 #go to mle-fit window (for all cases) when finished
     }) #end cont. calculation button
     if(type%in%c("EVID","DB")) {
-     tabmodelD[2,1] = gbutton(text="Continuous LR \n(Integrated Likelihood based)",container=tabmodelD,handler=
+     tabmodelD[2,1] = gbutton(text="Continuous LR \n(Bayesian based)",container=tabmodelD,handler=
 	function(h,...) {
       storeSettings("CONT") #store model-settings
       doINT(type) #Integrate either for EVID or DB search
@@ -1736,7 +1791,7 @@ efm = function(envirfile=NULL) {
            condOrder_hd <- c(mod$condOrder_hd,0) #put conditional-index to model 
           }
           nR <- length(condOrder_hp) #number of references in refData2
-          for(loc in loceval) refData2[[loc]]$ijoisdjskwa <- unlist(strsplit(Dind[ which(loc==dblocs) ], "/"))  #insert data into a new ref
+          for(loc in loceval) refData2[[loc]]$ijoisdjskwa <- unlist(strsplit(Dind[ which(loc==dblocs) ], "/"))  #insert data into a new ref: name it with a random text to avoid similar with others
           samples <- lapply( set$samples, function(x) x[loceval] ) #take only relevant mixture data:
           
           if(ITYPE=="MLE") { #calculate with MLE
@@ -1750,7 +1805,7 @@ efm = function(envirfile=NULL) {
             }  
           } #END DB WITH TYPE MLE
           if(ITYPE=="INT") { #Calculate with INT
-            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)     
+            int_hp <- contLikINT(mod$nC_hp+1, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hp, mod$knownref_hp, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scaleINT,maxEval=optint$maxeval)     
             hd0INT <- numeric()
             if(par$fst==0 && length(hd0stored)>0) { #If any previous calculated values
               if(par$fst==0) { #can use stored value if fst=0
@@ -1761,7 +1816,7 @@ efm = function(envirfile=NULL) {
               }
             }
             if(length(hd0INT)==0) { #calculate and store
-              int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT) 
+              int_hd <- contLikINT(mod$nC_hd, samples, popFreqQ[loceval], bhp$lower, bhp$upper, refData2, condOrder_hd,nR, par$xi, par$prC, optint$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scaleINT,maxEval=optint$maxeval) 
               hd0INT <- int_hd$margL
               hd0stored[[length(hd0stored) + 1]] <- c(hd0INT,loceval)
             }
@@ -1836,7 +1891,7 @@ efm = function(envirfile=NULL) {
   }
 
   #helpfunction ran when call MCMC
-  doMCMC <- function(mleobj,returnPostLogL=FALSE,showValid=TRUE) { 
+  doMCMC <- function(mleobj,showValid=TRUE) { 
      optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
      #optint <- get("optINT",envir=mmTK) #get boundaries
      if(any(is.na(mleobj$fit$thetaSigma))) return();
@@ -1845,8 +1900,9 @@ efm = function(envirfile=NULL) {
 #     mcmcfit <- contLikMCMC(mleobj,uppermu=optint$maxmu,uppersigma=optint$maxsigma,upperxi=optint$maxxi,optlist$niter,optlist$delta)
      mcmcfit <- contLikMCMC(mleobj,optlist$niter,optlist$delta)
      print(paste0("Sampling acceptance rate=",round(mcmcfit$accrat,2),". This should be around 0.2"))
+     print(paste0("Estimation of the marginalized likelihood=",mcmcfit$margL))
      if(showValid) validMCMC(mcmcfit,acf=FALSE) #don't plot acf
-     if(returnPostLogL) return(mcmcfit$postlogL)
+     return(mcmcfit)
   }
 
   #Simulating LR over the parameter space
@@ -1854,13 +1910,15 @@ efm = function(envirfile=NULL) {
      optlist <- get("optMCMC",envir=mmTK)  #options for MCMC 
      if(any(is.na(mlehp$fit$phiSigma)) || any(is.na(mlehd$fit$phiSigma)) ) return();
      print("Sampling under Hp...")
-     hplogL <- doMCMC(mlehp,returnPostLogL=TRUE,showValid=FALSE)
+     hpmcmc <- doMCMC(mlehp,showValid=FALSE)
+     hplogL <- hpmcmc$postlogL
      dp <- density(hplogL/log(10))
      layout(matrix(c(1,3,2,3), 2, 2, byrow = FALSE))
      plot(dp,xlab="log10 P(E|Hp)",ylab="distr",main="Sensitivity under Hp")
      abline(v=mlehp$fit$loglik/log(10),lty=2)
      print("Sampling under Hd...")
-     hdlogL <- doMCMC(mlehd,returnPostLogL=TRUE,showValid=FALSE)
+     hdmcmc <- doMCMC(mlehd,showValid=FALSE)
+     hdlogL <- hdmcmc$postlogL
      dd <- density(hdlogL/log(10))
      plot(dd,xlab="log10 P(E|Hd)",ylab="distr",main="Sensitivity under Hd")
      abline(v=mlehd$fit$loglik/log(10),lty=2)
@@ -1869,6 +1927,8 @@ efm = function(envirfile=NULL) {
      plot(d,xlab="log10 LR",ylab="log10LR distr",main="Sensitivity of LR")
      abline(v=(mlehp$fit$loglik - mlehd$fit$loglik)/log(10),lty=2)
      #lines(d$x, dnorm(d$x,mean=mean(log10LR),sd=sd(log10LR)),lty=2,col="gray")
+     print(paste0("Estimation of the Bayesian LR=",hpmcmc$margL/hdmcmc$margL))
+     print(paste0("Estimation of the Bayesian log10LR=",log10(hpmcmc$margL/hdmcmc$margL)))
      qqs <- c(0.01,0.025,0.05,0.25,0.5,0.75,0.95,0.975,0.99)
      LRqq <- quantile(log10LR,qqs)
      print(LRqq)
@@ -1915,6 +1975,7 @@ efm = function(envirfile=NULL) {
        }
      }
      print(paste0("Optimizing ",sum(!hpZero)," likelihood values..."))
+     Lhd <- numeric()
      for(m in 1:ntippet) { #for each random individual from the population
        if(!hpZero[m]) {
         for(loc in locs)  refData[[loc]][[tipind]] <-  Gsim[[loc]][m,]
@@ -1926,8 +1987,8 @@ efm = function(envirfile=NULL) {
         } else { #calculate based on INT
          bhp <- getboundary(mod$nC_hp,par$xi) #get boundaries under hp
          bhd <- getboundary(mod$nC_hd,par$xi) #get boundaries under hd
-         Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)$margL 
-         if(par$fst>0 || m==1) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scale=scaleINT)$margL
+         Lhp <- contLikINT(mod$nC_hp, set$samples, set$popFreqQ, bhp$lower, bhp$upper, refData, mod$condOrder_hp, mod$knownref_hp, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scaleINT,maxEval=opt$maxeval)$margL 
+         if(par$fst>0 || length(Lhd)==0 ) Lhd <- contLikINT(mod$nC_hd, set$samples, set$popFreqQ, bhd$lower, bhd$upper, refData, mod$condOrder_hd, mod$knownref_hd, par$xi, par$prC, opt$reltol, par$threshT, par$fst, par$lambda, par$pXi,par$kit,scaleINT,maxEval=opt$maxeval)$margL
          RMLR[m] <- log10(Lhp) - log10(Lhd)
        }
       }
@@ -2076,7 +2137,7 @@ efm = function(envirfile=NULL) {
        tabmleC3[i,2] =  glabel(text=format(LRi[i],digits=dec),container=tabmleC3)
       }
      }
-     tabmleD[2,1] <- gbutton(text="Continuous LR\n(Integrated Likelihood based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
+     tabmleD[2,1] <- gbutton(text="Continuous LR\n(Bayesian based)",container=tabmleD,handler=function(h,...) { doINT("EVID") } ) 
      tabmleD[3,1] <- gbutton(text="LR sensitivity",container=tabmleD,handler=function(h,...) { simLR(mlefit_hp,mlefit_hd) } ) 
      tabmleE[2,1] <- gbutton(text="Only LR results",container=tabmleE,handler=f_savetableEVID)
  

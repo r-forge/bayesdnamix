@@ -66,7 +66,8 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
   dlist[[loc]] <- dvec[rank] 
 
   if(is.null(dim(combGind))) { #threat the case of one unknown
-   GClist[[loc]] <- as.matrix(combGind[rank]) 
+   GClist[[loc]] <- as.matrix(combGind) 
+   if(nU>1) GClist[[loc]] <- t(GClist[[loc]]) #transpose matrix to make only one row
   } else {
    GClist[[loc]] <- combGind[rank,]
   }

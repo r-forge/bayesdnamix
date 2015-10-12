@@ -52,7 +52,7 @@ if(is.null(model$xi)) { #stutter is unknown
    print("Wrong kit specified.")
   }
 
-  cumprobi <- numeric()
+  cumprobi <- avec <- numeric()
   locvec <- dyevec <- numeric()
   for(loc in locs) { #traverse for each locus
    samples <- lapply(model$samples,function(x) x[loc])
@@ -60,6 +60,7 @@ if(is.null(model$xi)) { #stutter is unknown
    Yupper <- ret$obsY  #observed peak heights is upper limit in integral
    n <- length(Yupper) #number of observed peak heights 
    if(n==0) next #skip if none observed
+   avec <- c(avec,unlist(lapply(samples,function(x) x[[loc]]$adata)) )
    for(j in 1:n) {
     ret$obsY <- Yupper #reset observations
     num <- integrate(Vectorize(likYtheta),lower=minY,upper=Yupper[j])[[1]]
@@ -75,6 +76,9 @@ if(is.null(model$xi)) { #stutter is unknown
     dyevec <- c(dyevec,dye) 
    }
   }
+  alpha2 <- 0.05/length(cumprobi) #0.05 significanse level with bonferroni correction
+  print(cbind(dyevec,locvec,avec,cumprobi)[cumprobi<(alpha2/2) | cumprobi>(1-alpha2/2),]) #two sided check
+  
   N <- length(cumprobi)
   cumunif <-  punif((1:N)-0.5,0,N)
   locind <- sapply(locvec,function(x) which(x==locs))

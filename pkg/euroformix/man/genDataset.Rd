@@ -6,7 +6,7 @@
 \usage{
 genDataset(nC, popFreq, mu = 1000, sigma = 0.1, sorted = FALSE,
   threshT = 50, refData = NULL, mx = NULL, nrep = 1, stutt = 0,
-  prC = 0, lambda = 0)
+  prC = 0, lambda = 0, beta = 1, kit = NULL)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -30,6 +30,12 @@ genDataset(nC, popFreq, mu = 1000, sigma = 0.1, sorted = FALSE,
 \item{stutt}{A numerical stutter ratio (one ahead). Default is 0.}
 
 \item{prC}{A numerical dropin probability. Default is 0.}
+
+\item{lambda}{The rate parameter in the exponential distribution for simulating drop-in peak heights. Default is 0.}
+
+\item{beta}{The degradation slope parameter used for simulating degradation trend (requires valid kit to be specified). Default is 1.}
+
+\item{kit}{shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}}
 }
 \value{
 List with elements theta,samples,refData where theta is the true parameters of the model. samples is a list with samples which for each samples has locus-list elements with list elements adata and hdata

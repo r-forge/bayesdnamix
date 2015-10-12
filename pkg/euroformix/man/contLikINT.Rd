@@ -7,7 +7,7 @@
 contLikINT(nC, samples, popFreq, lower, upper, refData = NULL,
   condOrder = NULL, knownRef = NULL, xi = NULL, prC = 0,
   reltol = 0.01, threshT = 50, fst = 0, lambda = 0, pXi = function(x)
-  1, kit = NULL, scale = 0)
+  1, kit = NULL, scale = 0, maxEval = 0)
 }
 \arguments{
 \item{nC}{Number of contributors in model.}
@@ -43,6 +43,8 @@ contLikINT(nC, samples, popFreq, lower, upper, refData = NULL,
 \item{kit}{shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}}
 
 \item{scale}{used to make integrale calculateable for small numbers. For scale!=0, integrale must be scaled afterwards with exp(-scale) to be correct.}
+
+\item{maxEval}{Maximum number of evaluations in the adaptIntegrate function. Default is 0 which gives an infinite limit.}
 }
 \value{
 ret A list(margL,deviation,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, deviation is the confidence-interval of margL, nEvals is number of evaluations.

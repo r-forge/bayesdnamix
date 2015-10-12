@@ -18,7 +18,7 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
  #popFreq - population frequencies for each loci
  
  #prC - drop-in probability
- primtall = c(2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 
+ primtall = as.integer(c(2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 
         41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 
         103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 
         163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 
@@ -125,8 +125,7 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
         7649, 7669, 7673, 7681, 7687, 7691, 7699, 7703, 7717, 
         7723, 7727, 7741, 7753, 7757, 7759, 7789, 7793, 7817, 
         7823, 7829, 7841, 7853, 7867, 7873, 7877, 7879, 7883, 
-        7901, 7907, 7919)
-
+        7901, 7907, 7919))
  pos = ceiling(log(1e-16)/log(prC))
  refvec <- list()
  locs <- names(popFreq) #loci to consider
@@ -148,7 +147,7 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
 
  #import LR-models elements
  prC_vec =  1-prC/(1-prC)
- if(pos>0) prC_vec <- c(prC_vec,prC^c(1:pos)) #dropout probabilities
+ if(pos>0) prC_vec <- c(prC_vec,prC^c(1:pos)) #dropin probabilities
 
  #Uknown numbers under hyps
  done<-FALSE
@@ -164,14 +163,13 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
    freqN = as.numeric(names(freq))
 
    HRef = t(matrix(as.numeric(rep(refvec[[loc]],M)),ncol=M))
-   HA = cbind(HRef,matrix(sample(freqN,2*M*uH[i],freq,replace=TRUE),nrow=M))
+   HA2 <- HA <- cbind(HRef,matrix(sample(freqN,2*M*uH[i],freq,replace=TRUE),nrow=M))
+   for(j in 1:length(freqN))  HA[HA2==freqN[j]] = primtall[j]    #rename with primenumbers
 
    #generate dropout:
    Z_h = matrix(runif(M*ncol(HA)),ncol=ncol(HA)) #get Z uniform samples
    Z_h = Z_h < prDvec #TRUE if dropped out
 
-   #rename with primenumbers
-   for(j in 1:length(freqN))  HA[HA==freqN[j]] = primtall[j]
 
    #Let droppouts get primenumber=1. These are always equal something
    for(j in 1:ncol(HA))  HA[ Z_h[,j] ,j] = 1
@@ -181,7 +179,7 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
    HA_tmp = HA[,1]
    cc_H = as.numeric(HA_tmp!=1) # counter: Don't count if dropout(equal 1)
    for(j in 2:ncol(HA)) { 
-    equal = HA_tmp%%HA[,j]==0 | HA[,j]==1 #check if next primer is in product
+    equal = HA_tmp%%HA[,j]==0 #| HA[,j]==1 #check if next primer is in product (not a new unique number)
     cc_H[!equal] = cc_H[!equal] + 1 #add to counter if not equal
     HA_tmp[!equal] = HA_tmp[!equal]*HA[!equal,j] #get product of primes
    }
@@ -215,6 +213,5 @@ simDOdistr= function(totA,nC,popFreq,refData=NULL,M=1e3,minS=2000,prC=0) {
   if(length(cPrD_dist)==0) return(cPrD_dist) #return if no samples was found in first iteration
   if(length(cPrD_dist)>=minS) done = TRUE
  } #end while
- return( cPrD_dist )
+ return( cPrD_dist ) # mean(cPrD_dist)
 }
-

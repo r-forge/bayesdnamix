@@ -101,10 +101,10 @@ contLikMCMC = function(mlefit,niter=1e4,delta=10,maxxi=1) {
   #plot(logpX,ty="l")
   margL <- 1/mean(exp(logpX - postlogL)) #estimated marginal likelihood
  }
- nU <- nC-ret$nK #number of unknowns
- if(nU>1) { #if more than 1 unknown 
-  margL <- factorial(nU)*margL #get correct ML adjusting for symmetry
- } #end method
+# nU <- nC-ret$nK #number of unknowns
+# if(nU>1) { #if more than 1 unknown 
+#  margL <- factorial(nU)*margL #get correct ML adjusting for symmetry
+# } #end method
  colnames(postth) <- varnames  #save variable names
   return(list(margL=margL,posttheta=postth,postlogL=postlogL,logpX=logpX,accrat=accrat,MLE=mlefit$fit$thetahat,Sigma=mlefit$fit$thetaSigma))
 } #end function

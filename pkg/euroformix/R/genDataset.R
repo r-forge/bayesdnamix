@@ -14,12 +14,15 @@
 #' @param nrep Number of peak height replicates (same contributors) to generate. Default is 1.
 #' @param stutt A numerical stutter ratio (one ahead). Default is 0.
 #' @param prC A numerical dropin probability. Default is 0.
+#' @param lambda The rate parameter in the exponential distribution for simulating drop-in peak heights. Default is 0.
+#' @param beta The degradation slope parameter used for simulating degradation trend (requires valid kit to be specified). Default is 1.
+#' @param kit shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
 #' @return List with elements theta,samples,refData where theta is the true parameters of the model. samples is a list with samples which for each samples has locus-list elements with list elements adata and hdata
 #' @export
 
-genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refData=NULL,mx=NULL,nrep=1,stutt=0,prC=0,lambda=0) {
+genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refData=NULL,mx=NULL,nrep=1,stutt=0,prC=0,lambda=0,beta=1,kit=NULL) {
   if(threshT < 0) stop("Threshold must be positive!")
-  if(mu<0 || sigma<0) stop("Parameters must be positive!")
+  if(mu<0 || beta<0|| sigma<0) stop("Parameters must be positive!")
   if(nC<1 || round(nC)!=nC) stop("Number of contributors must be a positive whole number!")
   if(stutt<0 || stutt>1) stop("Stutter ratio must be between 0 and 1!")
   if(prC<0 || prC>1) stop("Dropin probability must be between 0 and 1!")
@@ -37,6 +40,13 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
   mx <- c(mx)
   if(is.null(refData )) refData <- list() 
 
+  #get kit-info
+  kitinfo <- NULL
+  if(!is.null(kit)) kitinfo <- getKit(kit) #get kitinfo
+  if(length(kitinfo)==1) {
+   print("Wrong kit specified. No degradation will be applied.")
+  }
+
   #convert to gamma-parameters
   rho <- 1/(sigma^2)
   tau <- mu/rho
@@ -47,7 +57,8 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
    mixData <- list()
    nDropout <- nDropin <- nStutter <- rep(NA,nL) #counts dropout/dropin/stutters
 
-   for(loc in locs) {
+   for(loc in locs) { 
+#loc=locs[16]
     if( is.null(refData[[loc]])) refData[[loc]] <- list()     
     nR <- length(refData[[loc]])
     mixA <- unlist(refData[[loc]]) #vectorize
@@ -61,13 +72,28 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
     }
     mixH = c(t(replicate(2,mx)))
     agg=aggregate(mixH,by=list(mixA),sum) #aggregate contributions
-    mixH <- rgamma(length(agg$x),shape=rho*agg$x,scale=tau) #shape/scale given. Must be an integer!
-    mixA <- agg$Group
+    mixA <- agg[,1]
+    nA <- length(mixA) #number of alleles
+    degscale <- 1 #default is no degradation scale
+    if(length(kitinfo)>1) {
+     locind <- toupper(kitinfo$Marker)==loc
+     bp <- numeric()
+     for(allel in mixA) { #for each allele
+      bind <- which(locind & kitinfo$Allele==allel )
+      if(length(bind)==0) { #if missing alleles in kitinfo
+       close <- which.min(abs(as.numeric(allel) - as.numeric(kitinfo$Allele[locind])))
+       bind <- which(locind)[close]
+      } 
+      bp <- c(bp,kitinfo$Size[bind]) #get fragment length
+     }
+     degscale = beta^((bp-125)/100) #note: must be same as in prepareC-function
+    }
+    mixH <- rgamma(length(agg$x),shape=rho*agg$x*degscale,scale=tau) #shape/scale given. Must be an integer!
     if(stutt>0) { #include stutter
-     mixA2 <- c(agg$Group,(as.numeric(agg$Group)-1)) #stutter positions
+     mixA2 <- c(agg[,1],(as.numeric(agg[,1])-1)) #stutter positions
      mixH2 <- c((1-stutt)*mixH,stutt*mixH)
      agg2=aggregate(mixH2,by=list(mixA2),sum) #aggregate stutter peaks
-     mixA <- agg2$Group
+     mixA <- agg2[,1]
      mixH <- agg2$x
     }
     pos <- ceiling(log(1e-16)/log(prC))
@@ -81,7 +107,7 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
       mixH2 <- c(mixH,DIH)
       mixA2 <- c(mixA,DIA)
       agg2=aggregate(mixH2,by=list(mixA2),sum) #aggregate dropped in alleles
-      mixA <- agg2$Group
+      mixA <- agg2[,1]
       mixH <- agg2$x
      }
     }
@@ -93,7 +119,7 @@ genDataset = function(nC,popFreq,mu=1000,sigma=0.1,sorted=FALSE,threshT=50,refDa
   } #end for each rep
   names(samples) <- paste0("sample",1:nrep)
   names(refData) <- locs
-  return(list(theta=list(mx=mx,rho=rho,tau=tau),samples=samples,refData=refData))
+  return(list(theta=list(mx=mx,rho=rho,tau=tau,beta=beta),samples=samples,refData=refData))
 }
 
 

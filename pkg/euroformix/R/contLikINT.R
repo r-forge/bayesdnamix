@@ -23,13 +23,15 @@
 #' @param pXi Prior function for xi-parameter (stutter). Flat prior on [0,1] is default.
 #' @param kit shortname of kit: {"ESX17","ESI17","ESI17Fast","ESX17Fast","Y23","Identifiler","NGM","ESSPlex","ESSplexSE","NGMSElect","SGMPlus","ESX16", "Fusion","GlobalFiler"}
 #' @param scale used to make integrale calculateable for small numbers. For scale!=0, integrale must be scaled afterwards with exp(-scale) to be correct.
+#' @param maxEval Maximum number of evaluations in the adaptIntegrate function. Default is 0 which gives an infinite limit.
 #' @return ret A list(margL,deviation,nEvals) where margL is Marginalized likelihood for hypothesis (model) given observed evidence, deviation is the confidence-interval of margL, nEvals is number of evaluations.
 #' @export 
 #' @references Hahn,T. (2005). CUBA - a library for multidimensional numerical integration. Computer Physics Communications, 168(2),78-95.
 #' @keywords continuous, Bayesian models, Marginalized Likelihood estimation
 
 
-contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.01,threshT=50,fst=0,lambda=0,pXi=function(x)1,kit=NULL,scale=0){
+contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL,knownRef=NULL,xi=NULL,prC=0,reltol=0.01,threshT=50,fst=0,lambda=0,pXi=function(x)1,kit=NULL,scale=0,maxEval=0){
+ if(is.null(maxEval)) maxEval <- 0
  require(cubature) 
  if(length(lower)!=length(upper)) stop("Length of integral limits differs")
  np2 <- np <- nC + 2 + sum(is.null(xi)) #number of unknown parameters
@@ -62,17 +64,66 @@ contLikINT = function(nC,samples,popFreq,lower,upper,refData=NULL,condOrder=NULL
   return(expCval) #weight with prior of tau and stutter.
  }
  nU <- nC-ret$nK #number of unknowns
- bisectMx <- (nC==2 && nU==2) #if exact 2 unknown contributors in the hypothesis
- if(bisectMx) lower[1] <- 0.5 #restrict outcome of mixture proportions
- foo <- adaptIntegrate(liktheta, lowerLimit = lower , upperLimit = upper , tol = reltol)
+ if(nC==2 && nU==2) {
+  lower[1] <- max(1/2,lower[1]) #restrict to 1/2-size
+ }
+ if(nC==3 && nU==3) { #restrict to 1/6-size
+  lower[1] <-  max(1/3,lower[1])
+  upper[2] <- min(1/2,upper[2])
+ }
+ if(nC==4 && nU==4) { #restrict to 1/12-size
+  lower[1] <- max(1/4,lower[1])
+  upper[2] <- min(1/2,upper[2])
+  upper[3] <- min(1/3,upper[3])
+ }
+ if(nC==4 && nU==3) { #restrict to 1/2-size
+  upper[3] <- min(1/2,upper[3])
+ }
+ if(nC==5 && nU==5) { #restrict to 1/20-size
+  lower[1] <- max(1/5,lower[1])
+  upper[2] <- min(1/2,upper[2])
+  upper[3] <- min(1/3,upper[3])
+  upper[4] <- min(1/4,upper[4])
+ }
+ if(nC==5 && nU==4) { #restrict to 1/3-size
+  upper[3] <- min(1/2,upper[3])
+  upper[4] <- min(1/3,upper[4])
+ }
+ if(nC==5 && nU==3) { #restrict to 1/2-size
+  upper[4] <- min(1/2,upper[4])
+ }
+ if(nC==6 && nU==6) { #restrict to 1/25-size
+  lower[1] <- max(1/5,lower[1])
+  upper[2] <- min(1/2,upper[2])
+  upper[3] <- min(1/3,upper[3])
+  upper[4] <- min(1/4,upper[4])
+  upper[5] <- min(1/5,upper[5])
+ }
+ if(nC==6 && nU==5) { #restrict to 1/4-size
+  upper[3] <- min(1/2,upper[3])
+  upper[4] <- min(1/3,upper[4])
+  upper[5] <- min(1/4,upper[5])
+ }
+ if(nC==6 && nU==4) { #restrict to 1/3-size
+  upper[4] <- min(1/2,upper[4])
+  upper[5] <- min(1/3,upper[5])
+ }
+ if(nC==6 && nU==3) { #restrict to 1/2-size
+  upper[5] <- min(1/2,upper[5])
+ }
+
+ #Get number of combinations which are used to scale the integral (cause of calculating symmetries):
+ comb <- 1
+ if(nC>1) {
+   comb2 <- rep(1,nC-1) - (upper[1:(nC-1)]-lower[1:(nC-1)])
+   comb <- round(1/prod(comb2[comb2>0]))
+ }
+ foo <- adaptIntegrate(liktheta, lowerLimit = lower , upperLimit = upper , tol = reltol, maxEval=maxEval)#10000)
  val <- foo$integral
  dev <- val + c(-1,1)*foo$error
  nEvals <- foo[[3]]
- if(nU>1) { #if more than 1 unknown 
-  comb <- factorial(nU)
-  val <- comb*val
-  dev <- comb*dev
- }
+ val <- comb*val
+ dev <- comb*dev
  return(list(margL=val,deviation=dev,nEvals=nEvals))
 }
 

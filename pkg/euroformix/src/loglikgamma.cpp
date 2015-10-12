@@ -329,16 +329,6 @@ void loglikgammaC(double *logPE, double *theta, int *np,int *nC, int *nK, int *n
    mvec.at(*nC-1) = 1-cs;  //restrict last mix-prop as 1- sum of the others
   }
  }
- if(doCalc) { //restrict unknowns with decreases order of mx: Makes calculation faster
-  if((*nC-*nK)>1) { //if more than 2 unknowns.
-   for(i=(*nK+1); i<*nC; i++) { //check for each unknown
-    if( mvec.at(i)>mvec.at(i-1)) {  //restrict unknowns to have decreasing sorted order of mx
-     doCalc = false;
- 	 break; //stop and return
-    }
-   }
-  } 
- }
  if(doCalc) { //if calculating loglik
   if(*isPhi==1) { //make transformation back to mu,sigma,beta first!
    theta[*nC-1] = exp(theta[*nC-1]);  //mu

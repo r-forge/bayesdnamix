@@ -54,14 +54,6 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
 	# Default marker spacing in base pairs:
 	defaultMarkerSpacing <- 100
 
-	# Available letter abreviations for colors:
-	colorLetters <- c("X", "R", "B", "G", "Y")
-
-	# Numeric values corresponding to color abreviations:
-	# NB! There are 8 colors that can be represented by a single number character, palette():
-	# 1="black", 2="red", 3="green3", 4="blue", 5="cyan", 6="magenta", 7="yellow", 8="gray" 
-	colorNumbers <- c(1, 2, 4, 3, 7)
-
 	# GRAPH CONSTANTS:
 	
 	# Graph title:
@@ -132,7 +124,7 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
 
 			# Dye for each marker/locus
 			dyeVectorKit <- rangetab[,2] 
-                  dyeVectorKit <- toupper(substr(dyeVectorKit, 1, 1)) #Convert!
+                  #dyeVectorKit <- #toupper(substr(dyeVectorKit, 1, 1)) #Convert!
 
 			#Base pair start offset for each marker.
 			offsetVectorKit <- unittab[,2]
@@ -177,7 +169,7 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
 			dyeVector <- dyeVectorKit
 		} else {
 			# No dye vector is specified. Use default color.
-			dyeVector <- rep("X", length(alleleList))
+			dyeVector <- rep("black", length(alleleList))
 		}
 	} else {
 		if (kitFound) {
@@ -257,18 +249,9 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
 	# PREPARE PARAMETERS
 
 	# Convert dye vector to numeric vector.
-	colorVector <- colorNumbers[match(dyeVector, colorLetters)]
-	
-	# Get number of colors.
-#	noColors <- nlevels(factor(dyeVector))  #removed ØB
-
-	# Get colors
-#	colors <- levels(factor(dyeVector))#removed ØB
-#	colors <- colorNumbers[match(colors, colorLetters)]#removed ØB
+	colorVector <- dyeVector
 	colors <- unique(colorVector)  #added ØB
-      noColors <-  length(colors) #added ØB
-
-
+        noColors <-  length(colors) #added ØB
 
 	# INITIATE VARIABLES
 
@@ -471,7 +454,7 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
 			xCords <- c(bpVector[peak] - peakHalfWidth, bpVector[peak], bpVector[peak] + peakHalfWidth)
 			yCords <- c(0, lapply(phList[peak],mean), 0)
 			# Plot peaks as filled polygons.
-			polygon(xCords, yCords, col = colors[color])
+			polygon(xCords, yCords, col = tolower(as.character(colors[color])))
 			}
 		}
 	}
@@ -534,7 +517,7 @@ plotEPG <- function(Data,kitname,sname="",threshT=0,refcond=NULL) {
       #Insert missing loci:
       missloc <- kitlocs[!kitlocs%in%locs] #get missing loci
       for(loc in missloc) {
-       	adata[loc] = "" 
+        adata[loc] = "" 
         hdata[loc] = 1e-6 #default is binary signal (below detection threshold)
         if(!is.null(refcond)) cdata[loc] = ""
       }
