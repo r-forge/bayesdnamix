@@ -32,7 +32,6 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
  } else {
   if(nodeg) theta <- c(theta,theta2[np])
  }
-
  #Using information in ret to try out different genotypes:
 
  #Step 1) Calculate L(E|g,thetahat) for each marker
@@ -66,8 +65,8 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
   dlist[[loc]] <- dvec[rank] 
 
   if(is.null(dim(combGind))) { #threat the case of one unknown
-   GClist[[loc]] <- as.matrix(combGind) 
-   if(nU>1) GClist[[loc]] <- t(GClist[[loc]]) #transpose matrix to make only one row
+   if(nU==1) GClist[[loc]] <- as.matrix(combGind[rank]) #it's a vector because of only 1 unknown
+   if(nU>1) GClist[[loc]] <- t(GClist[[loc]]) #It's a vector because of only 1 combination
   } else {
    GClist[[loc]] <- combGind[rank,]
   }

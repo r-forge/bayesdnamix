@@ -101,6 +101,8 @@ efm = function(envirfile=NULL) {
  ####################################
  prim = c(2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113, 127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263, 269,271,277,281,283,293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421, 431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,563,569,571,577,587,593, 599,601,607,613,617,619,631,641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,757, 761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,941, 947,953,967,971,977,983,991,997,1009,1013,1019,1021,1031,1033,1039,1049,1051,1061,1063,1069,1087,1091,1093, 1097,1103,1109,1117,1123,1129,1151,1153,1163,1171,1181,1187,1193,1201,1213,1217,1223,1229,1231,1237,1249, 1259,1277,1279,1283,1289,1291,1297,1301,1303,1307,1319,1321,1327,1361,1367,1373,1381,1399,1409,1423,1427, 1429,1433,1439,1447,1451,1453,1459,1471,1481,1483,1487,1489,1493,1499,1511,1523,1531,1543,1549) 
 
+ helptext = function(obj,txt) { addHandlerRightclick(obj,handler=function(h,...) { gmessage(txt,title="Detailed information") }) }
+
  #helpfunction to return minimum frequency (used for new alleles)
  getminFreq = function() {
   popFreq <- get("popFreq",envir=mmTK) #get selected popFreq
@@ -1096,6 +1098,8 @@ if(0) {
  tabimportB2 = glabel("",container=tabimport) #evidence,ref dataframe
  tabimportC = glayout(spacing=20,container=gframe("Step 3) Select Interpretation",container=tabimport)) #Tasks button
 
+ 
+
  #Choose box and import button
  tabimportA[1,1] = gbutton(text="1) Select directory\n(with frequency files)",container=tabimportA,handler=
   function(h,...) {
@@ -1103,6 +1107,8 @@ if(0) {
    if(!is.na(dirfile)) assign("freqfolder",dirfile,envir=mmTK) #assign freqfolder
   }
  )
+ helptext(tabimportA[1,1],"Chooses the directory which must contain frequency files only. \n\nThe format of the files must be 'kitname_population'. Use getKit() to see available kitnames.")
+
  tabimportA[1,2] = gbutton(text="2) Import from directory\n(with frequency files)",container=tabimportA,handler=
   function(h,...) {
    loadKitList(freqpath=get("freqfolder",envir=mmTK))
@@ -1110,6 +1116,8 @@ if(0) {
    tabimportA[3,1][] <- names(kitList)
   }
  ) 
+ helptext(tabimportA[1,2],paste0("Imports the data from the frequency files (from selected directory) into the software. \n\nThe selected directory is now:'",get("freqfolder",dirfile,envir=mmTK),"'"))
+
  tabimportA[2,1] <- glabel(text="Select kit:",container=tabimportA)
  tabimportA[2,2] <- glabel(text="Select population:",container=tabimportA)
 
@@ -1144,26 +1152,35 @@ if(0) {
   tabimportA[3,2][] <- popkitname[2]
  }
  tabimportA[2,3] <-  gbutton(text="View frequencies",container=tabimportA,handler=f_viewdata,action="freq")  #view popFreq-data
+ helptext(tabimportA[2,3],"Shows the selected population frequencies from the drop-down menu. \n\nIf evidence(s) is selected, the probability for a random profile to have more than k number of allele matches to the sample is given in a plot.")
 
  #Choose box and import button
  tabimportB[1,1] = gbutton(text="Import evidence",container=tabimportB,handler=f_importprof,action="mix")
  tabimportB[2,1] = gcheckboxgroup(items="", container = tabimportB)
  tabimportB[2,1][] = restoreCheckbox("mix")
+ helptext(tabimportB[1,1],"Imports sample profile(s) from a selected file into the software. \n\nThe column names must contain 'sample..', 'marker', 'allele..'. Optional: 'height..'")
 
  #Choose box and import button
  tabimportB[1,2] = gbutton(text="Import reference",container=tabimportB,handler=f_importprof,action="ref")
  tabimportB[2,2] = gcheckboxgroup(items="", container = tabimportB)
  tabimportB[2,2][] = restoreCheckbox("ref")
+ helptext(tabimportB[1,2],"Imports reference profile(s) from a selected file into the software. \n\nThe column names must contain 'sample..', 'marker', 'allele..'.")
 
  #Choose box and import button
  tabimportB[1,3] = gbutton(text="Import database",container=tabimportB,handler=f_importprof,action="db")
  tabimportB[2,3] = gcheckboxgroup(items="", container = tabimportB)
  tabimportB[2,3][] = restoreCheckbox("db")
+ helptext(tabimportB[1,3],"Imports reference profile(s) from a selected file into the software. \n\nThe column names must contain 'sample..', 'marker', 'allele..'.")
 
  #view data:
  tabimportB[3,1] = gbutton(text="View evidence",container=tabimportB,handler=f_viewdata,action="mix")
+ helptext(tabimportB[3,1],"Shows the data in the selected evidence(s) both in terminal and in an epg-like plot. \n\nIf selected kit is recognized by the software and peak heights are imported, the sum of the peak heights per marker are fitted against fragment length assuming a gamma-model. \n\nThe p-value for an extreme marker is based on the fitted model when leaving out the marker.")
+
  tabimportB[3,2] = gbutton(text="View references",container=tabimportB,handler=f_viewdata,action="ref")
+ helptext(tabimportB[3,2],"Shows the allele data for each selected reference(s). \n\nShows number of alleles for selected references matching against selected evidence(s).")
+
  tabimportB[3,3] = gbutton(text="View database",container=tabimportB,handler=f_viewdata,action="db")
+ helptext(tabimportB[3,3],"Shows the allele data for each reference(s) in selected database(s). \n\nShows number of alleles for each references in selected database(s) matching against selected evidence(s).")
 
  #helpfunction used to extract selected importdata-elements to further model-setup
  selectDataToModel <- function(h,....) {
@@ -1194,9 +1211,16 @@ if(0) {
 
  #Button-choices further:
  tabimportC[1,1] = gbutton(text="Generate sample",container=tabimportC,handler=selectDataToModel,action="GEN")
+ helptext(tabimportC[1,1],"A module for generating alleles based on selected population frequencies and corresponding peak heights based on the gamma-model.")
+
  tabimportC[1,2] = gbutton(text="Deconvolution",container=tabimportC,handler=selectDataToModel,action="DC")
+ helptext(tabimportC[1,2],"A module for ranking the most likely profiles of the unknown contributors for selected sample(s) (treated as replicates).\n\nThe user will first need to fit a gamma-model based on maximum likelihood estimation.")
+
  tabimportC[1,3] = gbutton(text="Weight-of-Evidence",container=tabimportC,handler=selectDataToModel,action="EVID")
+ helptext(tabimportC[1,3],"A module for calculating the Likelihood Ratio for selected sample(s) (treated as replicates). \n\nSelected reference(s) can later be conditioned on in the hypotheses.")
+
  tabimportC[1,4] = gbutton(text="Database search",container=tabimportC,handler=selectDataToModel,action="DB")
+ helptext(tabimportC[1,4],"A module for calculating the Likelihood Ratio for selected sample(s) (treated as replicates) for each profile(s) in the selected database(s). \n\nSelected reference(s) can later be conditioned on in the hypotheses.")
 
 
 ####################################################################################################################
@@ -1255,11 +1279,10 @@ if(0) {
        txt <- paste0("The LR (Bayesian based)\nwas calculated as \nLR=",format(LR,digits=4)," [",format(dev[1],digits=4)," , ",format(dev[2],digits=4),"]\nlog10LR=",format(log10(LR),digits=4)," [",format(log10(dev[1]),digits=4)," , ",format(log10(dev[2]),digits=4),"]")
        cat(txt)
        gmessage(message=txt,title="Continuous LR (Bayesian based)",icon="info")
-#     } 
+     } 
      if(type=="DB") { #Case of DB-search
        doDB("INT") #do database search with integration
      }
-   }
   } #end Integration
 
 
@@ -1927,10 +1950,12 @@ if(0) {
      plot(d,xlab="log10 LR",ylab="log10LR distr",main="Sensitivity of LR")
      abline(v=(mlehp$fit$loglik - mlehd$fit$loglik)/log(10),lty=2)
      #lines(d$x, dnorm(d$x,mean=mean(log10LR),sd=sd(log10LR)),lty=2,col="gray")
-     print(paste0("Estimation of the Bayesian LR=",hpmcmc$margL/hdmcmc$margL))
-     print(paste0("Estimation of the Bayesian log10LR=",log10(hpmcmc$margL/hdmcmc$margL)))
+     print("Estimation of the Bayesian (unrestricted) LR:")
+     print(paste0("LR=",hpmcmc$margL/hdmcmc$margL))
+     print(paste0("log10LR=",log10(hpmcmc$margL/hdmcmc$margL)))
      qqs <- c(0.01,0.025,0.05,0.25,0.5,0.75,0.95,0.975,0.99)
      LRqq <- quantile(log10LR,qqs)
+     print("Quantiles of the LR distributions.")
      print(LRqq)
      abline(v=LRqq[3],col=4,lty=2)
      legend("topright",legend=paste0("5% quantile = ",format(LRqq[3],digits=3)),col=4,lty=2)
