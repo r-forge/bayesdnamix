@@ -65,8 +65,8 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
   dlist[[loc]] <- dvec[rank] 
 
   if(is.null(dim(combGind))) { #threat the case of one unknown
-   if(nU==1) GClist[[loc]] <- as.matrix(combGind[rank]) #it's a vector because of only 1 unknown
-   if(nU>1) GClist[[loc]] <- t(GClist[[loc]]) #It's a vector because of only 1 combination
+   if(nU==1) GClist[[loc]] <- matrix(combGind[rank],ncol=1) #it's a vector because of only 1 unknown
+   if(nU>1) GClist[[loc]] <- matrix(combGind,nrow=1) #it's a vector since it was only 1 possibility
   } else {
    GClist[[loc]] <- combGind[rank,]
   }
@@ -74,6 +74,7 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
 
  #Step 2) Combine markers to create full profiles (this is it's own function):
  loghdval <- mlefit$fit$loglik 
+ #loghdvali <- logLiki(mlefit) #Not necessary: get likelihood for each marker: 
  if(is.null(xi)) loghdval <- loghdval - log(model$pXi(theta2[np])) #reported likval has taken pXi into account
  rankGlist <- combineRank(dlist,loghdval=loghdval,alpha=alpha,maxsearch=maxlist)
  pG <- rankGlist$pG
@@ -85,24 +86,37 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
  #Step 3) Convert rank-list to list with allele-names
  Glist <- getGlist(model$popFreq) #get genotype list with genotypes and corresponding frequencies
  deconvlist <- list()
+ deconvlisti <- list() #list per locus
  for(i in 1:nL) { #convert names for each locus
   rankgeno <- GClist[[locs[i]]][Gset[,i],]
   if(is.null(dim(rankgeno))) rankgeno <- as.matrix(rankgeno) #make matrix again
   rankgenos <- numeric()
+  rankgenos2<- numeric() #added: per locus
   for(k in 1:nC) { #for each contributor
    if(k%in%uind) { #if unknown contributor
-    geno <- Glist[[locs[i]]]$G[rankgeno[,which(k==uind)],] #get allele named genotype
+    geno <- matrix(Glist[[locs[i]]]$G[rankgeno[,which(k==uind)],],ncol=2) #get allele named genotype
+    geno2 <- matrix(Glist[[locs[i]]]$G[GClist[[locs[i]]][,which(k==uind)],],ncol=2) #get allele named genotype
    } else if(!unknownonly) { #if known contributors in addition(they are given in reference) 
     geno <- sort(model$refData[[locs[i]]][[which(model$condOrder==k)]])
     geno <- matrix( rep(geno,nrow(rankgeno)),ncol=2,byrow=TRUE)
+
+    geno2 <- sort(model$refData[[locs[i]]][[which(model$condOrder==k)]])
+    geno2 <- matrix( rep(geno2,nrow(GClist[[locs[i]]])),ncol=2,byrow=TRUE)
    } else {
     next #skip to next contributor
    }
    geno <- paste0(geno[,1],"/",geno[,2])
    rankgenos <- cbind(rankgenos,geno)
+
+   geno2 <- paste0(geno2[,1],"/",geno2[,2])
+   rankgenos2 <- cbind(rankgenos2,geno2)
   }
-  colnames(rankgenos) <- paste0("g",kvec)
+  colnames(rankgenos) <- colnames(rankgenos2) <- paste0("g",kvec)
   deconvlist[[locs[i]]] <- rankgenos 
+
+  #ADDED: create per-locus probabilities. Enough to normalize over all possibilities
+  pGi <- exp(dlist[[locs[i]]])
+  deconvlisti[[locs[i]]] <- cbind(rankgenos2, pGi/sum(pGi))#exp(dlist[[locs[i]]]-loghdvali[i]))
  }
 
  #Step4) Create table layouts:
@@ -112,5 +126,5 @@ deconvolve = function(mlefit,alpha=0.95,maxlist=1000,unknownonly=TRUE){
  }
  table1 <-  cbind(table1,signif(pG,4))
  colnames(table1) <- c(paste0(c(t(replicate(length(kvec),locs))),"_g",kvec),"posterior")
- return(list(table1=table1,rankG=deconvlist,pG=pG))
+ return(list(table1=table1,rankG=deconvlist,rankGi=deconvlisti,pG=pG))
 } #end function

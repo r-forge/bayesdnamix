@@ -29,13 +29,14 @@ efm = function(envirfile=NULL) {
  options(guiToolkit="tcltk")
 
  #version:
- version = 1.5
+ version = 1.6
 
  #v1.0 -> v1.1: More userfriendly names for parameters.
  #v1.1 -> v1.2: Integrals handles very small likelihood values
  #v1.2 -> v1.3: Show quantiles of fitted gamma model on the sum peak heights. Evalidation plots upgraded.
  #v1.3 -> v1.4: 1) Markers (due to sum of the peak heights) which are flagged as extremes are rescaled upon question. 2) Startvalues of MLE based on prefitted model.
  #v1.4 -> v1.5: 1) Replicates possible in Bayesian framework. 2) Max evaluations in Bayesian framework possible to adjust. 3) Degradation model added to genData.
+ #v1.5 -> v1.6: Prints out all probabilities per locus in deconvolution.
 
  #software name:
  softname <- paste0("EuroForMix v",version)
@@ -1904,7 +1905,9 @@ if(0) {
   #helpfunction ran when call deconvolution
   doDC <- function(mleobj) {
      dcopt <- get("optDC",envir=mmTK) #options when Deconvolution
-     DCtable <- deconvolve(mleobj,dcopt$alphaprob,dcopt$maxlist)$table1 #be sure of having ri
+     dcobj <- deconvolve(mleobj,dcopt$alphaprob,dcopt$maxlist) 
+     print(sapply(dcobj$rankGi,function(x) x[1:min(nrow(x),dcopt$maxlist),]))
+     DCtable <- dcobj$table1  #be sure of having ri
      rownames(DCtable) <- 1:nrow(DCtable)
      DCtable<-addRownameTable(DCtable)
      colnames(DCtable)[1] <- "rank"
@@ -2067,10 +2070,10 @@ if(0) {
 #     tabmleX2[3,2] =  glabel(text=format(exp(fit$logmargL),digits=sig),container=tabmleX2)
     }
      if(type=="START") { #loads already calculated results if program starts
-     set <- get("setEVID",envir=mmTK) #get setup for EVID
-     mlefit_hd <- set$mlefit_hd
-     mlefit_hp <- set$mlefit_hp
-     if(is.null(mlefit_hd)) return(); #LR has not been calculated, return out of function!
+      set <- get("setEVID",envir=mmTK) #get setup for EVID
+      mlefit_hd <- set$mlefit_hd
+      mlefit_hp <- set$mlefit_hp
+      if(is.null(mlefit_hd)) return(); #LR has not been calculated, return out of function!
     } else { #otherwise, function was called to make new calculations
      if(type=="EVID") set <- get("setEVID",envir=mmTK) #get setup for EVID
      if(type=="DB") set <- get("setDB",envir=mmTK) #get setup for DB
