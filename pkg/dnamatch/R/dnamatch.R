@@ -4,8 +4,9 @@
 
 #' @title dnamatch
 #' @author Oyvind Bleka <Oyvind.Bleka.at.fhi.no>
-#' @description dnaimport is a function for importing text-files from the lab-software into structure for further processing.
-#' @details dnamatch imports case-stains from Genemapper/Siris automaticly and feeds it into a structure for doing comparison matching.
+#' @description dnamatch is a function for doing contamination search between trace samples (mixtures) and between trace samples and reference samples where the trace samples are selected within a range of time. 
+#' @details dnamatch imports case-stains from genemapper-format automatically and feeds it into a structure for doing comparison matching.
+#' 
 #' Note: Samplenames must have this format: "SID_BID_CID". The samplename must be unique and consist of SID=Sample ID, BID=Unique ID for all samples, CID=Case ID.
 #' 
 #' Timestamp="YY-MM-DD-HH-MM-SS" is used as identification key of when the dnamatch function was run.
