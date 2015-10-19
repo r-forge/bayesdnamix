@@ -1906,7 +1906,7 @@ if(0) {
   doDC <- function(mleobj) {
      dcopt <- get("optDC",envir=mmTK) #options when Deconvolution
      dcobj <- deconvolve(mleobj,dcopt$alphaprob,dcopt$maxlist) 
-     print(sapply(dcobj$rankGi,function(x) x[1:min(nrow(x),dcopt$maxlist),]))
+     print(lapply(dcobj$rankGi,function(x) x[1:min(nrow(x),dcopt$maxlist),]))
      DCtable <- dcobj$table1  #be sure of having ri
      rownames(DCtable) <- 1:nrow(DCtable)
      DCtable<-addRownameTable(DCtable)
